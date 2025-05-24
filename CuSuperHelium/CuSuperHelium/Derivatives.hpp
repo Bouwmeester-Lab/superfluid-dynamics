@@ -55,6 +55,12 @@ private:
 	double* devLinearPartPhi;
 public:
 	ZPhiDerivative();
+	/// <summary>
+	/// Calculates the derivative of Z and Phi.
+	/// </summary>
+	/// <param name="ZPhi">A single dev array containg Z and Phi back to back.</param>
+	/// <param name="ZPhiPrime">A single dev array used as output to contain the derivative of Z and Phi back to back</param>
+	void exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime);
 };
 
 double filterIndexTanh(int m, int N);

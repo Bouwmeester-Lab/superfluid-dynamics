@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include "utilities.cuh"
 #include <iostream>
+#include "constants.cuh"
+#include "ProblemProperties.hpp"
 
 template <int N, int batchSize>
 class FftDerivative 
@@ -45,22 +47,26 @@ class ZPhiDerivative
 {
 private:
 	FftDerivative<N, 2> fftDerivative;
+	FftDerivative<N, 1> singleDerivative;
 	/// <summary>
-	/// Represents an array containing the linear part of Z: 2*pi/N * j
+	/// Represents an array containing the linear part of Z: 2*pi/N * j and the linear part of Phi. -(1+rho)*pi*U/N * j
 	/// </summary>
-	double* devLinearPartZ;
+	double* devLinearPartZPhi;
 	/// <summary>
-	/// Represents an array containing the linear part of Phi. -(1+rho)*ppi*U/N * j
+	/// Holds the periodic Zphi.
 	/// </summary>
-	double* devLinearPartPhi;
+	cufftDoubleComplex* devPeriodicZPhi;
+	ProblemProperties& properties;
 public:
-	ZPhiDerivative();
+	ZPhiDerivative(ProblemProperties& properties);
+	~ZPhiDerivative();
 	/// <summary>
 	/// Calculates the derivative of Z and Phi.
 	/// </summary>
 	/// <param name="ZPhi">A single dev array containg Z and Phi back to back.</param>
 	/// <param name="ZPhiPrime">A single dev array used as output to contain the derivative of Z and Phi back to back</param>
-	void exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime);
+	/// <param name="Zpp">A single dev array of size N used as the output for the double derivative of Z</param>
+	void exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime, cufftDoubleComplex* Zpp);
 };
 
 double filterIndexTanh(int m, int N);
@@ -148,9 +154,45 @@ FftDerivative<N, batchSize>::~FftDerivative()
 }
 
 template<int N>
-inline ZPhiDerivative<N>::ZPhiDerivative()
+inline ZPhiDerivative<N>::ZPhiDerivative(ProblemProperties& properties) : properties(properties)
 {
 	fftDerivative.initialize();
+	singleDerivative.initialize();
+
+	std::array<double, 2 * N> ZPhiLinear;
+	for (int j = 0; j < N; j++) 
+	{
+		ZPhiLinear[j] = 2 * PI_d * (double)j / N;
+		ZPhiLinear[N + j] = -(1 + properties.rho) * PI_d * properties.U / N * (double)j;
+	}
+	// copy the array to the device
+	cudaMalloc(&devLinearPartZPhi, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMemcpy(devLinearPartZPhi, ZPhiLinear.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+
+	cudaMalloc(&devPeriodicZPhi, 2 * N * sizeof(cufftDoubleComplex));
+}
+
+template<int N>
+inline ZPhiDerivative<N>::~ZPhiDerivative()
+{
+	cudaFree(devLinearPartZPhi);
+	cudaFree(devPeriodicZPhi);
+}
+
+template<int N>
+inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime, cufftDoubleComplex* Zpp)
+{
+	const int threads = 256;
+	const int blocks = (N + threads - 1) / threads;
+
+	vector_subtract_complex_real<<< blocks, threads>>>(ZPhi, devLinearPartZPhi, devPeriodicZPhi, 2 * N); 
+	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime);
+	// calculate the double derivative of Z.
+	singleDerivative.exec(ZPhiPrime, Zpp);
+
+	// add the linear part back
+	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 2.0 * PI_d / (double)N, ZPhiPrime, N, 0);
+	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, -(1 + properties.rho) * PI_d * properties.U / N, ZPhiPrime, N, N);
 
 }
 

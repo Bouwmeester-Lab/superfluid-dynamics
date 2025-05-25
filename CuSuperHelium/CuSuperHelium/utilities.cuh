@@ -13,5 +13,25 @@ __global__ void complex_pointwise_mul(
     cufftDoubleComplex* result,
     const int n
 );
+/// <summary>
+/// Substracts two vectors out = Re(a) - b + iIm(a) and stores the result in out.
+/// </summary>
+/// <param name="a">Complex vector</param>
+/// <param name="b">Real part to substract from a.</param>
+/// <param name="out"></param>
+/// <param name="n"></param>
+void vector_subtract_complex_real(const cufftDoubleComplex* a, const double* b, cufftDoubleComplex* out, int n);
+/// <summary>
+/// Element wise addition. It will add b to the real part of a for every element in a.
+/// </summary>
+/// <param name="a"></param>
+/// <param name="b"></param>
+/// <param name="out"></param>
+/// <param name="n"></param>
+void vector_scalar_add_complex_real(const cufftDoubleComplex* a, const double b, cufftDoubleComplex* out, int n, int start);
+cufftDoubleComplex cotangent_complex(cufftDoubleComplex a);
+void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComplex* out, int n);
+void cos(cufftDoubleComplex z, cufftDoubleComplex& out);
+void sin(cufftDoubleComplex z, cufftDoubleComplex& zout);
 
 #endif

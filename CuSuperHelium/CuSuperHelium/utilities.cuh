@@ -6,6 +6,8 @@
 #include <cufft.h>
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include <cusolverDn.h>
+#include <iostream>
 
 __global__ void complex_pointwise_mul(
     const cufftDoubleComplex* a,
@@ -33,5 +35,8 @@ cufftDoubleComplex cotangent_complex(cufftDoubleComplex a);
 void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComplex* out, int n);
 void cos(cufftDoubleComplex z, cufftDoubleComplex& out);
 void sin(cufftDoubleComplex z, cufftDoubleComplex& zout);
+cufftDoubleComplex cMulScalar(double a, cufftDoubleComplex z);
+void checkCuda(cudaError_t result);
+void checkCusolver(cusolverStatus_t status);
 
 #endif

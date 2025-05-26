@@ -1,13 +1,5 @@
 #pragma once
-#include "cuda_runtime.h"
-
-#include "device_launch_parameters.h"
-
-#include <stdio.h>
-//#include <thrust/complex.h>
-#include "constants.cuh"
-#include <cufft.h>
-#include "utilities.cuh"
+#include "createM.cuh"
 
 /// <summary>
 /// Creates the matrix M used in eq. 2.9 from Roberts 1983
@@ -30,7 +22,7 @@ __global__ void createMKernel(double* A, cufftDoubleComplex* ZPhi, cufftDoubleCo
         }
         else 
         {
-            A[indx] = 0.25 * (1 - rho) / PI_d * (cuCmul(ZPhiPrime[k],  cotangent_complex( cuCmul(cuCsub(ZPhi[k], ZPhi[j]), make_cuDoubleComplex(0.5, 0))))).y;
+            A[indx] = 0.25 * (1 - rho) / PI_d * (cuCmul(ZPhiPrime[k],  cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j]))))).y;
         }
     }
 }

@@ -92,7 +92,9 @@
     <CudaCompile Include="utilities.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="createM.cuh" />
     <ClInclude Include="Derivatives.hpp" />
+    <ClInclude Include="MatrixSolver.hpp" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="utilities.cuh" />
   </ItemGroup>

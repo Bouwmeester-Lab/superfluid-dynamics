@@ -75,3 +75,27 @@ __device__ static void sin(cufftDoubleComplex z, cufftDoubleComplex& zout) {
     zout.x = sinh(z.x) * cos(z.y);
     zout.y = cosh(z.x) * sin(z.y);
 }
+
+cufftDoubleComplex cMulScalar(double a, cufftDoubleComplex z)
+{
+    cufftDoubleComplex out(z);
+
+    out.x = a * out.x;
+    out.y = a * out.y;
+
+    return out;
+}
+
+void checkCuda(cudaError_t result) {
+    if (result != cudaSuccess) {
+        std::cerr << "CUDA Error: " << cudaGetErrorString(result) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
+void checkCusolver(cusolverStatus_t status) {
+    if (status != CUSOLVER_STATUS_SUCCESS) {
+        std::cerr << "cuSolver Error" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}

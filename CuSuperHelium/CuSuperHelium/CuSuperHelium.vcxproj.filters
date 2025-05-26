@@ -5,6 +5,8 @@
     <CudaCompile Include="createM.cu">
       <Filter>Water</Filter>
     </CudaCompile>
+    <CudaCompile Include="constants.cuh" />
+    <CudaCompile Include="utilities.cu" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Water">
@@ -24,5 +26,12 @@
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="ProblemProperties.hpp" />
+    <ClInclude Include="utilities.cuh" />
+    <ClInclude Include="createM.cuh">
+      <Filter>Water</Filter>
+    </ClInclude>
+    <ClInclude Include="MatrixSolver.hpp">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

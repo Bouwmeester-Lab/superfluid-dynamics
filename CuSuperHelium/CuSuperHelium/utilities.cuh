@@ -35,6 +35,8 @@ cufftDoubleComplex cotangent_complex(cufftDoubleComplex a);
 void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComplex* out, int n);
 void cos(cufftDoubleComplex z, cufftDoubleComplex& out);
 void sin(cufftDoubleComplex z, cufftDoubleComplex& zout);
+static cufftDoubleComplex fromReal(double a);
+void real_to_complex(const double* x, cuDoubleComplex* x_c, int N);
 cufftDoubleComplex cMulScalar(double a, cufftDoubleComplex z);
 void checkCuda(cudaError_t result);
 void checkCusolver(cusolverStatus_t status);

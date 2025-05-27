@@ -61,3 +61,24 @@ VelocityCalculator::VelocityCalculator()
 {
     cublasCreate(&handle);
 }
+
+VelocityCalculator::~VelocityCalculator()
+{
+	if (handle) {
+		cublasDestroy(handle);
+	}
+}
+
+void VelocityCalculator::calculateVelocities(cufftDoubleComplex* a, cufftDoubleComplex* aprime, cufftDoubleComplex* V1, cufftDoubleComplex* V2, int N, cufftDoubleComplex* velocities)
+{
+	const int threads = 256;
+	const int blocks = (N + threads - 1) / threads;
+
+    // calculate v2*aprime
+	calculateDiagonalVectorMultiplication << <blocks, threads >> > (V2, aprime, velocities, N);
+
+	// calculate V1 * a + v2*aprime
+	const cufftDoubleComplex alpha = make_cuDoubleComplex(1.0, 0.0);
+	const cufftDoubleComplex beta = make_cuDoubleComplex(1.0, 0.0);
+	cublasZgemv(handle, CUBLAS_OP_N, N, N, &alpha, V1, N, a, 1, &beta, velocities, 1);
+}

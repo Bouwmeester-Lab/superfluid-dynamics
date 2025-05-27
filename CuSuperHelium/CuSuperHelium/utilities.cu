@@ -53,6 +53,12 @@ __global__ void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComple
     }
 }
 
+__global__ void real_to_complex(const double* x, cuDoubleComplex* x_c, int N) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N)
+        x_c[idx] = make_cuDoubleComplex(x[idx], 0.0);
+}
+
 __device__ static cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
 {
     
@@ -74,6 +80,14 @@ __device__ static void cos(cufftDoubleComplex z, cufftDoubleComplex& out)
 __device__ static void sin(cufftDoubleComplex z, cufftDoubleComplex& zout) {
     zout.x = sinh(z.x) * cos(z.y);
     zout.y = cosh(z.x) * sin(z.y);
+}
+
+__device__ cufftDoubleComplex fromReal(double a)
+{
+    cufftDoubleComplex out;
+    out.x = a;
+    out.y = 0.0;
+    return out;
 }
 
 cufftDoubleComplex cMulScalar(double a, cufftDoubleComplex z)

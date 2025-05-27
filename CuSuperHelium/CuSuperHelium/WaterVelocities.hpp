@@ -35,5 +35,5 @@ private:
 public:
 	VelocityCalculator();
 	~VelocityCalculator();
-	void calculateVelocities(cufftDoubleComplex* a, cufftDoubleComplex* aprime, cufftDoubleComplex* V1, cufftDoubleComplex* V2, int N);
+	void calculateVelocities(cufftDoubleComplex* a, cufftDoubleComplex* aprime, cufftDoubleComplex* V1, cufftDoubleComplex* V2, int N, cufftDoubleComplex* velocities);
 };

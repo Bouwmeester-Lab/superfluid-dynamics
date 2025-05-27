@@ -86,6 +86,4 @@ inline void MatrixSolver<N>::solve(double* devM, double* devb, double* deva)
 	}
     // Solve: LU * x = b -> a = x
     checkCusolver(cusolverDnDgetrs(handle, CUBLAS_OP_N, N, 1, devM, N, devPivot, deva, N, devInfo)); // Use the matrix as-is (no transpose) CUBLAS_OP_N
-
-    
 }

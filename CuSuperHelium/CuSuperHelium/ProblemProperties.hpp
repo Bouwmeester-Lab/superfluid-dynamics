@@ -4,6 +4,7 @@
 
 struct ProblemProperties
 {
+public:
 	double rho;
 	double U;
 	double kappa;

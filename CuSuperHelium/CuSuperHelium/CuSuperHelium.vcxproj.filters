@@ -21,6 +21,9 @@
       <Filter>Common</Filter>
     </ClCompile>
     <ClCompile Include="WaterVelocities.cpp" />
+    <ClCompile Include="TimeStepManager.cpp">
+      <Filter>Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Derivatives.hpp">
@@ -36,6 +39,9 @@
     </ClInclude>
     <ClInclude Include="WaterVelocities.hpp">
       <Filter>Water</Filter>
+    </ClInclude>
+    <ClInclude Include="TimeStepManager.hpp">
+      <Filter>Common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

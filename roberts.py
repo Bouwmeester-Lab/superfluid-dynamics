@@ -21,6 +21,7 @@ class BoundaryIntegrationProblem:
         self.da = derivatives.DifferentiatorFFT(self.N)
 
         self.M = np.zeros((N,N))
+        self.V = np.zeros((self.N,), dtype=np.complex128)
 
     def setInitialProfile(self, X, Y, Phi):
         self.X = X
@@ -51,14 +52,33 @@ class BoundaryIntegrationProblem:
         Xdprime, Ydprime = np.real(self.ZDoublePrime), np.imag(self.ZDoublePrime)
         return (Xprime*Ydprime-Yprime*Xdprime)/np.power(Xprime**2 + Yprime**2, 3/2)
     
-    def __calculatePhiPrime(self):
+    def __calculatePhiPrimeRHS(self):
         rho = self.properties.rho
         kappa = self.properties.kappa
+        
+        if kappa != 0:
+            rs = self.__one_over_curvature_radius()
+        else:
+            rs = 0
+        # u1 = 
+        return -1*(1+rho)*np.imag(self.Z)+0.5*()
 
 
     def __calculatea(self):
+        self.PhiPrime = self.dPhi(self.Phi)
         self.a = scipy.linalg.solve(self.M, self.PhiPrime)
         self.aprime = self.da(self.a)
     def __calculateVelocities(self, upper = False):
-
+        if upper:
+            sign = -1
+        else:
+            sign = 1
+        
+        for k in range(self.N):
+            for j in range(self.N):
+                if k == j:
+                    self.V[k] += sign*self.a[k]/(2*self.ZPrime[k]) - 1j/(4*np.pi) (self.ZDoublePrime[k]/(self.ZPrime[k]**2)*self.a[k]-2*self.aprime[k]/self.ZPrime[k])
+                else:
+                    self.V[k] += -1j/(4*np.pi) * self.a[j] * cotangent((self.Z[k] - self.Z[j])/2.0) # cotangent_substraction(Z[k]/2, Z[j]/2, k, j, "vu") # eq. 3.2 from Roberts 1983
+        return True
     

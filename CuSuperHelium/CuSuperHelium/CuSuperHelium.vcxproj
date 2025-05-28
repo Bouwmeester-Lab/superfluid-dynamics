@@ -54,16 +54,18 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cusolver.lib;cublas.lib;cufft.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <CodeGeneration>compute_86,sm_86</CodeGeneration>
+      <AdditionalOptions>-std=c++20 %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
     <CudaLink>
       <AdditionalLibraryDirectories>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </CudaLink>
     <CudaLink>
-      <AdditionalDependencies>cufft.lib</AdditionalDependencies>
+      <AdditionalDependencies>cufft.lib;cusolver.lib;cublas.lib</AdditionalDependencies>
     </CudaLink>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -86,24 +88,19 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="constants.cuh" />
-    <CudaCompile Include="createM.cu" />
     <CudaCompile Include="kernel.cu" />
-    <CudaCompile Include="utilities.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="constants.cuh" />
     <ClInclude Include="createM.cuh" />
-    <ClInclude Include="Derivatives.hpp" />
-    <ClInclude Include="MatrixSolver.hpp" />
+    <ClInclude Include="Derivatives.cuh" />
+    <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
-    <ClInclude Include="TimeStepManager.hpp" />
+    <ClInclude Include="TimeStepManager.cuh" />
     <ClInclude Include="utilities.cuh" />
-    <ClInclude Include="WaterVelocities.hpp" />
+    <ClInclude Include="WaterVelocities.cuh" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Derivatives.cpp" />
-    <ClCompile Include="TimeStepManager.cpp" />
-    <ClCompile Include="WaterVelocities.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

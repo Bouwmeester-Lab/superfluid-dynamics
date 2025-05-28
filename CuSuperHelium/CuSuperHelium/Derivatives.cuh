@@ -1,14 +1,26 @@
 #pragma once
-#ifndef Derivatives_H
+#ifndef DERIVATIVES_H
+#define DERIVATIVES_H
 
+#include "ProblemProperties.hpp"
+
+#include "device_launch_parameters.h"
+//#include <thrust/complex.h>
+#include "constants.cuh"
 #include <cufft.h>
-#include <thrust/complex.h>
 #include "array"
 #include <stdexcept>
 #include "utilities.cuh"
 #include <iostream>
 #include "constants.cuh"
-#include "ProblemProperties.hpp"
+
+
+__device__ double filterIndexTanh(int m, int N);
+
+__device__ double filterIndexTanh(int m, int N)
+{
+	return 0.5 * (1 - tanh(40 * (static_cast<double>(m) / N - 0.25)));
+}
 
 template <int N, int batchSize>
 class FftDerivative 
@@ -138,7 +150,7 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
 	
-	complex_pointwise_mul << <blocks, threads >> > (coeffs, derivativeCoeffs, coeffs, N); // multiplies the coefficients by the derivative
+	complex_pointwise_mul<<<blocks, threads>>>(coeffs, derivativeCoeffs, coeffs, N); // multiplies the coefficients by the derivative
 	
 	cufftExecZ2Z(plan, coeffs, out, CUFFT_INVERSE); // doesn't normalize by 1/N https://stackoverflow.com/questions/14441142/scaling-in-inverse-fft-by-cufft
 }
@@ -196,6 +208,6 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 
 }
 
-#endif // !Derivatives_H
 
 
+#endif // !DERIVATIVES_H

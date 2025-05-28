@@ -2,11 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <CudaCompile Include="kernel.cu" />
-    <CudaCompile Include="createM.cu">
-      <Filter>Water</Filter>
-    </CudaCompile>
-    <CudaCompile Include="constants.cuh" />
-    <CudaCompile Include="utilities.cu" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Water">
@@ -17,31 +12,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Derivatives.cpp">
-      <Filter>Common</Filter>
-    </ClCompile>
-    <ClCompile Include="WaterVelocities.cpp" />
-    <ClCompile Include="TimeStepManager.cpp">
-      <Filter>Common</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Derivatives.hpp">
-      <Filter>Common</Filter>
-    </ClInclude>
     <ClInclude Include="ProblemProperties.hpp" />
+    <ClInclude Include="constants.cuh" />
+    <ClInclude Include="createM.cuh" />
+    <ClInclude Include="Derivatives.cuh" />
+    <ClInclude Include="MatrixSolver.cuh" />
+    <ClInclude Include="TimeStepManager.cuh" />
     <ClInclude Include="utilities.cuh" />
-    <ClInclude Include="createM.cuh">
-      <Filter>Water</Filter>
-    </ClInclude>
-    <ClInclude Include="MatrixSolver.hpp">
-      <Filter>Common</Filter>
-    </ClInclude>
-    <ClInclude Include="WaterVelocities.hpp">
-      <Filter>Water</Filter>
-    </ClInclude>
-    <ClInclude Include="TimeStepManager.hpp">
-      <Filter>Common</Filter>
-    </ClInclude>
+    <ClInclude Include="WaterVelocities.cuh" />
   </ItemGroup>
 </Project>

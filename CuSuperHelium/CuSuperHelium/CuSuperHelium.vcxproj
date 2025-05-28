@@ -96,11 +96,13 @@
     <ClInclude Include="Derivatives.hpp" />
     <ClInclude Include="MatrixSolver.hpp" />
     <ClInclude Include="ProblemProperties.hpp" />
+    <ClInclude Include="TimeStepManager.hpp" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Derivatives.cpp" />
+    <ClCompile Include="TimeStepManager.cpp" />
     <ClCompile Include="WaterVelocities.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

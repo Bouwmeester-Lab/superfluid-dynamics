@@ -129,7 +129,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 		return cudaStatus;
 	}
 	cufftPlan1d(&plan, N, CUFFT_Z2Z, batchSize);
-
+	printf("Initialized cufft");
 	return cudaStatus;
 }
 
@@ -144,7 +144,7 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 	auto result = cufftExecZ2Z(plan, in, coeffs, CUFFT_FORWARD);
 
 	if (result != CUFFT_SUCCESS) {
-		printf("failed");
+		printf("failed fft forward");
 	}
 
 	const int threads = 256;
@@ -199,9 +199,10 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 
 	vector_subtract_complex_real<<< blocks, threads>>>(ZPhi, devLinearPartZPhi, devPeriodicZPhi, 2 * N); 
 	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime);
+	//cudaDeviceSynchronize();
 	// calculate the double derivative of Z.
 	singleDerivative.exec(ZPhiPrime, Zpp);
-
+	//cudaDeviceSynchronize();
 	// add the linear part back
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 2.0 * PI_d / (double)N, ZPhiPrime, N, 0);
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, -(1 + properties.rho) * PI_d * properties.U / N, ZPhiPrime, N, N);

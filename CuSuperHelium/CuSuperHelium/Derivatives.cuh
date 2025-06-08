@@ -129,7 +129,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 		return cudaStatus;
 	}
 	cufftPlan1d(&plan, N, CUFFT_Z2Z, batchSize);
-	printf("Initialized cufft");
+	//printf("Initialized cufft");
 	return cudaStatus;
 }
 

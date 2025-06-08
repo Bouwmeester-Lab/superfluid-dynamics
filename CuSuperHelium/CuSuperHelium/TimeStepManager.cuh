@@ -69,6 +69,7 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
 	cudaMalloc(&devZPhi,2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devPhiPrime, N * sizeof(double)); // Device pointer for the PhiPrime array (derivative of Phi)
 	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devM, N * N * sizeof(double)); // Matrix M for solving the system
 	cudaMalloc(&deva, N * sizeof(double));
@@ -78,6 +79,7 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devVelocitiesLower, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devVelocitiesUpper, N * sizeof(cufftDoubleComplex));
+	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
 
 template<int N>

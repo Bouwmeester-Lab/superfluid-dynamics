@@ -71,7 +71,7 @@ int runTimeStep()
 
 	cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 
-	printf("VelocitiesLower: ");
+	printf("\nVelocitiesLower: ");
 	for (int i = 0; i < N; i++) {
 		printf("{%f, %f} ", VelocitiesLower[i].x, -1*VelocitiesLower[i].y);
 	}

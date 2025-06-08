@@ -54,6 +54,7 @@ int runTimeStep()
 	std::array<cufftDoubleComplex, N> PhiArr;
 
 	std::array<cufftDoubleComplex, N> VelocitiesLower;
+    std::array<cufftDoubleComplex, N> VelocitiesUpper;
 
 	for (int i = 0; i < N; i++) {
 		j[i] = 2 * PI_d * i / (1.0 * N);
@@ -70,12 +71,17 @@ int runTimeStep()
 	cudaDeviceSynchronize();
 
 	cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(VelocitiesUpper.data(), timeStepManager.devVelocitiesUpper, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 
 	printf("\nVelocitiesLower: ");
 	for (int i = 0; i < N; i++) {
 		printf("{%f, %f} ", VelocitiesLower[i].x, -1*VelocitiesLower[i].y);
 	}
 	printf("\n");
+    printf("\nVelocitiesUpper: ");
+    for (int i = 0; i < N; i++) {
+        printf("{%f, %f} ", VelocitiesUpper[i].x, -1 * VelocitiesUpper[i].y);
+    }
 
     return 0;
 }

@@ -171,11 +171,13 @@ inline ZPhiDerivative<N>::ZPhiDerivative(ProblemProperties& properties) : proper
 	fftDerivative.initialize();
 	singleDerivative.initialize();
 
-	std::array<double, 2 * N> ZPhiLinear;
+	std::array<cuDoubleComplex, 2 * N> ZPhiLinear;
 	for (int j = 0; j < N; j++) 
 	{
-		ZPhiLinear[j] = 2 * PI_d * (double)j / N;
-		ZPhiLinear[N + j] = -(1 + properties.rho) * PI_d * properties.U / N * (double)j;
+		ZPhiLinear[j].x = 2 * PI_d * (double)j / N;
+		ZPhiLinear[j].y = 0; // Z linear part
+		ZPhiLinear[N + j].x = -(1 + properties.rho) * PI_d * properties.U / N * (double)j; // Phi linear part
+		ZPhiLinear[N + j].y = 0;
 	}
 	// copy the array to the device
 	cudaMalloc(&devLinearPartZPhi, 2 * N * sizeof(cufftDoubleComplex));
@@ -198,6 +200,17 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 	const int blocks = (N + threads - 1) / threads;
 
 	vector_subtract_complex_real<<< blocks, threads>>>(ZPhi, devLinearPartZPhi, devPeriodicZPhi, 2 * N); 
+
+	cudaDeviceSynchronize();
+	std::array<cufftDoubleComplex, 2 * N> ZPhiHost;
+	cudaMemcpy(ZPhiHost.data(), ZPhi, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+
+	printf("Zphi periodic\n");
+	for (int i = 0; i < 2 * N; i++)
+	{
+		printf("%f + i %f\n", ZPhiHost[i].x, ZPhiHost[i].y);
+	}
+
 	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime);
 	//cudaDeviceSynchronize();
 	// calculate the double derivative of Z.

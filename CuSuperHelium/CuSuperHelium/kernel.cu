@@ -1,6 +1,7 @@
 ﻿
 #include "ProblemProperties.hpp"
 #include "array"
+#include "vector"
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -17,6 +18,8 @@
 
 //#include "math.h"
 //#include "complex.h"
+#include "matplotlibcpp.h"
+namespace plt = matplotlibcpp;
 
 #define j_complex std::complex<double>(0, 1)
 cudaError_t setDevice();
@@ -54,12 +57,17 @@ int runTimeStep()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    const int N = 2048;
+    const int N = 256;
+    const int steps = 20000;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
+    std::vector<double> x0;
+	std::vector<double> y0;
+
     std::array<cufftDoubleComplex, N> Z0;
 	std::array<cufftDoubleComplex, N> PhiArr;
+    std::vector<double> phi0;
 
 	std::array<cufftDoubleComplex, N> VelocitiesLower;
     std::array<cufftDoubleComplex, N> VelocitiesUpper;
@@ -67,43 +75,79 @@ int runTimeStep()
     std::array<cufftDoubleComplex, N> ZVect;
     std::array<cufftDoubleComplex, N> PhiVect;
 
+    std::vector<double> x;
+	std::vector<double> y;
+
+	x0.resize(N, 0);
+	y0.resize(N, 0);
+	phi0.resize(N, 0);
+    x.resize(N, 0);
+	y.resize(N, 0);
+    double h = -0.6;
 	for (int i = 0; i < N; i++) {
 		j[i] = 2 * PI_d * i / (1.0 * N);
-		Z0[i].x = X(j[i], 0.2, 0.1, 0);
-		Z0[i].y = Y(j[i], 0.2, 0.1, 0);
-        PhiArr[i].x = Phi(j[i], 0.2, 0.1, 0, problemProperties.rho);
+		Z0[i].x = X(j[i], h, 0.1, 0.1);
+		x0[i] = Z0[i].x;
+
+		Z0[i].y = Y(j[i], h, 0.1, 0.1);
+		y0[i] = Z0[i].y;
+
+        PhiArr[i].x = Phi(j[i], h, 0.1, 0.1, problemProperties.rho);
+		phi0[i] = PhiArr[i].x;
+
         PhiArr[i].y = 0; // Phi is real.
 	}
+    plt::scatter(x0, y0);
+	plt::scatter(x0, phi0);
+    plt::show();
     
 	// Initialize the time step manager with the initial conditions.
 	cuDoubleComplex* devZ = nullptr;
 	cuDoubleComplex* devPhi = nullptr;
 
     timeStepManager.initialize_device(Z0.data(), PhiArr.data(), devZ, devPhi);
-
+    timeStepManager.runTimeStep();
+    cudaDeviceSynchronize();
+    cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+    printf("\velocities after 1: ");
+    for (int i = 0; i < N; i++) {
+        printf("{%f, %f} ", VelocitiesLower[i].x, VelocitiesLower[i].y);
+        x[i] = ZVect[i].x;
+        y[i] = ZVect[i].y;
+    }
     // create Euler stepper
-	Euler<N> euler(timeStepManager, 0.001);
+	Euler<N> euler(timeStepManager, 0.01);
 	euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);
-
-	// Perform a time step
-	euler.doTimeStep();
+	for (int i = 0; i < steps; i++) {
+        // Perform a time step
+        euler.doTimeStep();
+	}
+	
 
     // timeStepManager.runTimeStep();
 	cudaDeviceSynchronize();
 
 	cudaMemcpy(ZVect.data(), devZ, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
     cudaMemcpy(PhiVect.data(), devPhi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+    //cudaMemcpy(PhiVect.data(), devPhi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 
 	printf("\Positions after 1: ");
 	for (int i = 0; i < N; i++) {
-		printf("{%f, %f} ", ZVect[i].x, ZVect[i].y);
+		printf("{%f, %f} ", VelocitiesLower[i].x, VelocitiesLower[i].y);
+        x[i] = ZVect[i].x;
+        y[i] = ZVect[i].y;
 	}
 	printf("\n");
     printf("\nPhi: ");
     for (int i = 0; i < N; i++) {
         printf("{%f, %f} ", PhiVect[i].x, -1 * PhiVect[i].y);
     }
+	plt::plot(x0, y0, "r-");
+    plt::scatter(x, y);
+    plt::show();
+    
 
     return 0;
 }

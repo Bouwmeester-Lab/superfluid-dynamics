@@ -105,7 +105,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 			{
 				der[batchSize * i + j].y = filterIndexTanh(abs(der[batchSize * i + j].y), N);
 			}
-			std::cout << der[batchSize * i + j].y << std::endl;
+			// std::cout << der[batchSize * i + j].y << std::endl;
 		}
 	}
 

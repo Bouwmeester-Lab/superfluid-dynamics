@@ -96,6 +96,8 @@
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
+    <ClInclude Include="RungeKunta.cuh" />
+    <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="TimeStepManager.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />

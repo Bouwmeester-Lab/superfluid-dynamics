@@ -26,10 +26,11 @@ public:
 	/// </summary>
 	/// <param name="Z0"></param>
 	/// <param name="Phi0"></param>
-	void initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0);
+	void initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi);
 	void runTimeStep();
 	cufftDoubleComplex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
 	cufftDoubleComplex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
+	cufftDoubleComplex* devRhsPhi; ///< Device pointer to the right-hand side of the phi equation (derivative of Phi/dt)
 
 private:
 	cufftDoubleComplex* devZPhi; ///< Device pointer to the ZPhi array
@@ -47,6 +48,7 @@ private:
 	cufftDoubleComplex* devV2; ///< Device pointer to the V2 diagonal vector
 
 	
+	
 
 	ProblemProperties& problemProperties; ///< Reference to the problem properties for configuration
 	ZPhiDerivative<N> zPhiDerivative; ///< Derivative calculator for Z and Phi
@@ -60,7 +62,7 @@ private:
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 
 
-	
+	void calculatePhiRhs(); ///< Helper function to calculate the right-hand side of the phi equation
 };
 
 template<int N>
@@ -79,6 +81,7 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devVelocitiesLower, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devVelocitiesUpper, N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devRhsPhi, N * sizeof(cufftDoubleComplex)); // Right-hand side of the phi equation (derivative of Phi)
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
 
@@ -94,14 +97,19 @@ TimeStepManager<N>::~TimeStepManager()
 	cudaFree(devV2);
 	cudaFree(devVelocitiesLower);
 	cudaFree(devVelocitiesUpper);
+	cudaFree(devRhsPhi);
 }
 
 template<int N>
-inline void TimeStepManager<N>::initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0)
+inline void TimeStepManager<N>::initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi)
 {
 	// Copy initial conditions to device memory
 	cudaMemcpy(devZPhi, Z0, N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	cudaMemcpy(devZPhi + N, Phi0, N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+
+	devZ = this->devZPhi; // Set the device pointer for ZPhi
+	devPhi = this->devZPhi + N; // Set the device pointer for Phi (second half of ZPhi)
+
 	//// Initialize other device arrays as needed
 	//cudaMemset(devZpp, 0, N * sizeof(cufftDoubleComplex));
 	//cudaMemset(deva, 0, N * sizeof(double));
@@ -141,6 +149,13 @@ inline void TimeStepManager<N>::runTimeStep()
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
 
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid
-	// 7. will be done by the caller after device synchronization.
+	// 7. the RHS of the X, Y are the velocities above.
+	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
+	calculatePhiRhs();
+}
+template<int N>
+void TimeStepManager<N>::calculatePhiRhs()
+{
+	compute_rhs_phi_expression<<<blocks, threads>>>(devZPhi, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties.rho, N); // Calculate the right-hand side of the phi equation
 }
 #endif // TIMESTEP_MANAGER_H

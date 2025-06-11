@@ -133,5 +133,7 @@ void VelocityCalculator<N>::calculateVelocities(cufftDoubleComplex* ZPhi,
 	const cufftDoubleComplex alpha = make_cuDoubleComplex(1.0, 0.0);
 	const cufftDoubleComplex beta = make_cuDoubleComplex(1.0, 0.0);
 	cublasZgemv(handle, CUBLAS_OP_N, N, N, &alpha, V1, N, a, 1, &beta, velocities, 1);
+	// calculate the conjugate of the velocities, since this df/dz = u - i v
+	conjugate_vector<<<blocks, threads >>>(velocities, velocities, N);
 }
 #endif // !WATERVELOCITIES_H

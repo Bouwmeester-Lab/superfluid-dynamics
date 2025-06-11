@@ -39,8 +39,32 @@ __device__ cufftDoubleComplex fromReal(double a);
 __global__ void real_to_complex(const double* x, cuDoubleComplex* x_c, int N);
 __global__ void complex_to_real(const cuDoubleComplex* x_c, double* x, int N);
 __device__ inline cufftDoubleComplex cMulScalar(double a, cufftDoubleComplex z);
+
+__global__ void conjugate_vector(cuDoubleComplex* x, cuDoubleComplex* z, int N);
+
+/// <summary>
+/// Computes the RHS of Phi on the GPU using the expression: -(1+rho) * Im(Z) + 0.5 * abs(V1)^2 + 0.5 * rho * abs(V2)^2. - rho * V1 dot V2
+/// It assumes Kappa = 0, and there's no surface tension.
+/// The imag part of result is 0. Since this is purely real, but it's useful to stick to complex for consistency.
+/// </summary>
+/// <param name="Z"></param>
+/// <param name="V"></param>
+/// <param name="result"></param>
+/// <param name="alpha"></param>
+/// <param name="N"></param>
+/// <returns></returns>
+__global__ void compute_rhs_phi_expression(
+    const cuDoubleComplex* Z,
+    const cuDoubleComplex* V1,
+	const cuDoubleComplex* V2,
+    cuDoubleComplex* result,
+	double rho,
+    int N
+);
+
 void checkCuda(cudaError_t result);
 void checkCusolver(cusolverStatus_t status);
+
 
 
 
@@ -148,6 +172,29 @@ cufftDoubleComplex cMulScalar(double a, cufftDoubleComplex z)
     out.y = a * out.y;
 
     return out;
+}
+
+__global__ void conjugate_vector(cuDoubleComplex* x, cuDoubleComplex* z, int N) 
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        cuDoubleComplex xi = x[i];
+        z[i] = make_cuDoubleComplex(cuCreal(xi), -cuCimag(xi));
+    }
+}
+
+__global__ void compute_rhs_phi_expression(const cuDoubleComplex* Z, const cuDoubleComplex* V1, const cuDoubleComplex* V2, cuDoubleComplex* result, double rho, int N)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < N) {
+		// Calculate the right-hand side of the phi equation
+		double Z_imag = cuCimag(Z[i]);
+		double V1_abs2 = cuCabs(V1[i]) * cuCabs(V1[i]);
+		double V2_abs2 = cuCabs(V2[i]) * cuCabs(V2[i]);
+		double V1_dot_V2 = cuCreal(V1[1]) * cuCreal(V2[i]) + cuCimag(V1[i]) * cuCimag(V2[i]);
+		result[i].x = -(1 + rho) * Z_imag + 0.5 * V1_abs2 + 0.5 * rho * V2_abs2 - rho * V1_dot_V2;
+        result[i].y = 0;
+	}
 }
 
 void checkCuda(cudaError_t result) {

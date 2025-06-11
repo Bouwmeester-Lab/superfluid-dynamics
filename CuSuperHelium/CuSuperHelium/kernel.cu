@@ -13,6 +13,7 @@
 #include <complex>
 
 #include "TimeStepManager.cuh"
+#include "SimpleEuler.cuh"
 
 //#include "math.h"
 //#include "complex.h"
@@ -42,11 +43,18 @@ double Phi(double j, double h, double omega, double t, double rho) {
 
 int runTimeStep() 
 {
+
+    cudaError_t cudaStatus;
+    cudaStatus = setDevice();
+    if (cudaStatus != cudaSuccess) {
+        return cudaStatus;
+    }
+
 	ProblemProperties problemProperties;
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    const int N = 32;
+    const int N = 2048;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -55,6 +63,9 @@ int runTimeStep()
 
 	std::array<cufftDoubleComplex, N> VelocitiesLower;
     std::array<cufftDoubleComplex, N> VelocitiesUpper;
+
+    std::array<cufftDoubleComplex, N> ZVect;
+    std::array<cufftDoubleComplex, N> PhiVect;
 
 	for (int i = 0; i < N; i++) {
 		j[i] = 2 * PI_d * i / (1.0 * N);
@@ -65,22 +76,33 @@ int runTimeStep()
 	}
     
 	// Initialize the time step manager with the initial conditions.
+	cuDoubleComplex* devZ = nullptr;
+	cuDoubleComplex* devPhi = nullptr;
 
-    timeStepManager.initialize_device(Z0.data(), PhiArr.data());
-    timeStepManager.runTimeStep();
+    timeStepManager.initialize_device(Z0.data(), PhiArr.data(), devZ, devPhi);
+
+    // create Euler stepper
+	Euler<N> euler(timeStepManager, 0.001);
+	euler.setDevZ(devZ);
+	euler.setDevPhi(devPhi);
+
+	// Perform a time step
+	euler.doTimeStep();
+
+    // timeStepManager.runTimeStep();
 	cudaDeviceSynchronize();
 
-	cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-    cudaMemcpy(VelocitiesUpper.data(), timeStepManager.devVelocitiesUpper, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZVect.data(), devZ, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(PhiVect.data(), devPhi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 
-	printf("\nVelocitiesLower: ");
+	printf("\Positions after 1: ");
 	for (int i = 0; i < N; i++) {
-		printf("{%f, %f} ", VelocitiesLower[i].x, -1*VelocitiesLower[i].y);
+		printf("{%f, %f} ", ZVect[i].x, ZVect[i].y);
 	}
 	printf("\n");
-    printf("\nVelocitiesUpper: ");
+    printf("\nPhi: ");
     for (int i = 0; i < N; i++) {
-        printf("{%f, %f} ", VelocitiesUpper[i].x, -1 * VelocitiesUpper[i].y);
+        printf("{%f, %f} ", PhiVect[i].x, -1 * PhiVect[i].y);
     }
 
     return 0;

@@ -20,5 +20,7 @@
     <ClInclude Include="TimeStepManager.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
+    <ClInclude Include="RungeKunta.cuh" />
+    <ClInclude Include="SimpleEuler.cuh" />
   </ItemGroup>
 </Project>

@@ -87,6 +87,7 @@ __global__ void vector_subtract_complex_real(const cufftDoubleComplex* a, const 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
         out[i].x = a[i].x - b[i]; // modifies only the real part.
+		out[i].y = a[i].y; // keeps the imaginary part unchanged.
     }
 }
 
@@ -95,6 +96,7 @@ __global__ void vector_scalar_add_complex_real(const cufftDoubleComplex* a, cons
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
         out[start + i].x = a[start + i].x + b; // modifies only the real part.
+		out[start + i].y = a[start + i].y; // keeps the imaginary part unchanged.
     }
 }
 /// <summary>

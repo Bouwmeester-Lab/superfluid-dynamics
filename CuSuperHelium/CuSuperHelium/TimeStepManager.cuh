@@ -139,9 +139,43 @@ inline void TimeStepManager<N>::runTimeStep()
 	createMKernel << <matrix_blocks, matrix_threads >> > (devM, devZPhi, devZPhiPrime, devZpp, problemProperties.rho,  N); // Create the M matrix
 	//cudaDeviceSynchronize(); // wait for the kernel to finish
 	complex_to_real << <blocks, threads >> > (devZPhiPrime + N, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
-	//cudaDeviceSynchronize();
+	cudaDeviceSynchronize();
 	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
 	//cudaDeviceSynchronize(); // wait for the solver to finish
+
+	
+	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
+	std::array<cuDoubleComplex, 2 * N> ZPhiPrime_host;
+	cudaMemcpy(ZPhiPrime_host.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
+	printf("ZPhi Prime:\n");
+	for (int i = 0; i < 2*N; i++) {
+		printf("(%f, %f) ", ZPhiPrime_host[i].x, ZPhiPrime_host[i].y);
+	}
+
+
+	std::array<double, N> phiPrime_host;
+	cudaMemcpy(phiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the PhiPrime from device to host for debugging or further processing
+	printf("Phi Prime:\n");
+	for (int i = 0; i < N; i++) {
+		printf("%f ", phiPrime_host[i]);
+	}
+
+	std::array<double, N* N> M_host;
+	cudaMemcpy(M_host.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the matrix M from device to host for debugging or further processing
+	printf("Matrix M:\n");
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) {
+			printf("%f ", M_host[i * N + j]);
+		}
+		printf("\n");
+	}
+	std::array<double, N> a_host;
+	cudaMemcpy(a_host.data(), deva, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
+	printf("Vorticities (a): ");
+	for (int i = 0; i < N; i++) {
+		printf("%f, ", a_host[i]);
+	}
+
 	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
 	//cudaDeviceSynchronize();
 	fftDerivative.exec(devaComplex, devaprime); // Calculate the derivative of a (vorticities)

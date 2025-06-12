@@ -9,12 +9,12 @@
 #include <cusolverDn.h>
 #include <iostream>
 
-__global__ void complex_coeff_mult_fft(
+__global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
-    const cufftDoubleComplex* b,
     cufftDoubleComplex* result,
     const int n
 );
+__global__ void set_mode_to_imaginary(cufftDoubleComplex* a, double img, int n);
 /// <summary>
 /// Substracts two vectors out = Re(a) - b + iIm(a) and stores the result in out.
 /// </summary>
@@ -75,23 +75,59 @@ void checkCusolver(cusolverStatus_t status);
 /// <param name="result"></param>
 /// <param name="n"></param>
 /// <returns></returns>
-__global__ void complex_coeff_mult_fft(
+__global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
-    const cufftDoubleComplex* b,
     cufftDoubleComplex* result,
     const int n
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i == n / 2) { // the n/2 coefficient is the coefficient representing the Nyquist frequency. We want to treat it as exp(i*pi*j) which means the FFT should give n as the real part and 0 as the imaginary part.
-        result[i].x = n;  // real
-        result[i].y = 0; //n * PI_d;  // imag
+    if (i < n / 2) 
+    {
+        result[i] = cuCmul(a[i], make_cuDoubleComplex(0, static_cast<double>(i) / n)); // normalize by n since ifft doesn't
+    }
+    else if (n % 2 == 0 &&  i == n / 2) 
+    {
+        result[i].x = 0;
+		result[i].y = -PI_d; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        // that the inverse fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = pi because when we take the inv fft, cuFFT won't normalize by 1/n.
+		// so in order to normalize we would divide each coeff by 1/n, but the right coeff when you normalize by 1/n is -n * pi, so we set the coeff[n/2] =- pi.
     }
     else if (i < n) {
-        cufftDoubleComplex x = a[i];
-        cufftDoubleComplex y = b[i];
-        result[i].x = x.x * y.x - x.y * y.y;  // real
-        result[i].y = x.x * y.y + x.y * y.x;  // imag
+        result[i] = cuCmul(a[i], make_cuDoubleComplex(0, (static_cast<double>(i) - n) / n));
     }
+}
+
+/// <summary>
+/// Calculates the coefficients needed to run an ifft and get the second derivative from the original function: d2/dt f(t)
+/// </summary>
+/// <param name="coeffsFft"></param>
+/// <param name="result"></param>
+/// <param name="n"></param>
+/// <returns></returns>
+__global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufftDoubleComplex* result, const int n) 
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n / 2) 
+    {
+        result[i].x = i * i * coeffsFft[i].x /n;
+		result[i].y = i * i * coeffsFft[i].y /n;
+    }
+    else if (i == n / 2) 
+    {
+        result[i].x = -PI_d* PI_d; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2
+        result[i].y = 0;// i * i * coeffsFft[i].y; // imaginary part, we want to treat the Nyquist frequency as exp(i*pi*j)
+    }
+    else if(i < n)
+    {
+		result[i].x = -(i - n) * (i - n) * coeffsFft[i].x/n; //https://math.mit.edu/~stevenj/fft-deriv.pdf
+		result[i].y = -(i - n) * (i - n) * coeffsFft[i].y/n;
+	}
+}
+
+__global__ void set_mode_to_imaginary(cufftDoubleComplex* a, double img, int n)
+{
+	a[n].x = 0; // set the real part of the Nyquist frequency to 0
+	a[n].y = img; // set the imaginary part of the Nyquist frequency to 1
 }
 
 __global__ void vector_subtract_complex_real(const cufftDoubleComplex* a, const double* b, cufftDoubleComplex* out, int n) {

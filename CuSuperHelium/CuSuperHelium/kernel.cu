@@ -57,8 +57,8 @@ int runTimeStep()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    const int N = 256;
-    const int steps = 20000;
+    const int N = 2048;
+    const int steps = 1;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -67,6 +67,7 @@ int runTimeStep()
 
     std::array<cufftDoubleComplex, N> Z0;
 	std::array<cufftDoubleComplex, N> PhiArr;
+    std::vector<double> phiPrime;
     std::vector<double> phi0;
 
 	std::array<cufftDoubleComplex, N> VelocitiesLower;
@@ -83,7 +84,8 @@ int runTimeStep()
 	phi0.resize(N, 0);
     x.resize(N, 0);
 	y.resize(N, 0);
-    double h = -0.6;
+	phiPrime.resize(N, 0);
+    double h = 0.2;
 	for (int i = 0; i < N; i++) {
 		j[i] = 2 * PI_d * i / (1.0 * N);
 		Z0[i].x = X(j[i], h, 0.1, 0.1);
@@ -106,8 +108,9 @@ int runTimeStep()
 	cuDoubleComplex* devPhi = nullptr;
 
     timeStepManager.initialize_device(Z0.data(), PhiArr.data(), devZ, devPhi);
-    timeStepManager.runTimeStep();
+    /*timeStepManager.runTimeStep();
     cudaDeviceSynchronize();
+	cudaMemcpy(phiPrime.data(), timeStepManager.devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost);
     cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
     printf("\velocities after 1: ");
     for (int i = 0; i < N; i++) {
@@ -115,8 +118,12 @@ int runTimeStep()
         x[i] = ZVect[i].x;
         y[i] = ZVect[i].y;
     }
+    plt::figure();
+    plt::plot(x0, phi0);
+    plt::plot(x0, phiPrime);
+    plt::show();*/
     // create Euler stepper
-	Euler<N> euler(timeStepManager, 0.01);
+	Euler<N> euler(timeStepManager, 0.00001);
 	euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);
 	for (int i = 0; i < steps; i++) {

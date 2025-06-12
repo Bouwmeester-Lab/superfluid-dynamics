@@ -44,7 +44,7 @@ public:
 	/// </summary>
 	/// <param name="in">Must be of size N*batchSize</param>
 	/// <param name="out">Must be of size N*batchSize</param>
-	void exec(cufftDoubleComplex* in, cufftDoubleComplex* out);
+	void exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev = false);
 	FftDerivative() {};
 	~FftDerivative();
 };
@@ -134,7 +134,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 }
 
 template<int N, int batchSize>
-void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComplex* out)
+void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev)
 {
 	if (coeffs == nullptr)
 	{
@@ -150,9 +150,18 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
 	
-	complex_coeff_mult_fft<<<blocks, threads>>>(coeffs, derivativeCoeffs, coeffs, N); // multiplies the coefficients by the derivative
+	if (doubleDev) 
+	{
+		second_derivative_fft<<<blocks, threads>>>(coeffs, coeffs, N);
+	}
+	else 
+	{
+		first_derivative_multiplication << <blocks, threads >> > (coeffs, coeffs, N);
+	}
 	
 	cufftExecZ2Z(plan, coeffs, out, CUFFT_INVERSE); // doesn't normalize by 1/N https://stackoverflow.com/questions/14441142/scaling-in-inverse-fft-by-cufft
+
+	
 }
 
 template<int N, int batchSize>
@@ -215,7 +224,7 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 	fftDerivative.exec(devPeriodicZPhi + N, ZPhiPrime + N); // calculates the derivative of Z and Phi
 	//cudaDeviceSynchronize();
 	// calculate the double derivative of Z.
-	singleDerivative.exec(ZPhiPrime, Zpp);
+	singleDerivative.exec(devPeriodicZPhi, Zpp, true);
 	//cudaDeviceSynchronize();
 	// add the linear part back
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 2.0 * PI_d / (double)N, ZPhiPrime, N, 0);

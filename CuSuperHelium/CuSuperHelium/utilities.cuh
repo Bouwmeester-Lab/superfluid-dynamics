@@ -89,8 +89,8 @@ __global__ void first_derivative_multiplication(
     {
         result[i].x = 0;
 		result[i].y = -PI_d; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
-        // that the inverse fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = pi because when we take the inv fft, cuFFT won't normalize by 1/n.
-		// so in order to normalize we would divide each coeff by 1/n, but the right coeff when you normalize by 1/n is -n * pi, so we set the coeff[n/2] =- pi.
+        // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
+		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }
     else if (i < n) {
         result[i] = cuCmul(a[i], make_cuDoubleComplex(0, (static_cast<double>(i) - n) / n));
@@ -114,8 +114,8 @@ __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufft
     }
     else if (i == n / 2) 
     {
-        result[i].x = -PI_d* PI_d; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2
-        result[i].y = 0;// i * i * coeffsFft[i].y; // imaginary part, we want to treat the Nyquist frequency as exp(i*pi*j)
+		result[i].x = -PI_d * PI_d; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
+		result[i].y = 0;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
     }
     else if(i < n)
     {

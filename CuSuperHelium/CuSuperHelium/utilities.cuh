@@ -9,7 +9,7 @@
 #include <cusolverDn.h>
 #include <iostream>
 
-__global__ void complex_pointwise_mul(
+__global__ void complex_coeff_mult_fft(
     const cufftDoubleComplex* a,
     const cufftDoubleComplex* b,
     cufftDoubleComplex* result,
@@ -67,15 +67,26 @@ void checkCusolver(cusolverStatus_t status);
 
 
 
-
-__global__ void complex_pointwise_mul(
+/// <summary>
+/// Multiplies the coefficients of two complex vectors element-wise
+/// </summary>
+/// <param name="a"></param>
+/// <param name="b"></param>
+/// <param name="result"></param>
+/// <param name="n"></param>
+/// <returns></returns>
+__global__ void complex_coeff_mult_fft(
     const cufftDoubleComplex* a,
     const cufftDoubleComplex* b,
     cufftDoubleComplex* result,
     const int n
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n) {
+    if (i == n / 2) { // the n/2 coefficient is the coefficient representing the Nyquist frequency. We want to treat it as exp(i*pi*j) which means the FFT should give n as the real part and 0 as the imaginary part.
+        result[i].x = n;  // real
+        result[i].y = 0; //n * PI_d;  // imag
+    }
+    else if (i < n) {
         cufftDoubleComplex x = a[i];
         cufftDoubleComplex y = b[i];
         result[i].x = x.x * y.x - x.y * y.y;  // real
@@ -86,7 +97,7 @@ __global__ void complex_pointwise_mul(
 __global__ void vector_subtract_complex_real(const cufftDoubleComplex* a, const double* b, cufftDoubleComplex* out, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
-        out[i].x = a[i].x - b[i]; // modifies only the real part.
+        out[i].x = a[i].x - b[i]; // -b[i]; // modifies only the real part.
 		out[i].y = a[i].y; // keeps the imaginary part unchanged.
     }
 }

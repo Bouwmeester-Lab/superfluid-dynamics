@@ -58,7 +58,7 @@ template <int N>
 class ZPhiDerivative 
 {
 private:
-	FftDerivative<N, 2> fftDerivative;
+	FftDerivative<N, 1> fftDerivative;
 	FftDerivative<N, 1> singleDerivative;
 	/// <summary>
 	/// Represents an array containing the linear part of Z: 2*pi/N * j and the linear part of Phi. -(1+rho)*pi*U/N * j
@@ -150,7 +150,7 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
 	
-	complex_pointwise_mul<<<blocks, threads>>>(coeffs, derivativeCoeffs, coeffs, N); // multiplies the coefficients by the derivative
+	complex_coeff_mult_fft<<<blocks, threads>>>(coeffs, derivativeCoeffs, coeffs, N); // multiplies the coefficients by the derivative
 	
 	cufftExecZ2Z(plan, coeffs, out, CUFFT_INVERSE); // doesn't normalize by 1/N https://stackoverflow.com/questions/14441142/scaling-in-inverse-fft-by-cufft
 }
@@ -171,17 +171,15 @@ inline ZPhiDerivative<N>::ZPhiDerivative(ProblemProperties& properties) : proper
 	fftDerivative.initialize();
 	singleDerivative.initialize();
 
-	std::array<cuDoubleComplex, 2 * N> ZPhiLinear;
+	std::array<double, 2 * N> ZPhiLinear;
 	for (int j = 0; j < N; j++) 
 	{
-		ZPhiLinear[j].x = 2 * PI_d * (double)j / N;
-		ZPhiLinear[j].y = 0; // Z linear part
-		ZPhiLinear[N + j].x = -(1 + properties.rho) * PI_d * properties.U / N * (double)j; // Phi linear part
-		ZPhiLinear[N + j].y = 0;
+		ZPhiLinear[j] = 2 * PI_d * (double)j / N;
+		ZPhiLinear[N + j] = -(1 + properties.rho) * PI_d * properties.U / N * (double)j; // Phi linear part
 	}
 	// copy the array to the device
-	cudaMalloc(&devLinearPartZPhi, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMemcpy(devLinearPartZPhi, ZPhiLinear.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMalloc(&devLinearPartZPhi, 2 * N * sizeof(double));
+	cudaMemcpy(devLinearPartZPhi, ZPhiLinear.data(), 2 * N * sizeof(double), cudaMemcpyHostToDevice);
 
 	cudaMalloc(&devPeriodicZPhi, 2 * N * sizeof(cufftDoubleComplex));
 }
@@ -197,28 +195,36 @@ template<int N>
 inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime, cufftDoubleComplex* Zpp)
 {
 	const int threads = 256;
+	const int blocks2N = (2*N + threads - 1) / threads;
 	const int blocks = (N + threads - 1) / threads;
 
-	vector_subtract_complex_real<<< blocks, threads>>>(ZPhi, devLinearPartZPhi, devPeriodicZPhi, 2 * N); 
+	vector_subtract_complex_real<<< blocks2N, threads>>>(ZPhi, devLinearPartZPhi, devPeriodicZPhi, 2 * N);
 
-	cudaDeviceSynchronize();
+	/*cudaDeviceSynchronize();
 	std::array<cufftDoubleComplex, 2 * N> ZPhiHost;
-	cudaMemcpy(ZPhiHost.data(), ZPhi, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZPhiHost.data(), devPeriodicZPhi, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);*/
 
-	printf("Zphi periodic\n");
+	/*printf("Zphi periodic\n");
 	for (int i = 0; i < 2 * N; i++)
 	{
 		printf("%f + i %f\n", ZPhiHost[i].x, ZPhiHost[i].y);
 	}
+	std::cin.get();*/
 
 	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime);
+	fftDerivative.exec(devPeriodicZPhi + N, ZPhiPrime + N); // calculates the derivative of Z and Phi
 	//cudaDeviceSynchronize();
 	// calculate the double derivative of Z.
 	singleDerivative.exec(ZPhiPrime, Zpp);
 	//cudaDeviceSynchronize();
 	// add the linear part back
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 2.0 * PI_d / (double)N, ZPhiPrime, N, 0);
-	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, -(1 + properties.rho) * PI_d * properties.U / N, ZPhiPrime, N, N);
+	if (properties.U != 0) 
+	{
+		vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, -(1 + properties.rho) * PI_d * properties.U / N, ZPhiPrime, N, N); // add the linear part of Phi
+	}
+		
+	
 
 }
 

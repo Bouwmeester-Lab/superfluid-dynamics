@@ -89,7 +89,7 @@ __global__ void first_derivative_multiplication(
     else if (i == n / 2) 
     {
         result[i].x = 0;
-		result[i].y = -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        result[i].y = PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
         // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
 		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }

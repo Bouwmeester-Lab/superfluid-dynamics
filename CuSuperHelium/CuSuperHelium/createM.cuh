@@ -31,8 +31,8 @@ __global__ void createMKernel(double* A, cufftDoubleComplex* ZPhi, cufftDoubleCo
         int indx = k + j * n; // column major index
         if (k == j)
         {
-            // we are in the diagonal:
-            A[indx] = 0.5 * (1 + rho) + 0.25 * (1 - rho) / PI_d * cuCdiv(Zpp[k], ZPhi[k]).y; // imaginary part
+            // we are on the diagonal:
+            A[indx] = 0.5 * (1 + rho) + 0.25 * (1 - rho) / PI_d * cuCdiv(Zpp[k], ZPhiPrime[k]).y; // imaginary part
         }
         else
         {

@@ -58,7 +58,7 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 4096;
+    const int N = 128;
     const int steps = 2;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
@@ -86,22 +86,26 @@ int runTimeStep()
     x.resize(N, 0);
 	y.resize(N, 0);
 	phiPrime.resize(N, 0);
-    double h = 0.002;
+    double h = 0.5;
+    double omega = 2;
+    double t0 = 2;
 	for (int i = 0; i < N; i++) {
 		j[i] = 2 * PI_d * i / (1.0 * N);
-		Z0[i].x = X(j[i], h, 0.1, 0.1);
+		Z0[i].x = X(j[i], h, omega, t0);
 		x0[i] = Z0[i].x;
 
-		Z0[i].y = Y(j[i], h, 0.1, 0.1);
+		Z0[i].y = Y(j[i], h, omega, t0);
 		y0[i] = Z0[i].y;
 
-        PhiArr[i].x = Phi(j[i], h, 0.1, 0.1, problemProperties.rho);
+        PhiArr[i].x = Phi(j[i], h, omega, t0, problemProperties.rho);
 		phi0[i] = PhiArr[i].x;
 
         PhiArr[i].y = 0; // Phi is real.
 	}
-    plt::scatter(x0, y0);
-	plt::scatter(x0, phi0);
+    plt::title("Interface And Potential");
+    plt::plot(x0, y0, {{"label", "Interface"}});
+	plt::plot(x0, phi0, {{"label", "Potential"}});
+    plt::legend();
     plt::show();
     
 	// Initialize the time step manager with the initial conditions.
@@ -124,7 +128,7 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
-	Euler<N> euler(timeStepManager, 1e-11);
+	Euler<N> euler(timeStepManager, 1e-3);
 	euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);
 	for (int i = 0; i < steps; i++) {
@@ -153,7 +157,7 @@ int runTimeStep()
         printf("{%f, %f} ", PhiVect[i].x, -1 * PhiVect[i].y);
     }
 	plt::plot(x0, y0, "r-");
-    plt::scatter(x, y);
+    plt::plot(x, y);
     plt::show();
     
 

@@ -83,17 +83,19 @@ __global__ void first_derivative_multiplication(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n / 2) 
     {
-        result[i] = cuCmul(a[i], make_cuDoubleComplex(0, static_cast<double>(i) / n)); // normalize by n since ifft doesn't
+        result[i].x = -i * a[i].y / n;
+		result[i].y = i * a[i].x / n; 
     }
-    else if (n % 2 == 0 &&  i == n / 2) 
+    else if (i == n / 2) 
     {
         result[i].x = 0;
-		result[i].y = -PI_d; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+		result[i].y = -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
         // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
 		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }
     else if (i < n) {
-        result[i] = cuCmul(a[i], make_cuDoubleComplex(0, (static_cast<double>(i) - n) / n));
+		result[i].x = (n - i) * a[i].y / n;
+		result[i].y = (i- n) * a[i].x / n; // https://math.mit.edu/~stevenj/fft-deriv.pdf
     }
 }
 
@@ -109,18 +111,18 @@ __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufft
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n / 2) 
     {
-        result[i].x = i * i * coeffsFft[i].x /n;
-		result[i].y = i * i * coeffsFft[i].y /n;
+        result[i].x = i * i * coeffsFft[i].x / n;
+		result[i].y = i * i * coeffsFft[i].y / n;
     }
     else if (i == n / 2) 
     {
-		result[i].x = -PI_d * PI_d; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
+		result[i].x = -PI_d * PI_d * result[i].y / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
 		result[i].y = 0;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
     }
     else if(i < n)
     {
-		result[i].x = -(i - n) * (i - n) * coeffsFft[i].x/n; //https://math.mit.edu/~stevenj/fft-deriv.pdf
-		result[i].y = -(i - n) * (i - n) * coeffsFft[i].y/n;
+		result[i].x = -(i - n) * (i - n) * coeffsFft[i].x / n; //https://math.mit.edu/~stevenj/fft-deriv.pdf
+		result[i].y = -(i - n) * (i - n) * coeffsFft[i].y / n;
 	}
 }
 

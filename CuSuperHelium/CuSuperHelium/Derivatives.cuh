@@ -13,7 +13,8 @@
 #include "utilities.cuh"
 #include <iostream>
 #include "constants.cuh"
-
+#include "matplotlibcpp.h"
+namespace plt = matplotlibcpp;
 
 __device__ double filterIndexTanh(int m, int N);
 
@@ -150,18 +151,49 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
 	
+	
+	
+#ifdef DEBUG_FFT
+	std::array<cufftDoubleComplex, N* batchSize> coeffsHost;
+	cudaMemcpy(coeffsHost.data(), coeffs, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	printf("Coefficients after FFT:\n");
+	for (int i = 0; i < N * batchSize; i++) 
+	{
+		printf("%.10e, %.10e \n", coeffsHost[i].x, coeffsHost[i].y);
+	}
+#endif // DEBUG_FFT
 	if (doubleDev) 
 	{
-		second_derivative_fft<<<blocks, threads>>>(coeffs, coeffs, N);
+		
+		second_derivative_fft<< <blocks, threads>> >(coeffs, coeffs, N);
 	}
 	else 
 	{
 		first_derivative_multiplication << <blocks, threads >> > (coeffs, coeffs, N);
 	}
-	
-	cufftExecZ2Z(plan, coeffs, out, CUFFT_INVERSE); // doesn't normalize by 1/N https://stackoverflow.com/questions/14441142/scaling-in-inverse-fft-by-cufft
+#ifdef  DEBUG_FFT
 
-	
+
+
+	cudaMemcpy(coeffsHost.data(), coeffs, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	printf("Coefficients after multiplication k:\n\n");
+	for (int i = 0; i < N * batchSize; i++)
+	{
+		printf("%.10e, %.10e \n", coeffsHost[i].x, coeffsHost[i].y);
+	}
+	cudaDeviceSynchronize();
+#endif //  DEBUG_FFT
+	cufftExecZ2Z(plan, coeffs, out, CUFFT_INVERSE); // doesn't normalize by 1/N https://stackoverflow.com/questions/14441142/scaling-in-inverse-fft-by-cufft
+#ifdef DEBUG_FFT
+	cudaMemcpy(coeffsHost.data(), out, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	printf("Final result after inverse FFT:\n\n");
+	for (int i = 0; i < N * batchSize; i++)
+	{
+		printf("%.10e, %.10e \n", coeffsHost[i].x, coeffsHost[i].y);
+	}
+	std::cin.get();
+#endif // DEBUG_FFT
+
 }
 
 template<int N, int batchSize>
@@ -209,22 +241,62 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 
 	vector_subtract_complex_real<<< blocks2N, threads>>>(ZPhi, devLinearPartZPhi, devPeriodicZPhi, 2 * N);
 
-	/*cudaDeviceSynchronize();
-	std::array<cufftDoubleComplex, 2 * N> ZPhiHost;
-	cudaMemcpy(ZPhiHost.data(), devPeriodicZPhi, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);*/
-
-	/*printf("Zphi periodic\n");
-	for (int i = 0; i < 2 * N; i++)
-	{
-		printf("%f + i %f\n", ZPhiHost[i].x, ZPhiHost[i].y);
-	}
-	std::cin.get();*/
+	fftDerivative.exec(devPeriodicZPhi, Zpp, true);
 
 	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime);
 	fftDerivative.exec(devPeriodicZPhi + N, ZPhiPrime + N); // calculates the derivative of Z and Phi
+
+	
+
 	//cudaDeviceSynchronize();
 	// calculate the double derivative of Z.
-	singleDerivative.exec(devPeriodicZPhi, Zpp, true);
+	
+#ifdef DEBUG_FFT
+	cudaDeviceSynchronize();
+	std::array<cufftDoubleComplex, 2 * N> ZPhiPrimeHost;
+	std::array<cufftDoubleComplex, 2 * N> ZppHost;
+	std::array<cufftDoubleComplex, 2*N> ZPhiHost;
+	std::vector<double> xp(N, 0);
+	std::vector<double> yp(N, 0);
+
+	std::vector<double> xpp(N, 0);
+	std::vector<double> ypp(N, 0);
+
+	std::vector<double> x(N, 0);
+	std::vector<double> y(N, 0);
+	cudaMemcpy(ZPhiPrimeHost.data(), ZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZppHost.data(), Zpp, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZPhiHost.data(), ZPhi, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+
+	printf("Zphi prime\n");
+	for (int i = 0; i < 2 * N; i++)
+	{
+		if (i < N)
+		{
+			x[i] = ZPhiHost[i].x;
+			y[i] = ZPhiHost[i].y;
+
+			xp[i] = ZPhiPrimeHost[i].x;
+			yp[i] = ZPhiPrimeHost[i].y;
+
+			xpp[i] = ZppHost[i].x;
+			ypp[i] = ZppHost[i].y;
+			printf("%f + i %f\n", ZppHost[i].x, ZppHost[i].y);
+		}
+		
+	}
+	plt::figure();
+	/*plt::plot(x, { {"label", "x"} });
+	plt::plot(y, { {"label", "y"} });*/
+	plt::plot(xp, { {"label", "xp"} });
+	plt::plot(yp, { {"label", "yp"} });
+
+	plt::plot(xpp, { {"label", "xpp"} });
+	plt::plot(ypp, { {"label", "ypp"} });
+	plt::legend();
+	plt::show();
+	std::cin.get();
+#endif
 	//cudaDeviceSynchronize();
 	// add the linear part back
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 2.0 * PI_d / (double)N, ZPhiPrime, N, 0);

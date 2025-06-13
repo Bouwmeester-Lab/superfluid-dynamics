@@ -58,8 +58,8 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 1024;
-    const int steps = 1;
+    const int N = 4096;
+    const int steps = 2;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -86,7 +86,7 @@ int runTimeStep()
     x.resize(N, 0);
 	y.resize(N, 0);
 	phiPrime.resize(N, 0);
-    double h = -0.02;
+    double h = 0.002;
 	for (int i = 0; i < N; i++) {
 		j[i] = 2 * PI_d * i / (1.0 * N);
 		Z0[i].x = X(j[i], h, 0.1, 0.1);
@@ -124,7 +124,7 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
-	Euler<N> euler(timeStepManager, 0.0001);
+	Euler<N> euler(timeStepManager, 1e-11);
 	euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);
 	for (int i = 0; i < steps; i++) {

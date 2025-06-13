@@ -13,7 +13,8 @@
 #include "createM.cuh"
 #include "WaterVelocities.cuh"
 #include "MatrixSolver.cuh"
-
+#include "matplotlibcpp.h"
+namespace plt = matplotlibcpp;
 template<int N>
 class TimeStepManager
 {
@@ -136,52 +137,85 @@ inline void TimeStepManager<N>::runTimeStep()
 
 	zPhiDerivative.exec(devZPhi, devZPhiPrime, devZpp); // Calculate derivatives of Z and Phi
 
-	//cudaDeviceSynchronize();
 	createMKernel << <matrix_blocks, matrix_threads >> > (devM, devZPhi, devZPhiPrime, devZpp, problemProperties.rho,  N); // Create the M matrix
-	//cudaDeviceSynchronize(); // wait for the kernel to finish
+	
 	complex_to_real << <blocks, threads >> > (devZPhiPrime + N, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
-	//cudaDeviceSynchronize();
+	
 	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
+#ifdef DEBUG_DERIVATIVES
+	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
+
 	//cudaDeviceSynchronize(); // wait for the solver to finish
 
 	
 	//cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
-	//std::array<cuDoubleComplex, 2 * N> ZPhiPrime_host;
-	//cudaMemcpy(ZPhiPrime_host.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-	//printf("ZPhi Prime:\n");
-	//for (int i = 0; i < 2*N; i++) {
-	//	printf("(%f, %f) \n", ZPhiPrime_host[i].x, ZPhiPrime_host[i].y);
-	//}
-	//
+	std::vector<double> PhiPrime_host(N, 0);
+	std::vector<double> xprime(N, 0.0);
+	std::vector<double> yprime(N, 0.0);
 
-	//std::array<double, N> phiPrime_host;
-	//cudaMemcpy(phiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the PhiPrime from device to host for debugging or further processing
-	//printf("Phi Prime:\n");
-	//for (int i = 0; i < N; i++) {
-	//	printf("%f \n", phiPrime_host[i]);
-	//}
+	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
+	std::vector<double> y(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 
-	//std::array<double, N* N> M_host;
-	//cudaMemcpy(M_host.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the matrix M from device to host for debugging or further processing
-	//printf("Matrix M:\n");
-	//for (int i = 0; i < N; i++) {
-	//	for (int j = 0; j < N; j++) {
-	//		printf("%f ", M_host[i * N + j]);
-	//	}
-	//	printf("\n");
-	//}
-	//std::array<double, N> a_host;
-	//cudaMemcpy(a_host.data(), deva, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
-	//printf("Vorticities (a):\n\n\n ");
-	//for (int i = 0; i < N; i++) {
-	//	printf("%f, ", a_host[i]);
-	//}
-	//std::cin.get(); // Wait for user input to continue
+	std::vector<cuDoubleComplex> ZPhi_host(2*N, make_cuDoubleComplex(0,0));
+	std::vector<cuDoubleComplex> ZPhiPrime_host(2 * N, make_cuDoubleComplex(0, 0)); // Host vectors to store the results of  ZPhiPrime
+	std::vector<double> Phi(N, 0);
 
-	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
-	//cudaDeviceSynchronize();
-	fftDerivative.exec(devaComplex, devaprime); // Calculate the derivative of a (vorticities)
+	cudaMemcpy(ZPhiPrime_host.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
+	cudaMemcpy(ZPhi_host.data(), devZPhi, 2*N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the Phi from device to host for debugging or further processing
+	cudaMemcpy(PhiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
+
+	for (int i = 0; i < 2 * N; i++)
+	{
+		if (i < N)
+		{
+			x[i] = ZPhi_host[i].x; // Store the real part of ZPhi for plotting
+			y[i] = ZPhi_host[i].y; // Store the imaginary part of ZPhi for plotting
+			xprime[i] = ZPhiPrime_host[i].x; // Store the real part of ZPhi for plotting
+			yprime[i] = ZPhiPrime_host[i].y; // Store the imaginary part of ZPhi for plotting
+		}
+		else
+		{
+			Phi[i - N] = ZPhi_host[i].x;
+		}
+	}
+	plt::figure();
+	plt::title("Phi and Phi Prime");
+	plt::plot(Phi); // Plot the Phi values
+	plt::plot(PhiPrime_host);
+	plt::figure();
+	plt::title("x and x prime");
+	plt::plot(x); // Plot the real part of ZPhi
+	plt::plot(xprime);
+	plt::figure();
+	plt::title("y and y prime");
+	plt::plot(y); // Plot the imaginary part of ZPhi
+	plt::plot(yprime);
+
+	std::vector<cuDoubleComplex> a_host(N, make_cuDoubleComplex(0,0));
 	
+#endif
+	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
+	//
+	fftDerivative.exec(devaComplex, devaprime); // Calculate the derivative of a (vorticities)
+	std::vector<cuDoubleComplex> a_host(N, make_cuDoubleComplex(0, 0));
+	std::vector<double> a(N, 0.0);
+	std::vector<double> aReal(N, 0.0); // Real part of the vorticities for debugging or further processing
+	cudaDeviceSynchronize();
+	cudaMemcpy(a.data(), deva, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
+	cudaMemcpy(a_host.data(), devaprime, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
+	
+	for (int i = 0; i < N; i++) {
+		printf("%f\n", a[i]);
+		aReal[i] = a_host[i].x; // Store the real part of the vorticities for further processing
+	}
+	plt::figure();
+	plt::title("a, aprime");
+	plt::plot(a, {{"label", "a"}});
+	plt::plot(aReal, {{"label", "a prime"}});
+	plt::show();
+
+	// std::cin.get(); // Wait for user input to continue
+
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
 
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid

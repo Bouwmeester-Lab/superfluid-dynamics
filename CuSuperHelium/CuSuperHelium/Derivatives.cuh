@@ -304,7 +304,7 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 	// add the linear part back, I need to add 1 and multiply everything by 2*pi/N.
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 1.0, ZPhiPrime, N, 0); //
 
-	vector_mutiply_scalar << < blocks, threads >> > (ZPhiPrime,  2.0 * PI_d / (double)(N), ZPhiPrime, N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
+	vector_mutiply_scalar << < blocks, threads >> > (ZPhiPrime,  2.0 * PI_d / (double)(N), ZPhiPrime, 2*N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
 	
 	vector_mutiply_scalar << < blocks, threads >> > (Zpp, 4.0 * PI_d * PI_d / (N * N), Zpp, N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
 

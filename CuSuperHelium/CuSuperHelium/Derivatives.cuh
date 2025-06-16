@@ -13,8 +13,10 @@
 #include "utilities.cuh"
 #include <iostream>
 #include "constants.cuh"
+#if DEBUG_FFT
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
+#endif // DEBUG_FFT
 
 __device__ double filterIndexTanh(int m, int N);
 
@@ -162,6 +164,7 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 		printf("%.10e, %.10e \n", coeffsHost[i].x, coeffsHost[i].y);
 	}
 #endif // DEBUG_FFT
+	//cudaDeviceSynchronize();
 	if (doubleDev) 
 	{
 		
@@ -243,8 +246,8 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 
 	fftDerivative.exec(devPeriodicZPhi, Zpp, true);
 
-	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime);
-	fftDerivative.exec(devPeriodicZPhi + N, ZPhiPrime + N); // calculates the derivative of Z and Phi
+	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime, false);
+	fftDerivative.exec(devPeriodicZPhi + N, ZPhiPrime + N, false); // calculates the derivative of Z and Phi
 
 	
 
@@ -298,8 +301,13 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 	std::cin.get();
 #endif
 	//cudaDeviceSynchronize();
-	// add the linear part back
-	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 2.0 * PI_d / (double)N, ZPhiPrime, N, 0);
+	// add the linear part back, I need to add 1 and multiply everything by 2*pi/N.
+	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 1.0, ZPhiPrime, N, 0); //
+
+	vector_mutiply_scalar << < blocks, threads >> > (ZPhiPrime,  2.0 * PI_d / (double)(N), ZPhiPrime, N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
+	
+	vector_mutiply_scalar << < blocks, threads >> > (Zpp, 4.0 * PI_d * PI_d / (N * N), Zpp, N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
+
 	if (properties.U != 0) 
 	{
 		vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, -(1 + properties.rho) * PI_d * properties.U / N, ZPhiPrime, N, N); // add the linear part of Phi

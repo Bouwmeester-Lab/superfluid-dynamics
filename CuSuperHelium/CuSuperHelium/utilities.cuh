@@ -81,21 +81,26 @@ __global__ void first_derivative_multiplication(
     const int n
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
+    double x, y;
     if (i < n / 2) 
     {
-        result[i].x = -i * a[i].y / n;
-		result[i].y = i * a[i].x / n; 
+        x = a[i].x; // it's important to do this copy since if you don't you will be using the new value in the expression instead of the old one.
+		y = a[i].y;
+        result[i].x = - i * y / n;
+		result[i].y = i * x / n; 
     }
     else if (i == n / 2) 
     {
         result[i].x = 0;
-        result[i].y = PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        result[i].y = -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
         // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
 		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }
     else if (i < n) {
-		result[i].x = (n - i) * a[i].y / n;
-		result[i].y = (i- n) * a[i].x / n; // https://math.mit.edu/~stevenj/fft-deriv.pdf
+        x = a[i].x;
+        y = a[i].y;
+		result[i].x = (n - i) * y / n;
+		result[i].y = (i- n) * x / n; // https://math.mit.edu/~stevenj/fft-deriv.pdf
     }
 }
 
@@ -111,8 +116,8 @@ __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufft
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n / 2) 
     {
-        result[i].x = i * i * coeffsFft[i].x / n;
-		result[i].y = i * i * coeffsFft[i].y / n;
+        result[i].x = - i * i * coeffsFft[i].x / n;
+		result[i].y = - i * i * coeffsFft[i].y / n;
     }
     else if (i == n / 2) 
     {
@@ -146,6 +151,15 @@ __global__ void vector_scalar_add_complex_real(const cufftDoubleComplex* a, cons
     if (i < n) {
         out[start + i].x = a[start + i].x + b; // modifies only the real part.
 		out[start + i].y = a[start + i].y; // keeps the imaginary part unchanged.
+    }
+}
+
+__global__ void vector_mutiply_scalar(const cufftDoubleComplex* a, const double b, cufftDoubleComplex* out, int n, int start)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        out[start + i].x = a[start + i].x*b; // modifies only the real part.
+        out[start + i].y = a[start + i].y*b; // keeps the imaginary part unchanged.
     }
 }
 /// <summary>

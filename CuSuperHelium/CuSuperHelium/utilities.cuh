@@ -216,8 +216,8 @@ __device__ void cos(cufftDoubleComplex z, cufftDoubleComplex& out)
 }
 
 __device__ void sin(cufftDoubleComplex z, cufftDoubleComplex& zout) {
-    zout.x = sinh(z.x) * cos(z.y);
-    zout.y = cosh(z.x) * sin(z.y);
+    zout.x = sin(z.x) * cosh(z.y);
+    zout.y = cos(z.x) * sinh(z.y);
 }
 
 __device__ cufftDoubleComplex fromReal(double a)

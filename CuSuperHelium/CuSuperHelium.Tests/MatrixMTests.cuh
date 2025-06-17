@@ -43,28 +43,112 @@ double PhiPrime(double j, double h, double omega, double t, double rho) {
 	return h * (1.0 + rho) * omega * std::cos(j - omega * t); // without 2 * pi/N scaling factor due to sampling like 2*pi/N * k
 }
 
+void prepareZPhi(cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime, cufftDoubleComplex* Zpp, double h, double omega, double t, double rho, int N)
+{
+	double j = 0;
+	for (int i = 0; i < N; i++)
+	{
+		j = 2 * PI_d * i / (double)N;
+		ZPhi[i].x = X(j, h, omega, t);
+		ZPhi[i].y = Y(j, h, omega, t);
+
+		ZPhi[i + N].x = Phi(j, h, omega, t, rho);
+		ZPhi[i + N].y = 0; // Imaginary part is zero since Phi is real.
+
+		ZPhiPrime[i].x = Xprime(j, h, omega, t) * 2.0 * PI_d / N;
+		ZPhiPrime[i].y = Yprime(j, h, omega, t) * 2.0 * PI_d / N;
+
+		Zpp[i].x = Xpp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
+		Zpp[i].y = Ypp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
+
+		ZPhiPrime[i + N].x = PhiPrime(j, h, omega, t, rho) * 2.0 * PI_d / N;
+		ZPhiPrime[i + N].y = 0; // Imaginary part is zero since PhiPrime is real.
+	}
+}
+
+void createMMatrix(double* M, double h, double omega, double rho, double t, int N) 
+{
+	double k1, k2;
+	std::complex<double> zpp, zp, zk1, zk2, z_sub;
+	for (int i = 0; i < N; i++)
+	{
+		k1 = 2.0 * PI_d * i / (double)N;
+		for (int j = 0; j < N; j++)
+		{
+			k2 = 2.0 * PI_d * j / (double)N;
+			if (i == j)
+			{
+				zpp = 4.0 * PI_d * PI_d / ( N * N) * (Xpp(k2, h, omega, t) + 1i * Ypp(k2, h, omega, t));
+				zp = 2.0*PI_d / N * ( Xprime(k2, h, omega, t) + 1i * Yprime(k2, h, omega, t));
+				M[i + j * N] = 0.5 * (1 + rho) + 0.25 * (1 - rho) / PI_d * std::imag(zpp/zp); // imaginary part
+			}
+			else
+			{
+				zk1 = X(k1, h, omega, t) + 1i * Y(k1, h, omega, t);
+				zk2 = X(k2, h, omega, t) + 1i * Y(k2, h, omega, t);
+				z_sub = 0.5 * (zk1 - zk2);
+				zp = 2.0 * PI_d / N * ( Xprime(k1, h, omega, t) + 1i * Yprime(k1, h, omega, t));
+				M[i + j * N] = 0.25 * (1.0 - rho) / PI_d * std::imag(zp * std::cos(z_sub) / std::sin(z_sub));
+			}
+		}
+	}
+}
+
+TEST(Kernels, Cotangent) 
+{
+	const int N = 64;
+
+
+}
+
 TEST(Kernels, MMatrixKernel) 
 {
 	const int N = 4;
+	double t = 0.1;
+	double h = 0.5;
+	double omega = 10;
+	double rho = 0.0;
 	double* devM; // device pointer for the matrix M
 	cufftDoubleComplex* devZPhi; // device pointer for ZPhi
 	cufftDoubleComplex* devZPhiPrime; // device pointer for ZPhiPrime
 	cufftDoubleComplex* devZpp; // device pointer for Zpp
 
 	cudaMalloc(&devM, N * N * sizeof(double));
-	cudaMalloc(&devZPhi, N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZPhiPrime, N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZPhi, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
 
 	dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
 
-	std::array<std::complex<double>, N> Z = { 0.84147098 + 0.54030231i, 1. + 1.i,
-		1.15852902 + 0.54030231i, 2.09070257 - 0.41614684i };
+	std::array<cufftDoubleComplex, 2 * N> ZPhi;
+	std::array<cufftDoubleComplex, N> Zpp;
+	std::array<cufftDoubleComplex, 2 * N> ZPhiPrime;
+	std::array<double, N * N> MMatrix;
+	std::array<double, N* N> MMatrixCalculated;
 
+	prepareZPhi(ZPhi.data(), ZPhiPrime.data(), Zpp.data(), h, omega, t, rho, N);
+	// Copy the data to device
+	cudaMemcpy(devZPhi, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZPhiPrime, ZPhiPrime.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	
+	// for comparison to the kernel output
+	createMMatrix(MMatrix.data(), h, omega, rho, t, N);
+	cudaDeviceSynchronize();
+	createMKernel<<<matrix_blocks, matrix_threads>>>(devM, devZPhi, devZPhiPrime, devZpp, 0.0, N);
+	cudaDeviceSynchronize();
+	cudaMemcpy(MMatrixCalculated.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost);
 
-
-	//createMKernel()
+	for (int i = 0; i < N; i++)
+	{
+		for (int j = 0; j < N; j++)
+		{
+			EXPECT_NEAR(MMatrixCalculated[i + j * N], MMatrix[i + j * N], 1e-14) << "Mismatch at (" << i << ", " << j << ")";
+		}
+	}
 }
+
+
 
 /// <summary>
 /// Tests the accuracy of the first and second derivative of the functions X and Y using ZPhiDerivative class.

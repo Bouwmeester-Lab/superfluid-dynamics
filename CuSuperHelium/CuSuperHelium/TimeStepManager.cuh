@@ -142,7 +142,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	complex_to_real << <blocks, threads >> > (devZPhiPrime + N, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
 	
 	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
-#ifdef DEBUG_DERIVATIVES
+#ifdef DEBUG_DERIVATIVES_2
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 
 	//cudaDeviceSynchronize(); // wait for the solver to finish
@@ -197,6 +197,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
 	//
 	fftDerivative.exec(devaComplex, devaprime); // Calculate the derivative of a (vorticities)
+#ifdef DEBUG_DERIVATIVES
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));
 	std::vector<cuDoubleComplex> ZPhiPrime_host(2 * N, make_cuDoubleComplex(0, 0)); // Host vectors to store the results of  ZPhiPrime
@@ -225,6 +226,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	plt::plot(x, aHost, {{"label", "a"}});
 	plt::plot(x, aPrimeReal, {{"label", "a prime"}});
 	plt::legend();
+#endif
 	//plt::show();
 
 	// std::cin.get(); // Wait for user input to continue
@@ -232,6 +234,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
 
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid
+#ifdef DEBUG_DERIVATIVES
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 	std::array<cufftDoubleComplex, N> VelocitiesLower; // Host array to store the velocities for the lower fluid
 	std::vector<double> xVelocitiesLower(N, 0.0); // Host vector to store the real part of the velocities for the lower fluid
@@ -248,6 +251,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	plt::plot(x, xVelocitiesLower, { {"label", "X Velocities Lower Fluid"} }); // Plot the velocities for the lower fluid
 	plt::plot(x, yVelocitiesLower, { {"label", "Y Velocities Lower Fluid"} }); // Plot the imaginary part of the velocities for the lower fluid
 	plt::legend();
+#endif
 	// 7. the RHS of the X, Y are the velocities above.
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	calculatePhiRhs();

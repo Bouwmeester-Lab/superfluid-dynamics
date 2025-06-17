@@ -1,4 +1,5 @@
 ﻿
+#define DEBUG_DERIVATIVES
 #include "ProblemProperties.hpp"
 #include "array"
 #include "vector"
@@ -58,8 +59,8 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 128;
-    const int steps = 10;
+    const int N = 256;
+    const int steps = 3;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -129,6 +130,7 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
+
 	Euler<N> euler(timeStepManager, 1e-3);
 	euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);

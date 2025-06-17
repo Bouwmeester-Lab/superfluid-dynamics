@@ -256,7 +256,7 @@ TEST(Kernels, Velocities) {
 /// <param name=""></param>
 TEST(Kernels, ZPhiDerivatives) 
 {
-	const int N = 64;
+	const int N = 256;
 	double j = 0;
 	double x = 0;
 	double y = 0;

@@ -196,7 +196,7 @@ inline void TimeStepManager<N>::runTimeStep()
 #endif
 	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
 	//
-	fftDerivative.exec(devaComplex, devaprime); // Calculate the derivative of a (vorticities)
+	fftDerivative.exec(devaComplex, devaprime, false, 2.0*PI_d / static_cast<double>(N)); // Calculate the derivative of a (vorticities)
 #ifdef DEBUG_DERIVATIVES
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));

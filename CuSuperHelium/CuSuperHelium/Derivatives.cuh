@@ -47,7 +47,7 @@ public:
 	/// </summary>
 	/// <param name="in">Must be of size N*batchSize</param>
 	/// <param name="out">Must be of size N*batchSize</param>
-	void exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev = false);
+	void exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev = false, double scaling = 1.0);
 	FftDerivative() {};
 	~FftDerivative();
 };
@@ -137,7 +137,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 }
 
 template<int N, int batchSize>
-void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev)
+void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev, double scaling)
 {
 	if (coeffs == nullptr)
 	{
@@ -196,7 +196,10 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 	}
 	std::cin.get();
 #endif // DEBUG_FFT
-
+	if(scaling != 1.0) 
+	{
+		vector_mutiply_scalar << <blocks, threads >> > (out, scaling, out, N * batchSize, 0); // multiply by the scaling factor
+	}
 }
 
 template<int N, int batchSize>

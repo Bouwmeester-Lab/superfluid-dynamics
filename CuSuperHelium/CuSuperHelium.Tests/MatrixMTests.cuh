@@ -5,6 +5,7 @@
 #include <complex>
 #include <array>
 #include "Derivatives.cuh"
+#include "WaterVelocities.cuh"
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
 
@@ -94,6 +95,42 @@ void createMMatrix(double* M, double h, double omega, double rho, double t, int 
 	}
 }
 
+void createVelocityMatrix(std::complex<double>* V1, std::complex<double>* V2, double h, double omega, double t, int N, bool lower = true) 
+{
+	double k1, k2;
+	std::complex<double> zpp, zp, zk1, zk2, z_sub;
+	for (int i = 0; i < N; i++)
+	{
+		k1 = 2.0 * PI_d * i / (double)N;
+		for (int j = 0; j < N; j++)
+		{
+			k2 = 2.0 * PI_d * j / (double)N;
+			if (i == j)
+			{
+				zpp = 4.0 * PI_d * PI_d / (N * N) * (Xpp(k2, h, omega, t) + 1i * Ypp(k2, h, omega, t));
+				zp = 2.0 * PI_d / N * (Xprime(k2, h, omega, t) + 1i * Yprime(k2, h, omega, t));
+				V1[i + j * N] = 0.25i/PI_d * zpp / std::pow(zp, 2.0);//std::complex<double>(0.5 * (1 + rho), 0.25 * (1 - rho) / PI_d * std::imag(zpp / zp)); // imaginary part
+				if (lower) {
+					V1[i + j * N] += 0.5 / zp;
+				}
+				else {
+					V1[i + j * N] -= 0.5 / zp;
+				}
+
+				V2[i] = -0.25i / PI_d * 2.0 / zp;
+			}
+			else
+			{
+				zk1 = X(k1, h, omega, t) + 1i * Y(k1, h, omega, t);
+				zk2 = X(k2, h, omega, t) + 1i * Y(k2, h, omega, t);
+				z_sub = 0.5 * (zk1 - zk2);
+				//zp = 2.0 * PI_d / N * (Xprime(k1, h, omega, t) + 1i * Yprime(k1, h, omega, t));
+				V1[i + j * N] = 0.25i/PI_d * std::cos(z_sub) / std::sin(z_sub);
+			}
+		}
+	}
+}
+
 TEST(Kernels, Cotangent) 
 {
 	const int N = 64;
@@ -146,6 +183,68 @@ TEST(Kernels, MMatrixKernel)
 			EXPECT_NEAR(MMatrixCalculated[i + j * N], MMatrix[i + j * N], 1e-14) << "Mismatch at (" << i << ", " << j << ")";
 		}
 	}
+}
+
+TEST(Kernels, Velocities) {
+	const int N = 4;
+	double t = 0.1;
+	double h = 0.5;
+	double omega = 10;
+	double rho = 0.0;
+
+	std::array<cufftDoubleComplex, 2 * N> ZPhi;
+	std::array<cufftDoubleComplex, N> Zpp;
+	std::array<cufftDoubleComplex, 2 * N> ZPhiPrime;
+	prepareZPhi(ZPhi.data(), ZPhiPrime.data(), Zpp.data(), h, omega, t, rho, N);
+
+	cufftDoubleComplex* devZPhi; // device pointer for ZPhi
+	cufftDoubleComplex* devZPhiPrime; // device pointer for ZPhiPrime
+	cufftDoubleComplex* devZpp; // device pointer for Zpp
+	cufftDoubleComplex* devV1; // device pointer for V1
+	cufftDoubleComplex* devV2; // device pointer for V2
+
+
+	cudaMalloc(&devV1, N * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex)); // V2 is a diagonal matrix, so we only need N elements
+
+	cudaMalloc(&devZPhi, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
+	
+	cudaMemcpy(devZPhi, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZPhiPrime, ZPhiPrime.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	
+	std::array<std::complex<double>, N * N> V1;
+	std::array<std::complex<double>, N> V2;
+
+	createVelocityMatrix(V1.data(), V2.data(), h, omega, t, N);
+
+	dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
+	createVelocityMatrices<<<matrix_blocks, matrix_threads >>>(devZPhi, devZPhiPrime, devZpp, N, devV1, devV2, true);
+
+	cudaDeviceSynchronize();
+
+	std::array<cufftDoubleComplex, N*N> V1Calculated;
+	std::array<cufftDoubleComplex, N> V2Calculated;
+
+	cudaMemcpy(V1Calculated.data(), devV1, N * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(V2Calculated.data(), devV2, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) 
+		{
+			int indx = i + j * N;
+			EXPECT_NEAR(V1Calculated[indx].x, V1[indx].real(), 1e-14) << "V1 real part mismatch at (" << i << ", " << j << ")";
+			EXPECT_NEAR(V1Calculated[indx].y, V1[indx].imag(), 1e-14) << "V1 imag part mismatch at (" << i << ", " << j << ")";
+
+			if (i == j) {
+				EXPECT_NEAR(V2Calculated[i].x, V2[i].real(), 1e-14) << "V2 real part mismatch at index " << i;
+				EXPECT_NEAR(V2Calculated[i].y, V2[i].imag(), 1e-14) << "V2 imag part mismatch at index " << i;
+			}
+		}
+	}
+
 }
 
 

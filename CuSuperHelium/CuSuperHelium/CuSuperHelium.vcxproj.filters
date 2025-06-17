@@ -22,5 +22,6 @@
     <ClInclude Include="WaterVelocities.cuh" />
     <ClInclude Include="RungeKunta.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
+    <ClInclude Include="cuDoubleComplexOperators.cuh" />
   </ItemGroup>
 </Project>

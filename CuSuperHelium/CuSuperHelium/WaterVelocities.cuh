@@ -8,7 +8,8 @@
 #include "utilities.cuh"
 #include "cufft.h"
 #include "constants.cuh"
-#define Coeff_Vel 1.0/(4.0 * PI_d) // Coefficient for the velocities in the water model 
+#include "cuDoubleComplexOperators.cuh"
+#define Coeff_Vel 0.25/PI_d // Coefficient for the velocities in the water model 
 /// <summary>
 /// Forms the matrix and vector needed for obtaining the velocities in the water model.
 /// </summary>
@@ -43,21 +44,21 @@ __global__ void createVelocityMatrices(cufftDoubleComplex* ZPhi, cufftDoubleComp
 		if (k == j)
 		{
 			// we are in the diagonal:
-			cuDoubleComplex val = cuCdiv(make_cuDoubleComplex(1.0, 0), ZPhiPrime[k]);
-			out1[indx] = cuCmul(make_cuDoubleComplex(0, Coeff_Vel), cuCdiv(Zpp[k], cuCmul(ZPhi[k], ZPhi[k]))); // no normalization by N since it would be cancelled out by the division.
+			
+			out1[indx] = make_cuDoubleComplex(0, 0.25/PI_d) * Zpp[k] / (ZPhiPrime[k] * ZPhiPrime[k]);
 			if (lower)
 			{
-				out1[indx] = cuCadd(out1[indx], cMulScalar(0.5 * N, val)); // the *N is because the derivatives obtained by the FFT derivatives are not normalized by N so this will apply the normalization.
+				out1[indx] += 0.5 / ZPhiPrime[k];
 			}
 			else
 			{
-				out1[indx] = cuCsub(out1[indx], cMulScalar(0.5 * N, val));
+				out1[indx] -= 0.5 / ZPhiPrime[k];
 			}
-			out2[k] = cMulScalar(-2.0, val);
+			out2[k] = make_cuDoubleComplex(0, -0.5 / PI_d) / ZPhiPrime[k];
 		}
 		else
 		{
-			out1[indx] = cuCmul(make_cuDoubleComplex(0, Coeff_Vel), cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j])))); // no /N here since Z is not obtained by an FFT.
+			out1[indx] = cuCmul(make_cuDoubleComplex(0, Coeff_Vel), cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j]))));
 		}
 	}
 }

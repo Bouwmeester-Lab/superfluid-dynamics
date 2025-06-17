@@ -101,6 +101,7 @@
   <ItemGroup>
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="createM.cuh" />
+    <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />

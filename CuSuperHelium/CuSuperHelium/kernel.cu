@@ -15,7 +15,7 @@
 
 #include "TimeStepManager.cuh"
 #include "SimpleEuler.cuh"
-
+#include <format>
 //#include "math.h"
 //#include "complex.h"
 #include "matplotlibcpp.h"
@@ -59,7 +59,7 @@ int runTimeStep()
     problemProperties.U = 0;
 
     const int N = 128;
-    const int steps = 4;
+    const int steps = 10;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -102,11 +102,12 @@ int runTimeStep()
 
         PhiArr[i].y = 0; // Phi is real.
 	}
+    plt::figure();
     plt::title("Interface And Potential");
     plt::plot(x0, y0, {{"label", "Interface"}});
 	plt::plot(x0, phi0, {{"label", "Potential"}});
     plt::legend();
-    plt::show();
+    //plt::show();
     
 	// Initialize the time step manager with the initial conditions.
 	cuDoubleComplex* devZ = nullptr;
@@ -128,7 +129,7 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
-	Euler<N> euler(timeStepManager, 1e-5);
+	Euler<N> euler(timeStepManager, 1e-3);
 	euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);
 	for (int i = 0; i < steps; i++) {
@@ -156,8 +157,12 @@ int runTimeStep()
     for (int i = 0; i < N; i++) {
         printf("{%f, %f} ", PhiVect[i].x, -1 * PhiVect[i].y);
     }
-	plt::plot(x0, y0, "r-");
-    plt::plot(x, y);
+    plt::figure();
+    auto t = std::format("Interface And Potential After {} time steps.", steps);
+	plt::title(t);
+	plt::plot(x0, y0, {{"label", "Initial Position"}});
+    plt::plot(x, y, {{"label", "Euler Result"}});
+    plt::legend();
     plt::show();
     
 

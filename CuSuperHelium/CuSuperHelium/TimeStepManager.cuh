@@ -225,7 +225,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	plt::plot(x, aHost, {{"label", "a"}});
 	plt::plot(x, aPrimeReal, {{"label", "a prime"}});
 	plt::legend();
-	plt::show();
+	//plt::show();
 
 	// std::cin.get(); // Wait for user input to continue
 

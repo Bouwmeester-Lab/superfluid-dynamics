@@ -59,7 +59,7 @@ int runTimeStep()
     problemProperties.U = 0;
 
     const int N = 128;
-    const int steps = 2;
+    const int steps = 4;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -128,7 +128,7 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
-	Euler<N> euler(timeStepManager, 1e-3);
+	Euler<N> euler(timeStepManager, 1e-5);
 	euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);
 	for (int i = 0; i < steps; i++) {

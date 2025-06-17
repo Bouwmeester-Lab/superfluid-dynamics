@@ -200,30 +200,30 @@ inline void TimeStepManager<N>::runTimeStep()
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));
 	std::vector<cuDoubleComplex> ZPhiPrime_host(2 * N, make_cuDoubleComplex(0, 0)); // Host vectors to store the results of  ZPhiPrime
-	std::vector<cuDoubleComplex> a_host(N, make_cuDoubleComplex(0, 0));
-	std::vector<double> a(N, 0.0);
-	std::vector<double> aReal(N, 0.0); // Real part of the vorticities for debugging or further processing
+	std::vector<cuDoubleComplex> aPrimeHost(N, make_cuDoubleComplex(0, 0));
+	std::vector<double> aHost(N, 0.0);
+	std::vector<double> aPrimeReal(N, 0.0); // Real part of the vorticities for debugging or further processing
 	std::vector<double> Phi(N, 0);
 	std::vector<double> PhiPrime_host(N, 0);
 	cudaDeviceSynchronize();
 	cudaMemcpy(ZPhiPrime_host.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
 	cudaMemcpy(ZPhi_host.data(), devZPhi, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	cudaMemcpy(a.data(), deva, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
-	cudaMemcpy(a_host.data(), devaprime, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
+	cudaMemcpy(aHost.data(), deva, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
+	cudaMemcpy(aPrimeHost.data(), devaprime, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
 	cudaMemcpy(PhiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
 
 	for (int i = 0; i < N; i++) {
-		printf("%f\n", a[i]);
-		aReal[i] = a_host[i].x; // Store the real part of the vorticities for further processing
+		printf("%f\n", aHost[i]);
+		aPrimeReal[i] = aPrimeHost[i].x; // Store the real part of the vorticities for further processing
 		x[i] = ZPhi_host[i].x; // Store the real part of ZPhi for plotting
 		Phi[i] = ZPhiPrime_host[N + i].x; // Store the real part of ZPhi for plotting
 		//Phi[i] = ZPhiPrime_host[N + i].y; // Store the imaginary part of ZPhi for plotting
 	}
 	plt::figure();
-	plt::plot(x, Phi, { {"label", "Phi'"} });
+	//plt::plot(x, Phi, { {"label", "Phi'"} });
 	plt::title("a, aprime");
-	/*plt::plot(x, a, {{"label", "a"}});
-	plt::plot(x, aReal, {{"label", "a prime"}});*/
+	plt::plot(x, aHost, {{"label", "a"}});
+	plt::plot(x, aPrimeReal, {{"label", "a prime"}});
 	plt::legend();
 	plt::show();
 
@@ -232,6 +232,22 @@ inline void TimeStepManager<N>::runTimeStep()
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
 
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid
+	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
+	std::array<cufftDoubleComplex, N> VelocitiesLower; // Host array to store the velocities for the lower fluid
+	std::vector<double> xVelocitiesLower(N, 0.0); // Host vector to store the real part of the velocities for the lower fluid
+	std::vector<double> yVelocitiesLower(N, 0.0); // Host vector to store the imaginary part of the velocities for the lower fluid
+
+	cudaMemcpy(VelocitiesLower.data(), devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the velocities for the lower fluid from device to host
+	for (int i = 0; i < N; i++) {
+		xVelocitiesLower[i] = VelocitiesLower[i].x; // Store the real part of the velocities for the lower fluid
+		yVelocitiesLower[i] = VelocitiesLower[i].y; // Store the imaginary part of the velocities for the lower fluid
+	}
+
+	plt::figure();
+	plt::title("Velocities Lower Fluid");
+	plt::plot(x, xVelocitiesLower, { {"label", "X Velocities Lower Fluid"} }); // Plot the velocities for the lower fluid
+	plt::plot(x, yVelocitiesLower, { {"label", "Y Velocities Lower Fluid"} }); // Plot the imaginary part of the velocities for the lower fluid
+	plt::legend();
 	// 7. the RHS of the X, Y are the velocities above.
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	calculatePhiRhs();

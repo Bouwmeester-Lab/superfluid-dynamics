@@ -61,9 +61,9 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 64;
-    const int steps = 150;
-	double stepSize = 1e-2;
+    const int N = 8;
+    const int steps = 800;
+	double stepSize = 1e-3;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -177,11 +177,11 @@ int runTimeStep()
     auto title = std::format("Interface And Potential at t={:.4f}", steps * stepSize);
 	plt::title(title);
 
-    plt::plot(x_fin, y_fin, {{"label", "Interface at t=" + std::to_string(t)}});
+    //plt::plot(x_fin, y_fin, {{"label", "Interface at t=" + std::to_string(t)}});
     // Plot the initial position and the result of the Euler method
 
 	plt::plot(x0, y0, {{"label", "Initial Position"}});
-    plt::plot(x, y, {{"label", "RK4 Result"}});
+    plt::scatter(x, y);
     plt::legend();
     plt::show();
     

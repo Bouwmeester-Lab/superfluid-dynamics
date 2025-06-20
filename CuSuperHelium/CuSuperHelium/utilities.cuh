@@ -215,7 +215,7 @@ __global__ void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComple
         cos(a[i], cc);
         sin(a[i], cs);
 
-        auto z = cuCdiv(cc, cs);
+		auto z = cuCdiv(cc, cs); // https://dlmf.nist.gov/4.21#E40 maybe useful for the future
 
         out[i].x = z.x;
         out[i].y = z.y;

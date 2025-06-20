@@ -7,6 +7,8 @@
 #include "Derivatives.cuh"
 #include "WaterVelocities.cuh"
 #include "matplotlibcpp.h"
+#include "utilities.cuh"
+
 namespace plt = matplotlibcpp;
 
 using namespace std::complex_literals;
@@ -140,7 +142,7 @@ TEST(Kernels, Cotangent)
 
 TEST(Kernels, MMatrixKernel) 
 {
-	const int N = 512;
+	const int N = 1024;
 	double t = 0.1;
 	double h = 0.5;
 	double omega = 10;
@@ -186,7 +188,7 @@ TEST(Kernels, MMatrixKernel)
 }
 
 TEST(Kernels, Velocities) {
-	const int N = 512;
+	const int N = 1024;
 	double t = 0.1;
 	double h = 0.5;
 	double omega = 10;
@@ -256,7 +258,7 @@ TEST(Kernels, Velocities) {
 /// <param name=""></param>
 TEST(Kernels, ZPhiDerivatives) 
 {
-	const int N = 512;
+	const int N = 1024;
 	double j = 0;
 	double x = 0;
 	double y = 0;
@@ -499,4 +501,91 @@ TEST(Kernels, ZPhiDerivativesTranslation)
 
 	plt::legend();
 	//plt::show(false);
+}
+
+void createRhs(double* rhs, double* Y, double* VXlower, double* VYlower, double* VXupper, double* VYupper, double rho, int N) 
+{
+	for(int i = 0; i < N; i++) 
+	{
+		rhs[i] = -(1 + rho) * Y[i] + 0.5 * (VXlower[i] * VXlower[i] + VYlower[i] * VYlower[i]) + 0.5 * rho * (VXupper[i] * VXupper[i] + VYupper[i] * VYupper[i]) - rho * (VXlower[i] * VXupper[i] + VYlower[i] * VYupper[i]);
+	}
+}
+
+/// <summary>
+/// Tests: compute_rhs_phi_expression
+/// </summary>
+/// <param name=""></param>
+/// <param name=""></param>
+TEST(Kernels, RhsPhi) 
+{
+	const int N = 32;
+	const int threads = 256;
+	const int blocks = (N + threads - 1) / threads;
+
+	std::vector<double> rhs(N, 0.0);
+
+	std::vector<double> Yvect(N, 0.0);
+
+	std::vector<cufftDoubleComplex> ZHost(N, { 0.0, 0.0 });
+	
+	std::vector<cufftDoubleComplex> VLowerHost(N, { 0.0, 0.0 });
+	std::vector<cufftDoubleComplex> VUpperHost(N, { 0.0, 0.0 });
+
+	std::vector<cufftDoubleComplex> RhsCalculated(N);
+
+	std::vector<double> VXlower(N, 0.0);
+	std::vector<double> VYlower(N, 0.0);
+
+	std::vector<double> VXupper(N, 0.0);
+	std::vector<double> VYupper(N, 0.0);
+
+	double omega = 10.0;
+	double h = 0.5;
+	double t = 0.1;
+
+	for(int i = 0; i < N; i++) 
+	{
+		double j = 2 * PI_d * i / (double)N;
+		Yvect[i] = Y(i, h, omega, t); // Y function values
+		VXlower[i] = 2 * PI_d / N * Xprime(j, h, omega, t);
+		VYlower[i] = 2 * PI_d / N * Yprime(j, h, omega, t); // lower velocities
+
+		ZHost[i].x = X(j, h, omega, t);
+		ZHost[i].y = Yvect[i];
+
+		VLowerHost[i].x = VXlower[i];
+		VLowerHost[i].y = VYlower[i]; // lower velocities as complex numbers
+
+		VUpperHost[i].x = 0; // upper velocities are the same as lower velocities in this test
+		VUpperHost[i].y = 0; // upper velocities are zero in this test
+	}
+
+	createRhs(rhs.data(), Yvect.data(), VXlower.data(), VYlower.data(), VXupper.data(), VYupper.data(), 0.0, N);
+
+	// create the items in the device memory
+	cuDoubleComplex* Z;
+	cuDoubleComplex* V1;
+	cuDoubleComplex* V2;
+	cuDoubleComplex* result;
+
+	cudaMalloc(&Z, N * sizeof(cuDoubleComplex));
+	cudaMalloc(&V1, N * sizeof(cuDoubleComplex));
+	cudaMalloc(&V2, N * sizeof(cuDoubleComplex));
+	cudaMalloc(&result, N * sizeof(cuDoubleComplex));
+
+	cudaMemcpy(Z, ZHost.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(V1, VLowerHost.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(V2, VUpperHost.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+
+	compute_rhs_phi_expression << <blocks, threads >> > (Z, V1, V2, result, 0.0, N);
+
+	cudaDeviceSynchronize();
+
+	cudaMemcpy(RhsCalculated.data(), result, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+
+	for(int i = 0; i < N; i++) 
+	{
+		EXPECT_NEAR(RhsCalculated[i].x, rhs[i], 1e-14) << "Rhs mismatch at index " << i;
+		EXPECT_NEAR(RhsCalculated[i].y, 0.0, 1e-14) << "Rhs imaginary part mismatch at index " << i;
+	}
 }

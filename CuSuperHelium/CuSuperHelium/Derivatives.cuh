@@ -13,6 +13,8 @@
 #include "utilities.cuh"
 #include <iostream>
 #include "constants.cuh"
+#include "matplotlibcpp.h"
+namespace plt = matplotlibcpp;
 #if DEBUG_FFT
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
@@ -36,7 +38,7 @@ class FftDerivative
 	/// <summary>
 	/// The values to multiply the coefficients with to obtain the derivative.
 	/// </summary>
-	cufftDoubleComplex* derivativeCoeffs;
+	cufftDoubleComplex* filterCoeffs;
 public:
 	/// <summary>
 	/// Creates the FFT execution plan required for the computation.
@@ -47,7 +49,7 @@ public:
 	/// </summary>
 	/// <param name="in">Must be of size N*batchSize</param>
 	/// <param name="out">Must be of size N*batchSize</param>
-	void exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev = false, double scaling = 1.0);
+	void exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev = false, double scaling = 1.0, bool filter = false);
 	FftDerivative() {};
 	~FftDerivative();
 };
@@ -91,11 +93,12 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 {
 	cudaError_t cudaStatus;
 
-	std::array<cufftDoubleComplex, N * batchSize> der;
+	std::vector<cufftDoubleComplex> der(N * batchSize);
+	std::vector<double> derReal(N * batchSize);
 	for (int i = 0; i < batchSize; i++)
 	{
 		for (int j = 0; j < N; j++) {
-			der[batchSize * i + j].x = 0;
+			/*der[batchSize * i + j].x = 0;
 			if (j < N / 2)
 			{
 				der[batchSize * i + j].y = j;
@@ -103,19 +106,29 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 			else
 			{
 				der[batchSize * i + j].y = j - N;
-			}
-			if (filterIndx)
+			}*/
+			
+			der[batchSize * i + j].x = filterTanh(abs(j - N/2), N, 0.1*PI_d, 0.4);
+			der[batchSize * i + j].y = 0; // the filter coefficients are only real, so the imaginary part is 0
+
+			if (der[batchSize * i + j].x < 1e-11)
 			{
-				der[batchSize * i + j].y = filterIndexTanh(abs(der[batchSize * i + j].y), N);
+				der[batchSize * i + j].x = 0.0; // set the small values to 0 exactly
 			}
+
+
+			derReal[batchSize * i + j] = der[batchSize * i + j].x;
+
+			
 			// std::cout << der[batchSize * i + j].y << std::endl;
 		}
 	}
+	plt::figure();
+	plt::plot(derReal, { {"label", "filter coefficients"} });
 
 
 
-
-	cudaStatus = cudaMalloc(&derivativeCoeffs, sizeof(cufftDoubleComplex) * N * batchSize);
+	cudaStatus = cudaMalloc(&filterCoeffs, sizeof(cufftDoubleComplex) * N * batchSize);
 	if (cudaStatus != cudaSuccess) {
 		//fprintf(stderr, "cudaMalloc failed!");
 		return cudaStatus;
@@ -126,7 +139,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 		return cudaStatus;
 	}
 	// copy the coefficients to GPU
-	cudaStatus = cudaMemcpy(derivativeCoeffs, der.data(), sizeof(cufftDoubleComplex) * N * batchSize, cudaMemcpyHostToDevice);
+	cudaStatus = cudaMemcpy(filterCoeffs, der.data(), sizeof(cufftDoubleComplex) * N * batchSize, cudaMemcpyHostToDevice);
 	if (cudaStatus != cudaSuccess) {
 		//fprintf(stderr, "cudaMalloc failed!");
 		return cudaStatus;
@@ -137,7 +150,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 }
 
 template<int N, int batchSize>
-void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev, double scaling)
+void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComplex* out, const bool doubleDev, double scaling, bool filter)
 {
 	if (coeffs == nullptr)
 	{
@@ -174,6 +187,10 @@ void FftDerivative<N, batchSize>::exec(cufftDoubleComplex* in, cufftDoubleComple
 	{
 		first_derivative_multiplication << <blocks, threads >> > (coeffs, coeffs, N);
 	}
+	if (filter) 
+	{
+		multiply_element_wise<< <blocks, threads >> > (coeffs, filterCoeffs, coeffs, N * batchSize); // multiply the coefficients with the filter coefficients
+	}
 #ifdef  DEBUG_FFT
 
 
@@ -207,7 +224,7 @@ FftDerivative<N, batchSize>::~FftDerivative()
 {
 	cufftDestroy(plan);
 	// delete all pointers
-	cudaFree(derivativeCoeffs);
+	cudaFree(filterCoeffs);
 	cudaFree(coeffs);
 	//cudaFree()
 }
@@ -247,10 +264,10 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 
 	vector_subtract_complex_real<<< blocks2N, threads>>>(ZPhi, devLinearPartZPhi, devPeriodicZPhi, 2 * N);
 
-	fftDerivative.exec(devPeriodicZPhi, Zpp, true);
+	fftDerivative.exec(devPeriodicZPhi, Zpp, true, 4.0*PI_d * PI_d / (N*N));
 
-	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime, false);
-	fftDerivative.exec(devPeriodicZPhi + N, ZPhiPrime + N, false); // calculates the derivative of Z and Phi
+	fftDerivative.exec(devPeriodicZPhi, ZPhiPrime, false, 2.0 * PI_d / N); // 2.0 * PI_d / N
+	fftDerivative.exec(devPeriodicZPhi + N, ZPhiPrime + N, false, 2.0 * PI_d / N); // calculates the derivative of Z and Phi
 
 	
 
@@ -305,11 +322,11 @@ inline void ZPhiDerivative<N>::exec(cufftDoubleComplex* ZPhi, cufftDoubleComplex
 #endif
 	//cudaDeviceSynchronize();
 	// add the linear part back, I need to add 1 and multiply everything by 2*pi/N.
-	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 1.0, ZPhiPrime, N, 0); //
+	vector_scalar_add_complex_real << <blocks, threads >> > (ZPhiPrime, 2.0* PI_d/N, ZPhiPrime, N, 0); //
 
-	vector_mutiply_scalar << < blocks2N, threads >> > (ZPhiPrime,  2.0 * PI_d / (double)(N), ZPhiPrime, 2*N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
-	
-	vector_mutiply_scalar << < blocks, threads >> > (Zpp, 4.0 * PI_d * PI_d / (N * N), Zpp, N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
+	//vector_mutiply_scalar << < blocks2N, threads >> > (ZPhiPrime,  2.0 * PI_d / (double)(N), ZPhiPrime, 2*N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
+	//
+	//vector_mutiply_scalar << < blocks, threads >> > (Zpp, 4.0 * PI_d * PI_d / (N * N), Zpp, N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
 
 	if (properties.U != 0) 
 	{

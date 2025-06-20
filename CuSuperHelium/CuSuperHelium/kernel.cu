@@ -191,6 +191,7 @@ int runTimeStep()
 
 int main()
 {
+    Py_SetPythonHome(L"C:/ProgramData/anaconda3");
 
     runTimeStep();
     //const int arraySize = 8;

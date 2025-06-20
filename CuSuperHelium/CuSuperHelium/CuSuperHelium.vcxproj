@@ -46,8 +46,8 @@
     <IncludePath>$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;</IncludePath>
-    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Users\emore\anaconda3\libs</LibraryPath>
+    <IncludePath>C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64;C:\Users\emore\anaconda3\libs;C:\ProgramData\anaconda3\libs</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

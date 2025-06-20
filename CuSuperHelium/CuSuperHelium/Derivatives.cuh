@@ -123,8 +123,8 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 			// std::cout << der[batchSize * i + j].y << std::endl;
 		}
 	}
-	plt::figure();
-	plt::plot(derReal, { {"label", "filter coefficients"} });
+	/*plt::figure();
+	plt::plot(derReal, { {"label", "filter coefficients"} });*/
 
 
 

@@ -202,7 +202,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	fftDerivative.exec(devaComplex, devaprime, false); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
 	
 	force_real_only << <blocks, threads >> > (devaprime, N); // Force the imaginary part of the primed vorticities to be zero
-#ifdef DEBUG_DERIVATIVES
+#ifdef DEBUG_DERIVATIVES_3
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));
 	std::vector<cuDoubleComplex> ZPhiPrime_host(2 * N, make_cuDoubleComplex(0, 0)); // Host vectors to store the results of  ZPhiPrime
@@ -239,7 +239,7 @@ inline void TimeStepManager<N>::runTimeStep()
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
 
 	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid
-#ifdef DEBUG_DERIVATIVES
+#ifdef DEBUG_VELOCITIES
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 	std::array<cufftDoubleComplex, N> VelocitiesLower; // Host array to store the velocities for the lower fluid
 	std::vector<double> xVelocitiesLower(N, 0.0); // Host vector to store the real part of the velocities for the lower fluid
@@ -253,8 +253,8 @@ inline void TimeStepManager<N>::runTimeStep()
 
 	plt::figure();
 	plt::title("Velocities Lower Fluid");
-	plt::plot(x, xVelocitiesLower, { {"label", "X Velocities Lower Fluid"} }); // Plot the velocities for the lower fluid
-	plt::plot(x, yVelocitiesLower, { {"label", "Y Velocities Lower Fluid"} }); // Plot the imaginary part of the velocities for the lower fluid
+	plt::plot(xVelocitiesLower, { {"label", "X Velocities Lower Fluid"} }); // Plot the velocities for the lower fluid
+	plt::plot(yVelocitiesLower, { {"label", "Y Velocities Lower Fluid"} }); // Plot the imaginary part of the velocities for the lower fluid
 	plt::legend();
 #endif
 	// 7. the RHS of the X, Y are the velocities above.

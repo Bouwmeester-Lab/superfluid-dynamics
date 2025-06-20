@@ -1,5 +1,7 @@
 ﻿
 //#define DEBUG_DERIVATIVES
+//#define DEBUG_RUNGE_KUTTA
+//#define DEBUG_VELOCITIES
 #include "ProblemProperties.hpp"
 #include "array"
 #include "vector"
@@ -61,9 +63,9 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 8;
-    const int steps = 800;
-	double stepSize = 1e-3;
+    const int N = 16;
+    const int steps = 10;
+	double stepSize = 5e-2;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -191,7 +193,7 @@ int runTimeStep()
 
 int main()
 {
-    Py_SetPythonHome(L"C:/ProgramData/anaconda3");
+    //Py_SetPythonHome(L"C:/ProgramData/anaconda3");
 
     runTimeStep();
     //const int arraySize = 8;

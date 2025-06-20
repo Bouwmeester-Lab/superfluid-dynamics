@@ -281,8 +281,7 @@ __global__ void conjugate_vector(cuDoubleComplex* x, cuDoubleComplex* z, int N)
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
 		z[i].x = x[i].x; // copy the real part
-		// and negate the imaginary part to get the conjugate
-		z[i].y = -x[i].y; // conjugate
+        z[i].y = -x[i].y; // conjugate
     }
 }
 

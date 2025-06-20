@@ -42,6 +42,14 @@ __device__ inline cufftDoubleComplex cMulScalar(double a, cufftDoubleComplex z);
 
 __global__ void conjugate_vector(cuDoubleComplex* x, cuDoubleComplex* z, int N);
 
+__global__ void add_k_vectors(cufftDoubleComplex* k1, cufftDoubleComplex* k2, cufftDoubleComplex* k3, cufftDoubleComplex* k4, cufftDoubleComplex* result, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        result[i].x = k1[i].x + 2.0 * k2[i].x + 2.0 * k3[i].x + k4[i].x;
+        result[i].y = k1[i].y + 2.0 * k2[i].y + 2.0 * k3[i].y + k4[i].y;
+    }
+}
+
 /// <summary>
 /// Computes the RHS of Phi on the GPU using the expression: -(1+rho) * Im(Z) + 0.5 * abs(V1)^2 + 0.5 * rho * abs(V2)^2. - rho * V1 dot V2
 /// It assumes Kappa = 0, and there's no surface tension.
@@ -104,6 +112,27 @@ __global__ void first_derivative_multiplication(
     }
 }
 
+__global__ void multiply_element_wise(const cufftDoubleComplex*a, cufftDoubleComplex* b, cufftDoubleComplex* result, int n) 
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        result[i] = cuCmul(a[i], b[i]);
+    }
+}
+
+/// <summary>
+/// Filters the coefficients using a tanh filter. This is used to remove high frequency noise from the signal. It assumes that the coefficients are in the order of the frequencies of [0, N/2, -N/2, ..., -1].
+/// </summary>
+/// <param name="k"></param>
+/// <param name="N"></param>
+/// <param name="eps"></param>
+/// <param name="d"></param>
+/// <returns></returns>
+__device__ __host__ inline double filterTanh(int k, int N, double eps, double d) 
+{
+    return 0.5 + 0.5 * tanh((2.0 * PI_d / N * k - eps) / d);
+}
+
 /// <summary>
 /// Calculates the coefficients needed to run an ifft and get the second derivative from the original function: d2/dt f(t)
 /// </summary>
@@ -129,6 +158,14 @@ __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufft
 		result[i].x = -(i - n) * (i - n) * coeffsFft[i].x / n; //https://math.mit.edu/~stevenj/fft-deriv.pdf
 		result[i].y = -(i - n) * (i - n) * coeffsFft[i].y / n;
 	}
+}
+
+__global__ void force_real_only(cufftDoubleComplex* a, int n)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        a[i].y = 0; // set the imaginary part to 0
+    }
 }
 
 __global__ void set_mode_to_imaginary(cufftDoubleComplex* a, double img, int n)
@@ -243,8 +280,9 @@ __global__ void conjugate_vector(cuDoubleComplex* x, cuDoubleComplex* z, int N)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
-        cuDoubleComplex xi = x[i];
-        z[i] = make_cuDoubleComplex(cuCreal(xi), -cuCimag(xi));
+		z[i].x = x[i].x; // copy the real part
+		// and negate the imaginary part to get the conjugate
+		z[i].y = -x[i].y; // conjugate
     }
 }
 
@@ -254,9 +292,9 @@ __global__ void compute_rhs_phi_expression(const cuDoubleComplex* Z, const cuDou
 	if (i < N) {
 		// Calculate the right-hand side of the phi equation
 		double Z_imag = cuCimag(Z[i]);
-		double V1_abs2 = cuCabs(V1[i]) * cuCabs(V1[i]);
-		double V2_abs2 = cuCabs(V2[i]) * cuCabs(V2[i]);
-		double V1_dot_V2 = cuCreal(V1[1]) * cuCreal(V2[i]) + cuCimag(V1[i]) * cuCimag(V2[i]);
+		double V1_abs2 = V1[i].x * V1[i].x + V1[i].y * V1[i].y;
+		double V2_abs2 = V2[i].x * V2[i].x + V2[i].y * V2[i].y;
+		double V1_dot_V2 = V1[1].x * V2[i].x + V1[i].y * V2[i].y;
 		result[i].x = -(1 + rho) * Z_imag + 0.5 * V1_abs2 + 0.5 * rho * V2_abs2 - rho * V1_dot_V2;
         result[i].y = 0;
 	}

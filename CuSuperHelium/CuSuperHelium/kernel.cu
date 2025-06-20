@@ -16,6 +16,8 @@
 
 #include "TimeStepManager.cuh"
 #include "SimpleEuler.cuh"
+#include "RungeKunta.cuh"
+
 #include <format>
 //#include "math.h"
 //#include "complex.h"
@@ -34,15 +36,15 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 }
 
 double X(double j, double h, double omega, double t) {
-    return j - h * std::exp(j_complex * (j - omega * t)).imag();
+    return j - h * std::sin((j - omega * t));
 }
 
 double Y(double j, double h, double omega, double t) {
-	return h * std::exp(j_complex * (j - omega * t)).real();
+	return h * std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
-    return h * ((1 + rho) * omega * std::exp(j_complex * (j - omega * t))).imag();
+    return h * ((1 + rho) * omega * std::sin((j - omega * t)));
 }
 
 int runTimeStep() 
@@ -59,8 +61,9 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 32;
-    const int steps = 1140;
+    const int N = 64;
+    const int steps = 150;
+	double stepSize = 1e-2;
 	TimeStepManager<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
@@ -78,6 +81,8 @@ int runTimeStep()
     std::array<cufftDoubleComplex, N> ZVect;
     std::array<cufftDoubleComplex, N> PhiVect;
 
+
+
     std::vector<double> x;
 	std::vector<double> y;
 
@@ -87,11 +92,11 @@ int runTimeStep()
     x.resize(N, 0);
 	y.resize(N, 0);
 	phiPrime.resize(N, 0);
-    double h = 0.5;
-    double omega = 2;
-    double t0 = 2;
+    double h = 0.1;
+    double omega = 1;
+    double t0 = 0;
 	for (int i = 0; i < N; i++) {
-		j[i] = 2 * PI_d * i / (1.0 * N);
+		j[i] = 2.0 * PI_d * i / (1.0 * N);
 		Z0[i].x = X(j[i], h, omega, t0);
 		x0[i] = Z0[i].x;
 
@@ -130,13 +135,15 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
-
-	Euler<N> euler(timeStepManager, 1e-4);
-	euler.setDevZ(devZ);
-	euler.setDevPhi(devPhi);
+	RungeKuntaStepper<N> rungeKunta(timeStepManager, stepSize);
+	// Euler<N> euler(timeStepManager, stepSize);
+	/*euler.setDevZ(devZ);
+	euler.setDevPhi(devPhi);*/
+    rungeKunta.initialize(devZ);
+	rungeKunta.setTimeStep(stepSize);
 	for (int i = 0; i < steps; i++) {
         // Perform a time step
-        euler.doTimeStep();
+		rungeKunta.step();
 	}
 	
 
@@ -148,11 +155,18 @@ int runTimeStep()
     cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
     //cudaMemcpy(PhiVect.data(), devPhi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 
-	printf("\Positions after 1: ");
+	printf("\velocities after 1: ");
+	double t = steps * stepSize;
+	std::vector<double> x_fin(N, 0);
+	std::vector<double> y_fin(N, 0);
+
 	for (int i = 0; i < N; i++) {
 		printf("{%f, %f} ", VelocitiesLower[i].x, VelocitiesLower[i].y);
         x[i] = ZVect[i].x;
         y[i] = ZVect[i].y;
+
+		x_fin[i] = X(j[i], h, omega, t);
+		y_fin[i] = Y(j[i], h, omega, t);
 	}
 	printf("\n");
     printf("\nPhi: ");
@@ -160,10 +174,14 @@ int runTimeStep()
         printf("{%f, %f} ", PhiVect[i].x, -1 * PhiVect[i].y);
     }
     plt::figure();
-    auto t = std::format("Interface And Potential After {} time steps.", steps);
-	plt::title(t);
+    auto title = std::format("Interface And Potential at t={:.4f}", steps * stepSize);
+	plt::title(title);
+
+    plt::plot(x_fin, y_fin, {{"label", "Interface at t=" + std::to_string(t)}});
+    // Plot the initial position and the result of the Euler method
+
 	plt::plot(x0, y0, {{"label", "Initial Position"}});
-    plt::plot(x, y, {{"label", "Euler Result"}});
+    plt::plot(x, y, {{"label", "RK4 Result"}});
     plt::legend();
     plt::show();
     

@@ -28,7 +28,9 @@ public:
 	/// <param name="Z0"></param>
 	/// <param name="Phi0"></param>
 	void initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi);
+	void setZPhi(cufftDoubleComplex* devZPhi) { this->devZPhi = devZPhi; }
 	void runTimeStep();
+
 	cufftDoubleComplex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
 	cufftDoubleComplex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
 	cufftDoubleComplex* devRhsPhi; ///< Device pointer to the right-hand side of the phi equation (derivative of Phi/dt)
@@ -71,7 +73,7 @@ template<int N>
 TimeStepManager<N>::TimeStepManager(ProblemProperties& problemProperties) : problemProperties(problemProperties), zPhiDerivative(problemProperties), 
 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
-	cudaMalloc(&devZPhi,2 * N * sizeof(cufftDoubleComplex));
+	
 	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devPhiPrime, N * sizeof(double)); // Device pointer for the PhiPrime array (derivative of Phi)
 	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
@@ -105,6 +107,7 @@ TimeStepManager<N>::~TimeStepManager()
 template<int N>
 inline void TimeStepManager<N>::initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi)
 {
+	cudaMalloc(&devZPhi, 2 * N * sizeof(cufftDoubleComplex));
 	// Copy initial conditions to device memory
 	cudaMemcpy(devZPhi, Z0, N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	cudaMemcpy(devZPhi + N, Phi0, N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
@@ -196,7 +199,9 @@ inline void TimeStepManager<N>::runTimeStep()
 #endif
 	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
 	//
-	fftDerivative.exec(devaComplex, devaprime, false, 2.0*PI_d / static_cast<double>(N)); // Calculate the derivative of a (vorticities)
+	fftDerivative.exec(devaComplex, devaprime, false); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
+	
+	force_real_only << <blocks, threads >> > (devaprime, N); // Force the imaginary part of the primed vorticities to be zero
 #ifdef DEBUG_DERIVATIVES
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));

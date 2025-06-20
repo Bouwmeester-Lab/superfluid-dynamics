@@ -150,7 +150,7 @@ __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufft
     }
     else if (i == n / 2) 
     {
-		result[i].x = -PI_d * PI_d * result[i].y / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
+        result[i].x = PI_d * PI_d * result[i].y / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
 		result[i].y = 0;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
     }
     else if(i < n)

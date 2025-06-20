@@ -73,7 +73,7 @@ void RungeKuntaStepper<N>::step()
 	copyk(1); // copy k1 from the timeStepManager
 
 	
-	// x_n+1 = x_n + h * v_n -> x_n is a N dimensional vector, h is the time step, v_n is the velocity at time n
+	// x_n+1 = x_n + h*0.5 * v_n -> x_n is a N dimensional vector, h is the time step, v_n is the velocity at time n
 	cublasZaxpy(handle, 2 * N, &halfTimeStep, k1, 1, devZPhi1, 1); // here devZ get's overwritten with the new positions
 
 	timeStepManager.setZPhi(devZPhi1);

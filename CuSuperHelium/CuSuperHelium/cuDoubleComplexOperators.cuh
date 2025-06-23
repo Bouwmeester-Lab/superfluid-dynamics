@@ -12,9 +12,21 @@
  *  @version 1.0
  *	https://github.com/TravisWThompson1/cuComplex_Operators
  */
+#pragma once
 #include <cuComplex.h>
 
-
+template <typename T>
+T CastTo(double d) {
+    if constexpr (std::same_as<T, cuDoubleComplex>) {
+        return make_cuDoubleComplex(d, 0.0);
+    }
+    else if constexpr (std::constructible_from<T, double>) {
+        return T(d);
+    }
+    else {
+        static_assert(sizeof(T) == 0, "CastTo<T>: Cannot convert from double");
+    }
+}
 
  /**
   * Complex float overloaded addition operator (cuFloatComplex + cuFloatComplex).

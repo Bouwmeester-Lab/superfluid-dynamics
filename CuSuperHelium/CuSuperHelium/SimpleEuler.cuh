@@ -5,7 +5,7 @@
 #include "ProblemProperties.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "TimeStepManager.cuh"
+#include "AutonomousProblem.h"
 #include "cublas_v2.h"
 #include "cuComplex.h"
 

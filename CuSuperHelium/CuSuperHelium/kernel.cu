@@ -16,9 +16,9 @@
 #include "constants.cuh"
 #include <complex>
 
-#include "TimeStepManager.cuh"
+#include "WaterBoundaryIntegralCalculator.cuh"
 #include "SimpleEuler.cuh"
-#include "RungeKunta.cuh"
+#include "AutonomousRungeKuttaStepper.cuh"
 
 #include <format>
 //#include "math.h"
@@ -137,15 +137,16 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
-	RungeKuntaStepper<N> rungeKunta(timeStepManager, stepSize);
+	AutonomousRungeKuttaStepper<cuDoubleComplex, 2*N> rungeKunta(timeStepManager, stepSize);
 	// Euler<N> euler(timeStepManager, stepSize);
 	/*euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);*/
     rungeKunta.initialize(devZ);
 	rungeKunta.setTimeStep(stepSize);
+
 	for (int i = 0; i < steps; i++) {
         // Perform a time step
-		rungeKunta.step();
+        rungeKunta.runStep();
 	}
 	
 

@@ -101,15 +101,16 @@
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
-    <ClInclude Include="RungeKunta.cuh" />
+    <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
-    <ClInclude Include="TimeStepManager.cuh" />
+    <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
   </ItemGroup>

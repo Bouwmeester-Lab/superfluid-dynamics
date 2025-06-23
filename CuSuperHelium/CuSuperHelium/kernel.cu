@@ -66,7 +66,7 @@ int runTimeStep()
     const int N = 16;
     const int steps = 10;
 	double stepSize = 5e-2;
-	TimeStepManager<N> timeStepManager(problemProperties);
+	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;
     std::vector<double> x0;

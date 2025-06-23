@@ -13,7 +13,7 @@ template <int N>
 class RungeKuntaStepper
 {
 public:
-	RungeKuntaStepper(TimeStepManager<N>& timeStepManager, double tstep = 1e-2);
+	RungeKuntaStepper(WaterBoundaryIntegralCalculator<N>& timeStepManager, double tstep = 1e-2);
 	~RungeKuntaStepper();
 	
 	void setTimeStep(double tstep) { timeStep = make_cuDoubleComplex(tstep, 0); halfTimeStep = make_cuDoubleComplex(tstep * 0.5, 0); sixthTimeStep = make_cuDoubleComplex(tstep / 6.0, 0); }
@@ -34,7 +34,7 @@ private:
 	cufftDoubleComplex* devZPhi3;
 	//cufftDoubleComplex* devZphi4;
 
-	TimeStepManager<N>& timeStepManager; ///< Instance of the TimeStepManager to handle time-stepping operations
+	WaterBoundaryIntegralCalculator<N>& timeStepManager; ///< Instance of the TimeStepManager to handle time-stepping operations
 	cublasHandle_t handle; ///< CUBLAS handle for matrix operations
 
 	cuDoubleComplex timeStep;
@@ -44,7 +44,7 @@ private:
 	void copyk(const int i);
 };
 template <int N>
-RungeKuntaStepper<N>::RungeKuntaStepper(TimeStepManager<N>& timeStepManager, double tstep) : timeStepManager(timeStepManager)
+RungeKuntaStepper<N>::RungeKuntaStepper(WaterBoundaryIntegralCalculator<N>& timeStepManager, double tstep) : timeStepManager(timeStepManager)
 {
 	cublasCreate(&handle);
 	cudaMalloc(&k1, 2 * N * sizeof(cufftDoubleComplex)); // allocate memory for k1

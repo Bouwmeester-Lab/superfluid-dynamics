@@ -84,6 +84,7 @@
       <CodeGeneration>compute_86,sm_86</CodeGeneration>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Od</Optimization>
+      <AdditionalOptions>-std=c++20 %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -91,6 +92,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MatrixMTests.cuh" />
+    <ClInclude Include="ODESolverTests.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

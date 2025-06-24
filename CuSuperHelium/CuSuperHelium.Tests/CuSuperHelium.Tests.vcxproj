@@ -84,13 +84,14 @@
       <CodeGeneration>compute_86,sm_86</CodeGeneration>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Od</Optimization>
-      <AdditionalOptions>-std=c++20 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-std=c++20 -prec-div=true -prec-sqrt=true -ftz=false %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ComplexFunctionsTests.cuh" />
     <ClInclude Include="MatrixMTests.cuh" />
     <ClInclude Include="ODESolverTests.cuh" />
   </ItemGroup>

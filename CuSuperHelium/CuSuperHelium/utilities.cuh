@@ -209,16 +209,17 @@ __global__ void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComple
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
-        cufftDoubleComplex cs;
-        cufftDoubleComplex cc;
+		out[i] = cotangent_complex(a[i]); // using the device function to calculate the cotangent
+  //      cufftDoubleComplex cs;
+  //      cufftDoubleComplex cc;
 
-        cos(a[i], cc);
-        sin(a[i], cs);
+  //      cos(a[i], cc);
+  //      sin(a[i], cs);
 
-		auto z = cuCdiv(cc, cs); // https://dlmf.nist.gov/4.21#E40 maybe useful for the future
+		//auto z = cuCdiv(cc, cs); // https://dlmf.nist.gov/4.21#E40 maybe useful for the future
 
-        out[i].x = z.x;
-        out[i].y = z.y;
+  //      out[i].x = z.x;
+  //      out[i].y = z.y;
     }
 }
 
@@ -234,7 +235,7 @@ __global__ void complex_to_real(const cuDoubleComplex* x_c, double* x, int N) {
         x[idx] = x_c[idx].x; // only copy the real part
 }
 
-__device__ cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
+__device__ inline cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
 {
 
     cufftDoubleComplex cs;
@@ -244,6 +245,10 @@ __device__ cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
     sin(a, cs);
 
     return cuCdiv(cc, cs);
+    //return  make_cuDoubleComplex(sin(2 * a.x)/ (cosh(2 * a.y) - cos(2 * a.x)), -sinh(2* a.y)/ (cosh(2 * a.y) - cos(2 * a.x))); // https://dlmf.nist.gov/4.21#E40
+	//double coeff = 1.0 / ; // this is the normalization factor
+
+	//return make_cuDoubleComplex(top.x * coeff, top.y * coeff);
 }
 
 __device__ void cos(cufftDoubleComplex z, cufftDoubleComplex& out)

@@ -13,14 +13,16 @@
 #include "createM.cuh"
 #include "WaterVelocities.cuh"
 #include "MatrixSolver.cuh"
+#include "AutonomousProblem.h"
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
+
 template<int N>
-class TimeStepManager
+class WaterBoundaryIntegralCalculator : public AutonomousProblem<cufftDoubleComplex, 2*N>
 {
 public:
-	TimeStepManager(ProblemProperties& problemProperties);
-	~TimeStepManager();
+	WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties);
+	~WaterBoundaryIntegralCalculator();
 
 	/// <summary>
 	/// Initializes the time step manager by copying the host data to the device memory for the initial conditions. Use this only once when setting up the problem from the host side.
@@ -30,6 +32,8 @@ public:
 	void initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi);
 	void setZPhi(cufftDoubleComplex* devZPhi) { this->devZPhi = devZPhi; }
 	void runTimeStep();
+
+	virtual void run(cufftDoubleComplex* initialState) override;
 
 	cufftDoubleComplex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
 	cufftDoubleComplex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
@@ -70,10 +74,10 @@ private:
 };
 
 template<int N>
-TimeStepManager<N>::TimeStepManager(ProblemProperties& problemProperties) : problemProperties(problemProperties), zPhiDerivative(problemProperties), 
+WaterBoundaryIntegralCalculator<N>::WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties) : AutonomousProblem<cufftDoubleComplex, 2*N>(), problemProperties(problemProperties), zPhiDerivative(problemProperties), 
 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
-	
+	// Allocate device memory for the various arrays used in the water boundary integral calculation
 	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devPhiPrime, N * sizeof(double)); // Device pointer for the PhiPrime array (derivative of Phi)
 	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
@@ -83,14 +87,17 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 	cudaMalloc(&devaprime, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devV1, N * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devVelocitiesLower, N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devVelocitiesUpper, N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devRhsPhi, N * sizeof(cufftDoubleComplex)); // Right-hand side of the phi equation (derivative of Phi)
+
+	// create device pointers for the velocities and right-hand side of the phi equation
+	devVelocitiesLower = this->devTimeEvolutionRhs; // Device pointer for the velocities of the lower fluid
+	devVelocitiesUpper = this->devTimeEvolutionRhs + N; // Device pointer for the velocities of the upper fluid
+	devRhsPhi = this->devTimeEvolutionRhs + 2 * N; // Device pointer for the right-hand side of the phi equation
+
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
 
 template<int N>
-TimeStepManager<N>::~TimeStepManager()
+WaterBoundaryIntegralCalculator<N>::~WaterBoundaryIntegralCalculator()
 {
 	cudaFree(devZPhi);
 	cudaFree(devZPhiPrime);
@@ -105,7 +112,7 @@ TimeStepManager<N>::~TimeStepManager()
 }
 
 template<int N>
-inline void TimeStepManager<N>::initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi)
+inline void WaterBoundaryIntegralCalculator<N>::initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi)
 {
 	cudaMalloc(&devZPhi, 2 * N * sizeof(cufftDoubleComplex));
 	// Copy initial conditions to device memory
@@ -126,7 +133,7 @@ inline void TimeStepManager<N>::initialize_device(cufftDoubleComplex* Z0, cufftD
 }
 
 template<int N>
-inline void TimeStepManager<N>::runTimeStep()
+inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 {
 	// Here you would implement the logic to run a time step of the simulation.
 	// This would typically involve:
@@ -262,7 +269,14 @@ inline void TimeStepManager<N>::runTimeStep()
 	calculatePhiRhs();
 }
 template<int N>
-void TimeStepManager<N>::calculatePhiRhs()
+void WaterBoundaryIntegralCalculator<N>::run(cufftDoubleComplex* initialState)
+{
+	this->setZPhi(initialState); // Set the initial state for ZPhi
+	this->runTimeStep(); // Run the time step calculation
+}
+
+template<int N>
+void WaterBoundaryIntegralCalculator<N>::calculatePhiRhs()
 {
 	compute_rhs_phi_expression<<<blocks, threads>>>(devZPhi, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties.rho, N); // Calculate the right-hand side of the phi equation
 }

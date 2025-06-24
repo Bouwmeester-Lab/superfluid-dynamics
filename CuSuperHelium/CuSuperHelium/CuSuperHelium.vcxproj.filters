@@ -17,11 +17,12 @@
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
-    <ClInclude Include="TimeStepManager.cuh" />
+    <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
-    <ClInclude Include="RungeKunta.cuh" />
+    <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
+    <ClInclude Include="AutonomousProblem.h" />
   </ItemGroup>
 </Project>

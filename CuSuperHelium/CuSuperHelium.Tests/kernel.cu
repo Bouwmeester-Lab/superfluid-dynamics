@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <gtest/gtest.h>
 #include "MatrixMTests.cuh"
+#include "ODESolverTests.cuh"
 
 int main(int argc, char** argv) {
     // Optional: CUDA setup check

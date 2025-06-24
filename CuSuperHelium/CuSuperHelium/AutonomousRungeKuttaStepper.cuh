@@ -81,8 +81,8 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 	copyk(1); // copy k1 from the autonomousProblem
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	std::vector<cufftDoubleComplex> k1_host(2 * N);
-	std::vector<cufftDoubleComplex> ZPhi0_host(2 * N);
+	std::vector<cufftDoubleComplex> k1_host(N);
+	std::vector<cufftDoubleComplex> y_host(N);
 
 	std::vector<double> x(N);
 	std::vector<double> y(N);
@@ -91,29 +91,29 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 	std::vector<double> dy(N);
 	std::vector<double> dPhi(N);
 
-	cudaMemcpy(k1_host.data(), k1, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy k1 to host for debugging
-	cudaMemcpy(ZPhi0_host.data(), devY0, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY0 to host for debugging
+	cudaMemcpy(k1_host.data(), k1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy k1 to host for debugging
+	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY0 to host for debugging
 
 	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(ZPhi0_host[i]);
-		y[i] = cuCimag(ZPhi0_host[i]);
-		Phi[i] = cuCreal(ZPhi0_host[i + N]); // assuming the second half of the array contains Phi values
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		// Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
 
 		dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
 		dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
-		dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
+		// dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
 	}
 
 	plt::figure();
 	plt::plot(x, y, { {"label", "initial pos"} }); // plot the positions
-	plt::plot(x, Phi, { {"label", "initial phi"} }); // plot the Phi values
+	//plt::plot(x, Phi, { {"label", "initial phi"} }); // plot the Phi values
 	plt::plot(dx, dy, { {"label", "perturbed pos"} });
 	//plt::plot(x, dy, { {"label", "k1 y + dy"} });
-	plt::plot(dx, dPhi, { {"label", "k1 phi + phi"} }); // plot the Phi component of k1
+	// plt::plot(dx, dPhi, { {"label", "k1 phi + phi"} }); // plot the Phi component of k1
 
 	/*plt::xlabel("x");
 	plt::ylabel("y");*/
-	
+	plt::legend();
 	plt::title("Positions after Runge-Kutta Step");
 
 #endif
@@ -122,19 +122,19 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(ZPhi0_host.data(), devY1, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+	cudaMemcpy(y_host.data(), devY1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
 
 	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(ZPhi0_host[i]);
-		y[i] = cuCimag(ZPhi0_host[i]);
-		Phi[i] = cuCreal(ZPhi0_host[i + N]); // assuming the second half of the array contains Phi values
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
 		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
 		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
 		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
 	}
-
+	plt::figure();
 	plt::plot(x, y, { {"label", "pertubed calculated positions"} }); // plot the positions
-	plt::plot(x, Phi, { {"label", "pertubed calculated phi"} }); // plot the Phi values
+	//plt::plot(x, Phi, { {"label", "pertubed calculated phi"} }); // plot the Phi values
 
 	
 #endif
@@ -147,19 +147,19 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(ZPhi0_host.data(), devY2, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+	cudaMemcpy(y_host.data(), devY2,  N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
 
 	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(ZPhi0_host[i]);
-		y[i] = cuCimag(ZPhi0_host[i]);
-		Phi[i] = cuCreal(ZPhi0_host[i + N]); // assuming the second half of the array contains Phi values
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
 		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
 		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
 		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
 	}
 
 	plt::plot(x, y, { {"label", "3rd pertubed calculated positions"} }); // plot the positions
-	plt::plot(x, Phi, { {"label", "3rd pertubed calculated phi"} }); // plot the Phi values
+	//plt::plot(x, Phi, { {"label", "3rd pertubed calculated phi"} }); // plot the Phi values
 
 	//plt::legend();
 #endif
@@ -176,19 +176,19 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(ZPhi0_host.data(), devY3, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+	cudaMemcpy(y_host.data(), devY3, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
 
 	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(ZPhi0_host[i]);
-		y[i] = cuCimag(ZPhi0_host[i]);
-		Phi[i] = cuCreal(ZPhi0_host[i + N]); // assuming the second half of the array contains Phi values
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
 		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
 		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
 		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
 	}
 
 	plt::plot(x, y, { {"label", "4th pertubed calculated positions"} }); // plot the positions
-	plt::plot(x, Phi, { {"label", "4th pertubed calculated phi"} }); // plot the Phi values
+	//plt::plot(x, Phi, { {"label", "4th pertubed calculated phi"} }); // plot the Phi values
 
 	plt::legend();
 #endif
@@ -207,20 +207,20 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 	//std::cin.get(); // wait for user input to continue
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(ZPhi0_host.data(), devY0, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
-	cudaMemcpy(k1_host.data(), k1, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+	cudaMemcpy(k1_host.data(), k1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 
 	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(ZPhi0_host[i]); // +sixthTimeStep.x * k1_host[i].x;
-		y[i] = cuCimag(ZPhi0_host[i]);// +sixthTimeStep.x * k1_host[i].y;
-		Phi[i] = cuCreal(ZPhi0_host[i + N]);// +sixthTimeStep.x * k1_host[i + N].x; // assuming the second half of the array contains Phi values
+		x[i] = cuCreal(y_host[i]); // +sixthTimeStep.x * k1_host[i].x;
+		y[i] = cuCimag(y_host[i]);// +sixthTimeStep.x * k1_host[i].y;
+		//Phi[i] = cuCreal(y_host[i + N]);// +sixthTimeStep.x * k1_host[i + N].x; // assuming the second half of the array contains Phi values
 		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
 		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
 		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
 	}
 	plt::figure();
 	plt::plot(x, y, { {"label", "Initial"}}); // plot the positions
-	plt::plot(x, Phi, { {"label", "Initial phi"} }); // plot the Phi values
+	//plt::plot(x, Phi, { {"label", "Initial phi"} }); // plot the Phi values
 
 #endif
 
@@ -228,29 +228,30 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(ZPhi0_host.data(), devY0, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
 
 	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(ZPhi0_host[i]);
-		y[i] = cuCimag(ZPhi0_host[i]);
-		Phi[i] = cuCreal(ZPhi0_host[i + N]); // assuming the second half of the array contains Phi values
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
 		dx[i] = sixthTimeStep.x * cuCreal(k1_host[i]);
 
 		dy[i] = sixthTimeStep.x * cuCimag(k1_host[i]);
-		dPhi[i] = sixthTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
+		//dPhi[i] = sixthTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
 	}
 
 	plt::plot(x, y, { {"label", "Final"} }); // plot the positions
-	plt::plot(x, Phi, { {"label", "Final phi"} }); // plot the Phi values
+	//plt::plot(x, Phi, { {"label", "Final phi"} }); // plot the Phi values
 
 	plt::legend();
 
 	plt::figure();
 	plt::plot(dx, { {"label", "dx"} }); // plot the x component of k1
 	plt::plot(dy, { {"label", "dy"} }); // plot the y component of k1
-	plt::plot(dPhi, { {"label", "dPhi"} }); // plot the Phi component of k1
+	//plt::plot(dPhi, { {"label", "dPhi"} }); // plot the Phi component of k1
 	plt::legend();
 #endif
+	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
 	initialize(devY0); // reinitialize the stepper with the initial state
 }
 
@@ -302,11 +303,11 @@ protected:
 		cublasStatus_t result;
 		if (i == 1)
 		{
-			result = cublasZaxpy(this->handle, N, &this->halfTimeStep, this->k1, 1, this->devY1, 1);
+			result = cublasZaxpy(this->handle, N, &this->halfTimeStep, this->k1, 1, this->devY2, 1);
 		}
 		else if (i == 2) 
 		{
-			result = cublasZaxpy(this->handle, N, &this->halfTimeStep, this->k2, 1, this->devY2, 1);
+			result = cublasZaxpy(this->handle, N, &this->halfTimeStep, this->k2, 1, this->devY3, 1);
 		}
 		else if (i == 3) 
 		{

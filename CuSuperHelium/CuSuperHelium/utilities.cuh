@@ -195,8 +195,8 @@ __global__ void vector_mutiply_scalar(const cufftDoubleComplex* a, const double 
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
-        out[start + i].x = a[start + i].x*b; // modifies only the real part.
-        out[start + i].y = a[start + i].y*b; // keeps the imaginary part unchanged.
+        out[start + i].x = a[start + i].x*b;
+        out[start + i].y = a[start + i].y*b;
     }
 }
 /// <summary>
@@ -216,7 +216,7 @@ __global__ void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComple
   //      cos(a[i], cc);
   //      sin(a[i], cs);
 
-		//auto z = cuCdiv(cc, cs); // https://dlmf.nist.gov/4.21#E40 maybe useful for the future
+		//auto z = cuCdiv(cc, cs); // https://dlmf.nist.gov/4.21#E40 maybe useful for the future, I've tied to use this but it didn't provide the same simply dividing cos/sin
 
   //      out[i].x = z.x;
   //      out[i].y = z.y;

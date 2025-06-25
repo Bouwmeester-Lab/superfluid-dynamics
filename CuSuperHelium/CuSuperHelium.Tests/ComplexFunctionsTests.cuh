@@ -133,3 +133,96 @@ TEST(ComplexFunctionsTests, ComplexCotangent)
 		EXPECT_NEAR(cuCimag(cot_result[i]), cot_expected[i].imag(), 1e-15);
 	}
 }
+
+__global__ void complexCotKernel(cuDoubleComplex* zsk, cuDoubleComplex* zsj, cuDoubleComplex* out, int N) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < N) {
+		out[idx] = cotangent_green_function(zsk[idx], zsj[idx]);
+	}
+}
+
+std::complex<double> cotangent_test(std::complex<double> z) {
+	return 1.0 / std::tan(z);
+}
+
+std::complex<double> cotangent_substraction(std::complex<double> z1, std::complex<double> z2) 
+{
+	return (cotangent_test(z1) * cotangent_test(z2) + 1.0) / (cotangent_test(z2) - cotangent_test(z1));
+}
+
+TEST(ComplexFunctionsTests, ComplexCotKernel) 
+{
+	const int N = 16;
+
+	std::array<cuDoubleComplex, N> zsk;
+	std::array<cuDoubleComplex, N> zsj;
+
+	cuDoubleComplex* zsk_d;
+	cuDoubleComplex* zsj_d;
+	cuDoubleComplex* cot_result_d;
+
+	std::array<std::complex<double>, N> zsk_std;
+	std::array<std::complex<double>, N> zsj_std;
+
+	// High precision expected values for cotangent function cot( 0.5 *(zsk - zsj) ) calculated using a high precision library on Python.
+	std::array<cuDoubleComplex, N> cot_expected = { { { -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
+{ -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 } } };
+
+	std::array<cuDoubleComplex, N> cot_result;
+	double x, y;
+	double delta = 0.1;
+
+	for (int i = 0; i < N; i++) {
+		x = 2 * PI_d / (N + 1) * (i + 1), y = 2 * PI_d / (N + 1) * (i + 1);
+		zsk[i] = make_cuDoubleComplex(x, y);
+		zsj[i] = make_cuDoubleComplex(x + delta, y + delta);
+
+		zsk_std[i] = std::complex<double>(x, y);
+		zsj_std[i] = std::complex<double>(x + delta, y + delta);
+
+		
+	}
+
+
+	cudaMalloc(&zsk_d, N * sizeof(cuDoubleComplex));
+	cudaMalloc(&zsj_d, N * sizeof(cuDoubleComplex));
+	cudaMalloc(&cot_result_d, N * sizeof(cuDoubleComplex));
+	
+	cudaMemcpy(zsk_d, zsk.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(zsj_d, zsj.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+	
+	const int threadsPerBlock = 256;
+	const int blocks = (N + threadsPerBlock - 1) / threadsPerBlock;
+
+
+
+	complexCotKernel << <blocks, threadsPerBlock >> > (zsk_d, zsj_d, cot_result_d, N);
+
+	cudaDeviceSynchronize();
+
+	cudaMemcpy(cot_result.data(), cot_result_d, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaFree(zsk_d);
+	cudaFree(zsj_d);
+	cudaFree(cot_result_d);
+
+	for (int i = 0; i < N; ++i) {
+		/*EXPECT_DOUBLE_EQ(cuCreal(cot_result[i]), cot_expected[i].x);
+		EXPECT_DOUBLE_EQ(cuCimag(cot_result[i]), cot_expected[i].y);*/
+		EXPECT_NEAR(cuCreal(cot_result[i]), cot_expected[i].x, 1e-13); // best accuracy I can get so far without diving deeper into arbitrary precision libraries
+		EXPECT_NEAR(cuCimag(cot_result[i]), cot_expected[i].y, 1e-13);
+	}
+}

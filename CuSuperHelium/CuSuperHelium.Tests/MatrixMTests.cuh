@@ -111,7 +111,7 @@ void createVelocityMatrix(std::complex<double>* V1, std::complex<double>* V2, do
 			{
 				zpp = 4.0 * PI_d * PI_d / (N * N) * (Xpp(k2, h, omega, t) + 1i * Ypp(k2, h, omega, t));
 				zp = 2.0 * PI_d / N * (Xprime(k2, h, omega, t) + 1i * Yprime(k2, h, omega, t));
-				V1[i + j * N] = 0.25i/PI_d * zpp / std::pow(zp, 2.0);//std::complex<double>(0.5 * (1 + rho), 0.25 * (1 - rho) / PI_d * std::imag(zpp / zp)); // imaginary part
+				V1[i + j * N] = -0.25i/PI_d * zpp / std::pow(zp, 2.0);//std::complex<double>(0.5 * (1 + rho), 0.25 * (1 - rho) / PI_d * std::imag(zpp / zp)); // imaginary part
 				if (lower) {
 					V1[i + j * N] += 0.5 / zp;
 				}
@@ -119,7 +119,7 @@ void createVelocityMatrix(std::complex<double>* V1, std::complex<double>* V2, do
 					V1[i + j * N] -= 0.5 / zp;
 				}
 
-				V2[i] = -0.25i / PI_d * 2.0 / zp;
+				V2[i] = 0.5i / (PI_d * zp);
 			}
 			else
 			{

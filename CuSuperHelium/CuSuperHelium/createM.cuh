@@ -32,11 +32,11 @@ __global__ void createMKernel(double* A, cufftDoubleComplex* ZPhi, cufftDoubleCo
         if (k == j)
         {
             // we are on the diagonal:
-            A[indx] = 0.5 * (1 + rho) + 0.25 * (1 - rho) / PI_d * cuCdiv(Zpp[k], ZPhiPrime[k]).y; // imaginary part
+            A[indx] = 0.5 * (1 + rho) + 0.25 * (1 - rho) / PI_d * (Zpp[k] / ZPhiPrime[k]).y; // imaginary part
         }
         else
         {
-            A[indx] = 0.25 * (1 - rho) / PI_d * (cuCmul(ZPhiPrime[k], cotangent_green_function(ZPhi[k], ZPhi[j]))).y;// cuCmul(ZPhiPrime[k], cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j])))).y; // 0.25 * (1 - rho) / PI_d * (cuCmul(ZPhiPrime[k], cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j]))))).y;
+            A[indx] = 0.25 * (1 - rho) / PI_d * (ZPhiPrime[k] * cotangent_green_function(ZPhi[k], ZPhi[j])).y;// cuCmul(ZPhiPrime[k], cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j])))).y; // 0.25 * (1 - rho) / PI_d * (cuCmul(ZPhiPrime[k], cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j]))))).y;
         }
     }
 }

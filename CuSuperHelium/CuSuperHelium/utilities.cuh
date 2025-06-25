@@ -103,7 +103,7 @@ __global__ void first_derivative_multiplication(
     else if (i == n / 2) 
     {
         result[i].x = 0;// -PI_d * a[i].y / n;
-        result[i].y = -PI_d * a[i].x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        result[i].y = 0;// -PI_d * a[i].x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
         // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
 		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }
@@ -146,16 +146,16 @@ __device__ __host__ inline double filterTanh(int k, int N, double eps, double d)
 __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufftDoubleComplex* result, const int n) 
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < n / 2) 
+    if (i <= n / 2) 
     {
         result[i].x = - i * i * coeffsFft[i].x / n;
 		result[i].y = - i * i * coeffsFft[i].y / n;
     }
-    else if (i == n / 2) 
-    {
-        result[i].x = PI_d * PI_d * result[i].y / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
-		result[i].y = 0;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
-    }
+  //  else if (i == n / 2) 
+  //  {
+  //      result[i].x = PI_d * PI_d * result[i].y / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
+		//result[i].y = 0;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
+  //  }
     else if(i < n)
     {
 		result[i].x = -(i - n) * (i - n) * coeffsFft[i].x / n; //https://math.mit.edu/~stevenj/fft-deriv.pdf
@@ -282,6 +282,11 @@ __device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDouble
     auto __z = scale / cuda::std::tan(*eps_std);
 
     return make_cuDoubleComplex(__z.real(), __z.imag());
+}
+
+__device__ cuDoubleComplex multiply_by_i(cuDoubleComplex z)
+{
+    return make_cuDoubleComplex(-z.y, z.x); // multiply by i is equivalent to rotating the complex number by 90 degrees counter-clockwise
 }
 
 __device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj, const cuda::std::complex<double> scale)

@@ -127,7 +127,7 @@ void createVelocityMatrix(std::complex<double>* V1, std::complex<double>* V2, do
 				zk2 = X(k2, h, omega, t) + 1i * Y(k2, h, omega, t);
 				z_sub = 0.5 * (zk1 - zk2);
 				//zp = 2.0 * PI_d / N * (Xprime(k1, h, omega, t) + 1i * Yprime(k1, h, omega, t));
-				V1[i + j * N] = 0.25i/PI_d * std::cos(z_sub) / std::sin(z_sub);
+				V1[i + j * N] = -0.25i/PI_d * std::cos(z_sub) / std::sin(z_sub);
 			}
 		}
 	}

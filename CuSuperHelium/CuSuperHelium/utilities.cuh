@@ -264,7 +264,27 @@ __device__ cuDoubleComplex cotangent_series(cuda::std::complex<double>& a)
 	return make_cuDoubleComplex(__z.real(), __z.imag());
 }
 
-__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj)
+
+__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj, const double scale)
+{
+    cuDoubleComplex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
+
+    auto eps_std = reinterpret_cast<cuda::std::complex<double>*>(&eps);
+
+    //   if(cuda::std::abs(*eps_std) < 1) {
+    //       // If the difference is too small, return a large value to avoid division by zero
+    //       // printf("Using series expansion");
+       //	return cotangent_series(*eps_std);
+       //}
+
+       //return (z1 * z2 + 1) / (z2 - z1);
+
+    auto __z = scale / cuda::std::tan(*eps_std);
+
+    return make_cuDoubleComplex(__z.real(), __z.imag());
+}
+
+__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj, const cuda::std::complex<double> scale)
 {
 	cuDoubleComplex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
 
@@ -278,9 +298,14 @@ __device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDouble
 
 	//return (z1 * z2 + 1) / (z2 - z1);
 
-    auto __z = 1.0 / cuda::std::tan(*eps_std);
+    auto __z = scale / cuda::std::tan(*eps_std);
 
 	return make_cuDoubleComplex(__z.real(), __z.imag());
+}
+
+__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj)
+{
+    return cotangent_green_function(Zk, Zj, 1.0); // default scale is 1.0
 }
 
 __device__ void cos(cufftDoubleComplex z, cufftDoubleComplex& out)

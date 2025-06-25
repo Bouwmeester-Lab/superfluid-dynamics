@@ -9,7 +9,8 @@
 #include "cufft.h"
 #include "constants.cuh"
 #include "cuDoubleComplexOperators.cuh"
-#define Coeff_Vel 0.25/PI_d // Coefficient for the velocities in the water model 
+#include <cuda/std/complex>
+
 /// <summary>
 /// Forms the matrix and vector needed for obtaining the velocities in the water model.
 /// </summary>
@@ -58,7 +59,7 @@ __global__ void createVelocityMatrices(cufftDoubleComplex* ZPhi, cufftDoubleComp
 		}
 		else
 		{
-			out1[indx] = cuCmul(make_cuDoubleComplex(0, Coeff_Vel), cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j]))));
+			out1[indx] = cotangent_green_function(ZPhi[k], ZPhi[j], cuda::std::complex<double>(0, -0.25 / PI_d));
 		}
 	}
 }

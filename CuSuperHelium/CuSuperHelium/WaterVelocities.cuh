@@ -9,7 +9,8 @@
 #include "cufft.h"
 #include "constants.cuh"
 #include "cuDoubleComplexOperators.cuh"
-#define Coeff_Vel 0.25/PI_d // Coefficient for the velocities in the water model 
+#include <cuda/std/complex>
+
 /// <summary>
 /// Forms the matrix and vector needed for obtaining the velocities in the water model.
 /// </summary>
@@ -41,11 +42,16 @@ __global__ void createVelocityMatrices(cufftDoubleComplex* ZPhi, cufftDoubleComp
 
 	if (k < N && j < N) {
 		int indx = k + j * N; // column major index
+
+		/*auto Z_std = reinterpret_cast<cuda::std::complex<double>*>(ZPhi);
+		auto Z_prime_std = reinterpret_cast<cuda::std::complex<double>*>(ZPhiPrime);
+		auto Zpp_std = reinterpret_cast<cuda::std::complex<double>*>(Zpp);*/
+
 		if (k == j)
 		{
 			// we are in the diagonal:
 			
-			out1[indx] = make_cuDoubleComplex(0, 0.25/PI_d) * Zpp[k] / (ZPhiPrime[k] * ZPhiPrime[k]);
+			out1[indx] = multiply_by_i(- 0.25 / PI_d * Zpp[k] / (ZPhiPrime[k] * ZPhiPrime[k]));
 			if (lower)
 			{
 				out1[indx] += 0.5 / ZPhiPrime[k];
@@ -54,11 +60,11 @@ __global__ void createVelocityMatrices(cufftDoubleComplex* ZPhi, cufftDoubleComp
 			{
 				out1[indx] -= 0.5 / ZPhiPrime[k];
 			}
-			out2[k] = make_cuDoubleComplex(0, -0.5 / PI_d) / ZPhiPrime[k];
+			out2[k] = multiply_by_i(0.5 / (PI_d * ZPhiPrime[k]));
 		}
 		else
 		{
-			out1[indx] = cuCmul(make_cuDoubleComplex(0, Coeff_Vel), cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j]))));
+			out1[indx] = multiply_by_i(cotangent_green_function(ZPhi[k], ZPhi[j],  -0.25 / PI_d));
 		}
 	}
 }
@@ -67,7 +73,7 @@ __global__ void calculateDiagonalVectorMultiplication(cufftDoubleComplex* diag, 
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < N) {
-		out[i] = cuCmul(diag[i], vec[i]);
+		out[i] = diag[i] * vec[i];
 	}
 }
 

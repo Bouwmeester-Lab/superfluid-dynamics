@@ -27,6 +27,25 @@ __device__ double filterIndexTanh(int m, int N)
 	return 0.5 * (1 - tanh(40 * (static_cast<double>(m) / N - 0.25)));
 }
 
+template <typename T, int N>
+class FftDerivativeBase
+{
+	protected:
+	/// <summary>
+	/// The FFT plan used for the computation.
+	/// </summary>
+	cufftHandle plan;
+public:
+	virtual cudaError_t initialize(bool filterIndx = false) = 0;
+	void exec(T* in, T* out) = 0;
+};
+
+template <int N>
+class ComplexFftDerivative : public FftDerivativeBase<cufftDoubleComplex, N>
+{
+
+};
+
 template <int N, int batchSize>
 class FftDerivative 
 {

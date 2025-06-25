@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include "MatrixMTests.cuh"
 #include "ODESolverTests.cuh"
+#include "ComplexFunctionsTests.cuh"
 
 int main(int argc, char** argv) {
     // Optional: CUDA setup check

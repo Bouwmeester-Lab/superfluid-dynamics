@@ -87,11 +87,11 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 	cudaMalloc(&devaprime, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devV1, N * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devVelocitiesUpper, N * sizeof(cufftDoubleComplex)); // Device pointer for the velocities of the upper fluid
 
 	// create device pointers for the velocities and right-hand side of the phi equation
 	devVelocitiesLower = this->devTimeEvolutionRhs; // Device pointer for the velocities of the lower fluid
-	devVelocitiesUpper = this->devTimeEvolutionRhs + N; // Device pointer for the velocities of the upper fluid
-	devRhsPhi = this->devTimeEvolutionRhs + 2 * N; // Device pointer for the right-hand side of the phi equation
+	devRhsPhi = this->devTimeEvolutionRhs + N; // Device pointer for the right-hand side of the phi equation
 
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
@@ -208,7 +208,7 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	//
 	fftDerivative.exec(devaComplex, devaprime, false); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
 	
-	force_real_only << <blocks, threads >> > (devaprime, N); // Force the imaginary part of the primed vorticities to be zero
+	//force_real_only << <blocks, threads >> > (devaprime, N); // Force the imaginary part of the primed vorticities to be zero
 #ifdef DEBUG_DERIVATIVES_3
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));

@@ -8,6 +8,8 @@
 #include "device_launch_parameters.h"
 #include <cusolverDn.h>
 #include <iostream>
+#include "cuDoubleComplexOperators.cuh"
+#include <cuda/std/complex>
 
 __global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
@@ -32,6 +34,7 @@ __global__ void vector_subtract_complex_real(const cufftDoubleComplex* a, const 
 /// <param name="n"></param>
 __global__ void vector_scalar_add_complex_real(const cufftDoubleComplex* a, const double b, cufftDoubleComplex* out, int n, int start);
 __device__ cufftDoubleComplex cotangent_complex(cufftDoubleComplex a);
+__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj);
 __global__ void cotangent_complex(const cufftDoubleComplex* a, cufftDoubleComplex* out, int n);
 __device__ void cos(cufftDoubleComplex z, cufftDoubleComplex& out);
 __device__ void sin(cufftDoubleComplex z, cufftDoubleComplex& zout);
@@ -237,18 +240,47 @@ __global__ void complex_to_real(const cuDoubleComplex* x_c, double* x, int N) {
 
 __device__ inline cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
 {
+	auto a_std = reinterpret_cast<cuda::std::complex<double>*>(&a);
+	// Using the standard complex library to calculate the cotangent
+	auto t = 1.0 / tan(*a_std);
+	return make_cuDoubleComplex(t.real(), t.imag());
 
-    cufftDoubleComplex cs;
+    /*cufftDoubleComplex cs;
     cufftDoubleComplex cc;
 
     cos(a, cc);
     sin(a, cs);
 
-    return cuCdiv(cc, cs);
+    return cuCdiv(cc, cs);*/
     //return  make_cuDoubleComplex(sin(2 * a.x)/ (cosh(2 * a.y) - cos(2 * a.x)), -sinh(2* a.y)/ (cosh(2 * a.y) - cos(2 * a.x))); // https://dlmf.nist.gov/4.21#E40
 	//double coeff = 1.0 / ; // this is the normalization factor
 
 	//return make_cuDoubleComplex(top.x * coeff, top.y * coeff);
+}
+
+__device__ cuDoubleComplex cotangent_series(cuda::std::complex<double>& a)
+{
+	auto __z = 1.0 / a - a / 3.0 + a * a * a / 45.0 - a * a * a * a * a / 945.0 + a * a * a * a * a * a * a / 4725.0 - 2.0 * cuda::std::pow(a, 9.0)/93555.0 - cuda::std::pow(a, 11.0) / 638512875.0; // this is the series expansion of cotangent
+	return make_cuDoubleComplex(__z.real(), __z.imag());
+}
+
+__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj)
+{
+	cuDoubleComplex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
+
+	auto eps_std = reinterpret_cast<cuda::std::complex<double>*>(&eps);
+
+ //   if(cuda::std::abs(*eps_std) < 1) {
+ //       // If the difference is too small, return a large value to avoid division by zero
+ //       // printf("Using series expansion");
+	//	return cotangent_series(*eps_std);
+	//}
+
+	//return (z1 * z2 + 1) / (z2 - z1);
+
+    auto __z = 1.0 / cuda::std::tan(*eps_std);
+
+	return make_cuDoubleComplex(__z.real(), __z.imag());
 }
 
 __device__ void cos(cufftDoubleComplex z, cufftDoubleComplex& out)

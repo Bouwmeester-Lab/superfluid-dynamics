@@ -64,7 +64,7 @@ int runTimeStep()
     problemProperties.U = 0;
 
     const int N = 16;
-    const int steps =2500;
+    const int steps =500;
 	double stepSize = 0.1e-2;
 	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties);
 
@@ -94,7 +94,7 @@ int runTimeStep()
     x.resize(N, 0);
 	y.resize(N, 0);
 	phiPrime.resize(N, 0);
-    double h = 0.1;
+    double h = 0.5;
     double omega = 1;
     double t0 = 0;
 	for (int i = 0; i < N; i++) {

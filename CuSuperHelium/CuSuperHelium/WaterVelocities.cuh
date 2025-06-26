@@ -47,20 +47,20 @@ __global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_comp
 		{
 			// we are in the diagonal:
 			
-			out1[indx] = multiply_by_i(- 0.25 / CUDART_PI * Zpp[k] / (cuda::std::pow(Zp[k], 2.0)));
+			out1[indx] = multiply_by_i(- 1.0 /(4.0 * CUDART_PI) * Zpp[k] / (cuda::std::pow(Zp[k], 2.0)));
 			if (lower)
 			{
-				out1[indx] += 0.5 / Zp[k];
+				out1[indx] += 1.0 /(2.0 * Zp[k]);
 			}
 			else
 			{
 				out1[indx] -= 0.5 / Zp[k];
 			}
-			out2[k] = multiply_by_i(0.5 / (CUDART_PI * Zp[k]));
+			out2[k] = multiply_by_i(1.0 / (2.0*CUDART_PI * Zp[k]));
 		}
 		else
 		{
-			out1[indx] = multiply_by_i(cotangent_green_function(Z[k], Z[j],  -0.25 / PI_d));
+			out1[indx] = multiply_by_i(-1.0/(4.0*CUDART_PI) * cotangent_green_function(Z[k], Z[j]));
 		}
 	}
 }
@@ -115,8 +115,8 @@ VelocityCalculator<N>::~VelocityCalculator()
 }
 
 template<int N>
-void VelocityCalculator<N>::calculateVelocities(std_complex* ZPhi,
-	std_complex* ZPhiPrime,
+void VelocityCalculator<N>::calculateVelocities(std_complex* Z,
+	std_complex* Zp,
 	std_complex* Zpp,
 	std_complex* a,
 	std_complex* aprime,
@@ -126,7 +126,7 @@ void VelocityCalculator<N>::calculateVelocities(std_complex* ZPhi,
 	bool lower)
 {
 	// create the V1 matrix and V2 diagonal vector
-	createVelocityMatrices<<<matrix_blocks, matrix_threads>>>(ZPhi, ZPhiPrime, Zpp, N, V1, V2, lower);
+	createVelocityMatrices<<<matrix_blocks, matrix_threads>>>(Z, Zp, Zpp, N, V1, V2, lower);
 
 	// calculate v2*aprime
 	calculateDiagonalVectorMultiplication << <blocks, threads >> > (V2, aprime, velocities, N);

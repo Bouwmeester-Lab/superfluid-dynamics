@@ -47,7 +47,7 @@ __global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_comp
 		{
 			// we are in the diagonal:
 			
-			out1[indx] = multiply_by_i(- 0.25 / PI_d * Zpp[k] / (cuda::std::pow(Zp[k], 2.0)));
+			out1[indx] = multiply_by_i(- 0.25 / CUDART_PI * Zpp[k] / (cuda::std::pow(Zp[k], 2.0)));
 			if (lower)
 			{
 				out1[indx] += 0.5 / Zp[k];

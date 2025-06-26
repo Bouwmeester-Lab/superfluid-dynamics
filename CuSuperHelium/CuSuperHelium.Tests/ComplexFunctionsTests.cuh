@@ -134,7 +134,7 @@ TEST(ComplexFunctionsTests, ComplexCotangent)
 	}
 }
 
-__global__ void complexCotKernel(cuDoubleComplex* zsk, cuDoubleComplex* zsj, cuDoubleComplex* out, int N) {
+__global__ void complexCotKernel(std_complex* zsk, std_complex* zsj, std_complex* out, int N) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < N) {
 		out[idx] = cotangent_green_function(zsk[idx], zsj[idx]);
@@ -157,9 +157,9 @@ TEST(ComplexFunctionsTests, ComplexCotKernel)
 	std::array<cuDoubleComplex, N> zsk;
 	std::array<cuDoubleComplex, N> zsj;
 
-	cuDoubleComplex* zsk_d;
-	cuDoubleComplex* zsj_d;
-	cuDoubleComplex* cot_result_d;
+	std_complex* zsk_d;
+	std_complex* zsj_d;
+	std_complex* cot_result_d;
 
 	std::array<std::complex<double>, N> zsk_std;
 	std::array<std::complex<double>, N> zsj_std;
@@ -182,7 +182,7 @@ TEST(ComplexFunctionsTests, ComplexCotKernel)
 { -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 },
 { -9.9833388915330675593151465887092191080414675537501, 10.016672219575396939605663786622904929081470481359 } } };
 
-	std::array<cuDoubleComplex, N> cot_result;
+	std::array<std_complex, N> cot_result;
 	double x, y;
 	double delta = 0.1;
 
@@ -200,10 +200,10 @@ TEST(ComplexFunctionsTests, ComplexCotKernel)
 
 	cudaMalloc(&zsk_d, N * sizeof(cuDoubleComplex));
 	cudaMalloc(&zsj_d, N * sizeof(cuDoubleComplex));
-	cudaMalloc(&cot_result_d, N * sizeof(cuDoubleComplex));
+	cudaMalloc(&cot_result_d, N * sizeof(std_complex));
 	
-	cudaMemcpy(zsk_d, zsk.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(zsj_d, zsj.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(zsk_d, zsk.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(zsj_d, zsj.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
 	
 	const int threadsPerBlock = 256;
 	const int blocks = (N + threadsPerBlock - 1) / threadsPerBlock;
@@ -222,7 +222,7 @@ TEST(ComplexFunctionsTests, ComplexCotKernel)
 	for (int i = 0; i < N; ++i) {
 		/*EXPECT_DOUBLE_EQ(cuCreal(cot_result[i]), cot_expected[i].x);
 		EXPECT_DOUBLE_EQ(cuCimag(cot_result[i]), cot_expected[i].y);*/
-		EXPECT_NEAR(cuCreal(cot_result[i]), cot_expected[i].x, 1e-13); // best accuracy I can get so far without diving deeper into arbitrary precision libraries
-		EXPECT_NEAR(cuCimag(cot_result[i]), cot_expected[i].y, 1e-13);
+		EXPECT_NEAR(cot_result[i].real(), cot_expected[i].x, 1e-13); // best accuracy I can get so far without diving deeper into arbitrary precision libraries
+		EXPECT_NEAR((cot_result[i]).imag(), cot_expected[i].y, 1e-13);
 	}
 }

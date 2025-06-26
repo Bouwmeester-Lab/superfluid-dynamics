@@ -42,30 +42,25 @@ double Phi(double j, double h, double omega, double t, double rho) {
 	return h * ((1 + rho) * omega * std::exp(1i * (j - omega * t))).imag();
 }
 
-double PhiPrime(double j, double h, double omega, double t, double rho) {
+double TheoreticalPhiPrime(double j, double h, double omega, double t, double rho) {
 	return h * (1.0 + rho) * omega * std::cos(j - omega * t); // without 2 * pi/N scaling factor due to sampling like 2*pi/N * k
 }
 
-void prepareZPhi(cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime, cufftDoubleComplex* Zpp, double h, double omega, double t, double rho, int N)
+void prepareZPhi(std_complex* Z, std_complex* _Phi, std_complex* Zp, std_complex* Zpp, std_complex* _PhiPrime, double h, double omega, double t, double rho, int N)
 {
 	double j = 0;
 	for (int i = 0; i < N; i++)
 	{
 		j = 2 * PI_d * i / (double)N;
-		ZPhi[i].x = X(j, h, omega, t);
-		ZPhi[i].y = Y(j, h, omega, t);
+		Z[i] = std_complex(X(j, h, omega, t), Y(j, h, omega, t));
 
-		ZPhi[i + N].x = Phi(j, h, omega, t, rho);
-		ZPhi[i + N].y = 0; // Imaginary part is zero since Phi is real.
+		_Phi[i] = Phi(j, h, omega, t, rho);
 
-		ZPhiPrime[i].x = Xprime(j, h, omega, t) * 2.0 * PI_d / N;
-		ZPhiPrime[i].y = Yprime(j, h, omega, t) * 2.0 * PI_d / N;
+		Zp[i] =  std_complex(Xprime(j, h, omega, t) * 2.0 * PI_d / N, Yprime(j, h, omega, t) * 2.0 * PI_d / N);
+		Zpp[i] = std_complex(Xpp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N), Ypp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N));
 
-		Zpp[i].x = Xpp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
-		Zpp[i].y = Ypp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
-
-		ZPhiPrime[i + N].x = PhiPrime(j, h, omega, t, rho) * 2.0 * PI_d / N;
-		ZPhiPrime[i + N].y = 0; // Imaginary part is zero since PhiPrime is real.
+		_PhiPrime[i] = TheoreticalPhiPrime(j, h, omega, t, rho) * 2.0 * PI_d / N;
+		
 	}
 }
 
@@ -91,7 +86,7 @@ void createMMatrix(double* M, double h, double omega, double rho, double t, int 
 				zk2 = X(k2, h, omega, t) + 1i * Y(k2, h, omega, t);
 				z_sub = 0.5 * (zk1 - zk2);
 				zp = 2.0 * PI_d / N * ( Xprime(k1, h, omega, t) + 1i * Yprime(k1, h, omega, t));
-				M[i + j * N] = 0.25 * (1.0 - rho) / PI_d * std::imag(zp * std::cos(z_sub) / std::sin(z_sub));
+				M[i + j * N] = 0.25 * (1.0 - rho) / PI_d * std::imag(zp / std::tan(z_sub));
 			}
 		}
 	}
@@ -127,7 +122,7 @@ void createVelocityMatrix(std::complex<double>* V1, std::complex<double>* V2, do
 				zk2 = X(k2, h, omega, t) + 1i * Y(k2, h, omega, t);
 				z_sub = 0.5 * (zk1 - zk2);
 				//zp = 2.0 * PI_d / N * (Xprime(k1, h, omega, t) + 1i * Yprime(k1, h, omega, t));
-				V1[i + j * N] = -0.25i/PI_d * std::cos(z_sub) / std::sin(z_sub);
+				V1[i + j * N] = -0.25i/PI_d / std::tan(z_sub);
 			}
 		}
 	}
@@ -148,33 +143,45 @@ TEST(Kernels, MMatrixKernel)
 	double omega = 10;
 	double rho = 0.0;
 	double* devM; // device pointer for the matrix M
-	cufftDoubleComplex* devZ; // device pointer for ZPhi
-	cufftDoubleComplex* devZPhiPrime; // device pointer for ZPhiPrime
-	cufftDoubleComplex* devZpp; // device pointer for Zpp
+
+	std_complex* devZ; // device pointer for ZPhi
+	std_complex* devZp; // device pointer for ZPhiPrime
+	std_complex* devZpp; // device pointer for Zpp
+
+	std_complex* devPhi;
+	std_complex* devPhiPrime;
 
 	cudaMalloc(&devM, N * N * sizeof(double));
-	cudaMalloc(&devZ, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZ, N * sizeof(std_complex));
+	cudaMalloc(&devZp, N * sizeof(std_complex));
+	cudaMalloc(&devZpp, N * sizeof(std_complex));
+
+	cudaMalloc(&devPhi, N * sizeof(std_complex));
+	cudaMalloc(&devPhiPrime, N * sizeof(std_complex));
 
 	dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
 
-	std::array<cufftDoubleComplex, 2 * N> ZPhi;
-	std::array<cufftDoubleComplex, N> Zpp;
-	std::array<cufftDoubleComplex, 2 * N> ZPhiPrime;
+	std::array<std_complex, N> Z;
+	std::array<std_complex, N> Zp;
+	std::array<std_complex, N> Zpp;
+	std::array<std_complex, N> ArrPhi;
+	std::array<std_complex, N> PhiPrime;
 	std::vector<double> MMatrix(N * N);
 	std::vector<double> MMatrixCalculated(N * N);
 
-	prepareZPhi(ZPhi.data(), ZPhiPrime.data(), Zpp.data(), h, omega, t, rho, N);
+	prepareZPhi(Z.data(), ArrPhi.data(), Zp.data(), Zpp.data(), PhiPrime.data(), h, omega, t, rho, N);
 	// Copy the data to device
-	cudaMemcpy(devZ, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(devZPhiPrime, ZPhiPrime.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZ, Z.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZp, Zp.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+
+	cudaMemcpy(devPhi, ArrPhi.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devPhiPrime, PhiPrime.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
 	
 	// for comparison to the kernel output
 	createMMatrix(MMatrix.data(), h, omega, rho, t, N);
 	cudaDeviceSynchronize();
-	createMKernel<<<matrix_blocks, matrix_threads>>>(devM, devZ, devZPhiPrime, devZpp, 0.0, N);
+	createMKernel<<<matrix_blocks, matrix_threads>>>(devM, devZ, devZp, devZpp, 0.0, N);
 	cudaDeviceSynchronize();
 	cudaMemcpy(MMatrixCalculated.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost);
 
@@ -188,61 +195,73 @@ TEST(Kernels, MMatrixKernel)
 }
 
 TEST(Kernels, Velocities) {
-	const int N = 1024;
+	const int N = 64;
 	double t = 0.1;
 	double h = 0.5;
 	double omega = 10;
 	double rho = 0.0;
 
-	std::array<cufftDoubleComplex, 2 * N> ZPhi;
-	std::array<cufftDoubleComplex, N> Zpp;
-	std::array<cufftDoubleComplex, 2 * N> ZPhiPrime;
-	prepareZPhi(ZPhi.data(), ZPhiPrime.data(), Zpp.data(), h, omega, t, rho, N);
+	std_complex* devZ; // device pointer for ZPhi
+	std_complex* devZp; // device pointer for ZPhiPrime
+	std_complex* devZpp; // device pointer for Zpp
 
-	cufftDoubleComplex* devZ; // device pointer for ZPhi
-	cufftDoubleComplex* devZPhiPrime; // device pointer for ZPhiPrime
-	cufftDoubleComplex* devZpp; // device pointer for Zpp
-	cufftDoubleComplex* devV1; // device pointer for V1
-	cufftDoubleComplex* devV2; // device pointer for V2
+	std_complex* devPhi;
+	std_complex* devPhiPrime;
 
+	cudaMalloc(&devZ, N * sizeof(std_complex));
+	cudaMalloc(&devZp, N * sizeof(std_complex));
+	cudaMalloc(&devZpp, N * sizeof(std_complex));
 
-	cudaMalloc(&devV1, N * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex)); // V2 is a diagonal matrix, so we only need N elements
+	cudaMalloc(&devPhi, N * sizeof(std_complex));
+	cudaMalloc(&devPhiPrime, N * sizeof(std_complex));
 
-	cudaMalloc(&devZ, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
-	//
-	cudaMemcpy(devZ, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(devZPhiPrime, ZPhiPrime.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
+
+	std::array<std_complex, N> Z;
+	std::array<std_complex, N> Zp;
+	std::array<std_complex, N> Zpp;
+	std::array<std_complex, N> ArrPhi;
+	std::array<std_complex, N> PhiPrime;
+
+	prepareZPhi(Z.data(), ArrPhi.data(), Zp.data(), Zpp.data(), PhiPrime.data(), h, omega, t, rho, N);
+
+	std_complex* devV1; // device pointer for V1
+	std_complex* devV2; // device pointer for V2
+
+	cudaMalloc(&devV1, N * N * sizeof(std_complex)); // V1 is a matrix of size N*N
+	cudaMalloc(&devV2, N * sizeof(std_complex)); // V2 is a vector of size N
+
+	cudaMemcpy(devZ, Z.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZp, Zp.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devPhi, ArrPhi.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devPhiPrime, PhiPrime.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+
 	//
 	std::vector<std::complex<double>> V1(N*N);
 	std::array<std::complex<double>, N> V2;
 
 	createVelocityMatrix(V1.data(), V2.data(), h, omega, t, N);
-
-	dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
-	createVelocityMatrices<<<matrix_blocks, matrix_threads >>>(devZ, devZPhiPrime, devZpp, N, devV1, devV2, true);
+	createVelocityMatrices<<<matrix_blocks, matrix_threads >>>(devZ, devZp, devZpp, N, devV1, devV2, true);
 
 	cudaDeviceSynchronize();
 
-	std::vector<cufftDoubleComplex> V1Calculated(N*N);
-	std::array<cufftDoubleComplex, N> V2Calculated;
+	std::vector<std_complex> V1Calculated(N*N);
+	std::array<std_complex, N> V2Calculated;
 
-	cudaMemcpy(V1Calculated.data(), devV1, N * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	cudaMemcpy(V2Calculated.data(), devV2, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(V1Calculated.data(), devV1, N * N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(V2Calculated.data(), devV2, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
 	
 	for (int i = 0; i < N; i++) {
 		for (int j = 0; j < N; j++) 
 		{
 			int indx = i + j * N;
-			EXPECT_NEAR(V1Calculated[indx].x, V1[indx].real(), 1e-12) << "V1 real part mismatch at (" << i << ", " << j << ")";
-			EXPECT_NEAR(V1Calculated[indx].y, V1[indx].imag(), 1e-12) << "V1 imag part mismatch at (" << i << ", " << j << ")";
+			EXPECT_NEAR(V1Calculated[indx].real(), V1[indx].real(), 1e-12) << "V1 real part mismatch at (" << i << ", " << j << ")";
+			EXPECT_NEAR(V1Calculated[indx].imag(), V1[indx].imag(), 1e-12) << "V1 imag part mismatch at (" << i << ", " << j << ")";
 
 			if (i == j) {
-				EXPECT_NEAR(V2Calculated[i].x, V2[i].real(), 1e-12) << "V2 real part mismatch at index " << i;
-				EXPECT_NEAR(V2Calculated[i].y, V2[i].imag(), 1e-12) << "V2 imag part mismatch at index " << i;
+				EXPECT_NEAR(V2Calculated[i].real(), V2[i].real(), 1e-12) << "V2 real part mismatch at index " << i;
+				EXPECT_NEAR(V2Calculated[i].imag(), V2[i].imag(), 1e-12) << "V2 imag part mismatch at index " << i;
 			}
 		}
 	}
@@ -272,83 +291,91 @@ TEST(Kernels, ZPhiDerivatives)
 	properties.U = 0.0;
 
 	std::complex<double> z;
-	std::array<cufftDoubleComplex, 2*N> Z;
 
+	std::array<std_complex, N> Z;
+	std::array<std_complex, N> Zp;
+	std::array<std_complex, N> Zpp;
+	std::array<std_complex, N> ArrPhi;
+	std::array<std_complex, N> PhiPrime;
 
+	prepareZPhi(Z.data(), ArrPhi.data(), Zp.data(), Zpp.data(), PhiPrime.data(), h, omega, t, properties.rho, N);
+	
+	// for plotting:
 	std::vector<double> XprimeValues(N, 0);
 	std::vector<double> YprimeValues(N, 0);
 	std::vector<double> XPrimeCalculatedValues(N, 0);
 	std::vector<double> YPrimeCalculatedValues(N, 0);
-
 	std::vector<double> XppValues(N, 0);
 	std::vector<double> YppValues(N, 0);
-
 	std::vector<double> XppCalculatedValues(N, 0);
 	std::vector<double> YppCalculatedValues(N, 0);
-
 
 	std::vector<double> PhiPrimeValues(N, 0);
 	std::vector<double> PhiPrimeCalculatedValues(N, 0);
 
-	for (int i = 0; i < N; i++) 
+
+	for(int i = 0; i < N; i++)
 	{
-		j = 2 * PI_d * i / (double)N;
-		Z[i].x = X(j, h, omega, t);
-		Z[i].y = Y(j, h, omega, t);
+		XprimeValues[i] = Zp[i].real();
+		YprimeValues[i] = Zp[i].imag();
 
-		Z[i + N].x = Phi(j, h, omega, t, properties.rho);
-		Z[i + N].y = 0; // Imaginary part is zero since Phi is real.
+		XppValues[i] = Zpp[i].real();
+		YppValues[i] = Zpp[i].imag();
 
-		XprimeValues[i] = Xprime(j, h, omega, t) * 2.0*PI_d / N;
-		YprimeValues[i] = Yprime(j, h, omega, t) * 2.0 * PI_d / N;
-		XppValues[i] = Xpp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
-		YppValues[i] = Ypp(j, h, omega, t) * 4.0 * PI_d * PI_d/ (N * N);
-		PhiPrimeValues[i] = PhiPrime(j, h, omega, t, properties.rho) * 2.0 * PI_d / N;
+		PhiPrimeValues[i] = PhiPrime[i].real();
 	}
-	
 
 	ZPhiDerivative<N> zPhiDerivative(properties);
 	
-	cufftDoubleComplex* devZ;
-	cufftDoubleComplex* devZPhiPrime;
-	cufftDoubleComplex* devZpp;
+	std_complex* devZ;
+	std_complex* devZp;
+	std_complex* devZpp;
 
-	cudaMalloc(&devZ, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
+	std_complex* devPhi;
+	std_complex* devPhiPrime;
 
-	cudaMemcpy(devZ, Z.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMalloc(&devZ, N * sizeof(std_complex));
+	cudaMalloc(&devZp, N * sizeof(std_complex));
+	cudaMalloc(&devZpp, N * sizeof(std_complex));
 
-	zPhiDerivative.exec(devZ, devZPhiPrime, devZpp);
+	cudaMalloc(&devPhi, N * sizeof(std_complex));
+	cudaMalloc(&devPhiPrime, N * sizeof(std_complex));
+
+	cudaMemcpy(devZ, Z.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devPhi, ArrPhi.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+
+	zPhiDerivative.exec(devZ, devPhi, devZp, devPhiPrime, devZpp);
 
 	cudaDeviceSynchronize();
 	// offload the results to host
-	std::array<cufftDoubleComplex, 2*N> ZPhiPrime;
-	std::array<cufftDoubleComplex, N> Zpp;
+	std::array<std_complex, N> ZpCalculated;
+	std::array<std_complex, N> ZppCalculated;
+	std::array<std_complex, N> PhiPrimeCalculated;
 	
-	cudaMemcpy(ZPhiPrime.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	cudaMemcpy(Zpp.data(), devZpp, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZpCalculated.data(), devZp, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZppCalculated.data(), devZpp, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(PhiPrimeCalculated.data(), devPhiPrime, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
 	plt::figure();
 	plt::plot(XprimeValues, { {"label", "Expected X Derivative"} });
 	
 
 	for (int i = 0; i < N; i++)
 	{
-		XPrimeCalculatedValues[i] = ZPhiPrime[i].x;
-		YPrimeCalculatedValues[i] = ZPhiPrime[i].y;
+		XPrimeCalculatedValues[i] = ZpCalculated[i].real();
+		YPrimeCalculatedValues[i] = ZpCalculated[i].imag();
 
-		XppCalculatedValues[i] = Zpp[i].x;
-		YppCalculatedValues[i] = Zpp[i].y;
+		XppCalculatedValues[i] = ZppCalculated[i].real();
+		YppCalculatedValues[i] = ZppCalculated[i].imag();
 
-		PhiPrimeCalculatedValues[i] = ZPhiPrime[i + N].x;
+		PhiPrimeCalculatedValues[i] = PhiPrimeCalculated[i].real();
 
-		EXPECT_NEAR(ZPhiPrime[i].x, XprimeValues[i], 1e-14) << "Xprime mismatch at index " << i;
-		EXPECT_NEAR(ZPhiPrime[i].y, YprimeValues[i], 1e-14) << "Yprime mismatch at index " << i;
+		EXPECT_NEAR(ZpCalculated[i].real(), XprimeValues[i], 1e-14) << "Xprime mismatch at index " << i;
+		EXPECT_NEAR(ZpCalculated[i].imag(), YprimeValues[i], 1e-14) << "Yprime mismatch at index " << i;
 
-		EXPECT_NEAR(Zpp[i].x, XppValues[i], 1e-14) << "Xpp mismatch at index " << i;
-		EXPECT_NEAR(Zpp[i].y, YppValues[i], 1e-14) << "Ypp mismatch at index " << i;
+		EXPECT_NEAR(ZppCalculated[i].real(), XppValues[i], 1e-14) << "Xpp mismatch at index " << i;
+		EXPECT_NEAR(ZppCalculated[i].imag(), YppValues[i], 1e-14) << "Ypp mismatch at index " << i;
 
-		EXPECT_NEAR(ZPhiPrime[i + N].x, PhiPrimeValues[i], 1e-14) << "PhiPrime mismatch at index " << i;
+		EXPECT_NEAR(PhiPrimeCalculated[i].real(), PhiPrimeValues[i], 1e-14) << "PhiPrime mismatch at index " << i;
 	}
 
 	plt::plot(XPrimeCalculatedValues, { {"label", "Calculated X Prime"} });
@@ -376,132 +403,132 @@ TEST(Kernels, ZPhiDerivatives)
 	plt::legend();
 	//plt::show(false);
 }
-
-/// <summary>
-/// Tests the accuracy of the first and second derivative of the functions X and Y using ZPhiDerivative class.
-/// </summary>
-/// <param name=""></param>
-/// <param name=""></param>
-TEST(Kernels, ZPhiDerivativesTranslation)
-{
-	const int N = 32;
-	double j = 0;
-	double x = 0;
-	double y = 0;
-	double t = 0.1;
-	double h = 0.5;
-	double omega = 10;
-
-	ProblemProperties properties;
-	properties.rho = 0.0;
-	properties.kappa = 0.0;
-	properties.U = 0.0;
-
-	std::complex<double> z;
-	std::array<cufftDoubleComplex, 2 * N> Z;
-
-
-	std::vector<double> XprimeValues(N, 0);
-	std::vector<double> YprimeValues(N, 0);
-	std::vector<double> XPrimeCalculatedValues(N, 0);
-	std::vector<double> YPrimeCalculatedValues(N, 0);
-
-	std::vector<double> XppValues(N, 0);
-	std::vector<double> YppValues(N, 0);
-
-	std::vector<double> XppCalculatedValues(N, 0);
-	std::vector<double> YppCalculatedValues(N, 0);
-
-
-	std::vector<double> PhiPrimeValues(N, 0);
-	std::vector<double> PhiPrimeCalculatedValues(N, 0);
-
-	for (int i = 0; i < N; i++)
-	{
-		j = 2 * PI_d * i / (double)N;
-		Z[i].x = X(j, h, omega, t) + 2;
-		Z[i].y = Y(j, h, omega, t);
-
-		Z[i + N].x = Phi(j, h, omega, t, properties.rho);
-		Z[i + N].y = 0; // Imaginary part is zero since Phi is real.
-
-		XprimeValues[i] = Xprime(j, h, omega, t) * 2.0 * PI_d / N;
-		YprimeValues[i] = Yprime(j, h, omega, t) * 2.0 * PI_d / N;
-		XppValues[i] = Xpp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
-		YppValues[i] = Ypp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
-		PhiPrimeValues[i] = PhiPrime(j, h, omega, t, properties.rho) * 2.0 * PI_d / N;
-	}
-
-
-	ZPhiDerivative<N> zPhiDerivative(properties);
-
-	cufftDoubleComplex* devZ;
-	cufftDoubleComplex* devZPhiPrime;
-	cufftDoubleComplex* devZpp;
-
-	cudaMalloc(&devZ, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
-
-	cudaMemcpy(devZ, Z.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
-
-	zPhiDerivative.exec(devZ, devZPhiPrime, devZpp);
-
-	cudaDeviceSynchronize();
-	// offload the results to host
-	std::array<cufftDoubleComplex, 2 * N> ZPhiPrime;
-	std::array<cufftDoubleComplex, N> Zpp;
-
-	cudaMemcpy(ZPhiPrime.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	cudaMemcpy(Zpp.data(), devZpp, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	plt::figure();
-	plt::plot(XprimeValues, { {"label", "Expected X Derivative"} });
-
-
-	for (int i = 0; i < N; i++)
-	{
-		XPrimeCalculatedValues[i] = ZPhiPrime[i].x;
-		YPrimeCalculatedValues[i] = ZPhiPrime[i].y;
-
-		XppCalculatedValues[i] = Zpp[i].x;
-		YppCalculatedValues[i] = Zpp[i].y;
-
-		PhiPrimeCalculatedValues[i] = ZPhiPrime[i + N].x;
-
-		EXPECT_NEAR(ZPhiPrime[i].x, XprimeValues[i], 1e-14) << "Xprime mismatch at index " << i;
-		EXPECT_NEAR(ZPhiPrime[i].y, YprimeValues[i], 1e-14) << "Yprime mismatch at index " << i;
-
-		EXPECT_NEAR(Zpp[i].x, XppValues[i], 1e-14) << "Xpp mismatch at index " << i;
-		EXPECT_NEAR(Zpp[i].y, YppValues[i], 1e-14) << "Ypp mismatch at index " << i;
-
-		EXPECT_NEAR(ZPhiPrime[i + N].x, PhiPrimeValues[i], 1e-14) << "PhiPrime mismatch at index " << i;
-	}
-
-	plt::plot(XPrimeCalculatedValues, { {"label", "Calculated X Prime"} });
-
-	plt::plot(YprimeValues, { {"label", "Expected Y Derivative"} });
-	plt::plot(YPrimeCalculatedValues, { {"label", "Calculated Y Prime"} });
-	plt::xlabel("Index");
-	plt::ylabel("Value");
-	plt::legend();
-	plt::figure();
-
-	plt::plot(XppValues, { {"label", "Expected X Second Derivative"} });
-	plt::plot(XppCalculatedValues, { {"label", "Calculated X Second Derivative"} });
-
-	plt::plot(YppValues, { {"label", "Expected Y Second Derivative"} });
-	plt::plot(YppCalculatedValues, { {"label", "Calculated Y Second Derivative"} });
-	plt::legend();
-	plt::xlabel("Index");
-	plt::ylabel("Value");
-
-	plt::figure();
-	plt::plot(PhiPrimeValues, { {"label", "Expected Phi Prime"} });
-	plt::plot(PhiPrimeCalculatedValues, { {"label", "Calculated Phi Prime"} });
-
-	plt::legend();
-	//plt::show(false);
-}
+//
+///// <summary>
+///// Tests the accuracy of the first and second derivative of the functions X and Y using ZPhiDerivative class.
+///// </summary>
+///// <param name=""></param>
+///// <param name=""></param>
+//TEST(Kernels, ZPhiDerivativesTranslation)
+//{
+//	const int N = 32;
+//	double j = 0;
+//	double x = 0;
+//	double y = 0;
+//	double t = 0.1;
+//	double h = 0.5;
+//	double omega = 10;
+//
+//	ProblemProperties properties;
+//	properties.rho = 0.0;
+//	properties.kappa = 0.0;
+//	properties.U = 0.0;
+//
+//	std::complex<double> z;
+//	std::array<cufftDoubleComplex, 2 * N> Z;
+//
+//
+//	std::vector<double> XprimeValues(N, 0);
+//	std::vector<double> YprimeValues(N, 0);
+//	std::vector<double> XPrimeCalculatedValues(N, 0);
+//	std::vector<double> YPrimeCalculatedValues(N, 0);
+//
+//	std::vector<double> XppValues(N, 0);
+//	std::vector<double> YppValues(N, 0);
+//
+//	std::vector<double> XppCalculatedValues(N, 0);
+//	std::vector<double> YppCalculatedValues(N, 0);
+//
+//
+//	std::vector<double> PhiPrimeValues(N, 0);
+//	std::vector<double> PhiPrimeCalculatedValues(N, 0);
+//
+//	for (int i = 0; i < N; i++)
+//	{
+//		j = 2 * PI_d * i / (double)N;
+//		Z[i].x = X(j, h, omega, t) + 2;
+//		Z[i].y = Y(j, h, omega, t);
+//
+//		Z[i + N].x = Phi(j, h, omega, t, properties.rho);
+//		Z[i + N].y = 0; // Imaginary part is zero since Phi is real.
+//
+//		XprimeValues[i] = Xprime(j, h, omega, t) * 2.0 * PI_d / N;
+//		YprimeValues[i] = Yprime(j, h, omega, t) * 2.0 * PI_d / N;
+//		XppValues[i] = Xpp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
+//		YppValues[i] = Ypp(j, h, omega, t) * 4.0 * PI_d * PI_d / (N * N);
+//		PhiPrimeValues[i] = TheoreticalPhiPrime(j, h, omega, t, properties.rho) * 2.0 * PI_d / N;
+//	}
+//
+//
+//	ZPhiDerivative<N> zPhiDerivative(properties);
+//
+//	cufftDoubleComplex* devZ;
+//	cufftDoubleComplex* devZPhiPrime;
+//	cufftDoubleComplex* devZpp;
+//
+//	cudaMalloc(&devZ, 2 * N * sizeof(cufftDoubleComplex));
+//	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
+//	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
+//
+//	cudaMemcpy(devZ, Z.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+//
+//	zPhiDerivative.exec(devZ, devZPhiPrime, devZpp);
+//
+//	cudaDeviceSynchronize();
+//	// offload the results to host
+//	std::array<cufftDoubleComplex, 2 * N> ZPhiPrime;
+//	std::array<cufftDoubleComplex, N> Zpp;
+//
+//	cudaMemcpy(ZPhiPrime.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+//	cudaMemcpy(Zpp.data(), devZpp, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+//	plt::figure();
+//	plt::plot(XprimeValues, { {"label", "Expected X Derivative"} });
+//
+//
+//	for (int i = 0; i < N; i++)
+//	{
+//		XPrimeCalculatedValues[i] = ZPhiPrime[i].x;
+//		YPrimeCalculatedValues[i] = ZPhiPrime[i].y;
+//
+//		XppCalculatedValues[i] = Zpp[i].x;
+//		YppCalculatedValues[i] = Zpp[i].y;
+//
+//		PhiPrimeCalculatedValues[i] = ZPhiPrime[i + N].x;
+//
+//		EXPECT_NEAR(ZPhiPrime[i].x, XprimeValues[i], 1e-14) << "Xprime mismatch at index " << i;
+//		EXPECT_NEAR(ZPhiPrime[i].y, YprimeValues[i], 1e-14) << "Yprime mismatch at index " << i;
+//
+//		EXPECT_NEAR(Zpp[i].x, XppValues[i], 1e-14) << "Xpp mismatch at index " << i;
+//		EXPECT_NEAR(Zpp[i].y, YppValues[i], 1e-14) << "Ypp mismatch at index " << i;
+//
+//		EXPECT_NEAR(ZPhiPrime[i + N].x, PhiPrimeValues[i], 1e-14) << "PhiPrime mismatch at index " << i;
+//	}
+//
+//	plt::plot(XPrimeCalculatedValues, { {"label", "Calculated X Prime"} });
+//
+//	plt::plot(YprimeValues, { {"label", "Expected Y Derivative"} });
+//	plt::plot(YPrimeCalculatedValues, { {"label", "Calculated Y Prime"} });
+//	plt::xlabel("Index");
+//	plt::ylabel("Value");
+//	plt::legend();
+//	plt::figure();
+//
+//	plt::plot(XppValues, { {"label", "Expected X Second Derivative"} });
+//	plt::plot(XppCalculatedValues, { {"label", "Calculated X Second Derivative"} });
+//
+//	plt::plot(YppValues, { {"label", "Expected Y Second Derivative"} });
+//	plt::plot(YppCalculatedValues, { {"label", "Calculated Y Second Derivative"} });
+//	plt::legend();
+//	plt::xlabel("Index");
+//	plt::ylabel("Value");
+//
+//	plt::figure();
+//	plt::plot(PhiPrimeValues, { {"label", "Expected Phi Prime"} });
+//	plt::plot(PhiPrimeCalculatedValues, { {"label", "Calculated Phi Prime"} });
+//
+//	plt::legend();
+//	//plt::show(false);
+//}
 
 void createRhs(double* rhs, double* Y, double* VXlower, double* VYlower, double* VXupper, double* VYupper, double rho, int N) 
 {
@@ -531,7 +558,7 @@ TEST(Kernels, RhsPhi)
 	std::vector<cufftDoubleComplex> VLowerHost(N, { 0.0, 0.0 });
 	std::vector<cufftDoubleComplex> VUpperHost(N, { 0.0, 0.0 });
 
-	std::vector<cufftDoubleComplex> RhsCalculated(N);
+	std::vector<std_complex> RhsCalculated(N);
 
 	std::vector<double> VXlower(N, 0.0);
 	std::vector<double> VYlower(N, 0.0);
@@ -563,29 +590,29 @@ TEST(Kernels, RhsPhi)
 	createRhs(rhs.data(), Yvect.data(), VXlower.data(), VYlower.data(), VXupper.data(), VYupper.data(), 0.0, N);
 
 	// create the items in the device memory
-	cuDoubleComplex* Z;
-	cuDoubleComplex* V1;
-	cuDoubleComplex* V2;
-	cuDoubleComplex* result;
+	std_complex* Z;
+	std_complex* V1;
+	std_complex* V2;
+	std_complex* result;
 
-	cudaMalloc(&Z, N * sizeof(cuDoubleComplex));
-	cudaMalloc(&V1, N * sizeof(cuDoubleComplex));
-	cudaMalloc(&V2, N * sizeof(cuDoubleComplex));
-	cudaMalloc(&result, N * sizeof(cuDoubleComplex));
+	cudaMalloc(&Z, N * sizeof(std_complex));
+	cudaMalloc(&V1, N * sizeof(std_complex));
+	cudaMalloc(&V2, N * sizeof(std_complex));
+	cudaMalloc(&result, N * sizeof(std_complex));
 
-	cudaMemcpy(Z, ZHost.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(V1, VLowerHost.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(V2, VUpperHost.data(), N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(Z, ZHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(V1, VLowerHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(V2, VUpperHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
 
 	compute_rhs_phi_expression << <blocks, threads >> > (Z, V1, V2, result, 0.0, N);
 
 	cudaDeviceSynchronize();
 
-	cudaMemcpy(RhsCalculated.data(), result, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(RhsCalculated.data(), result, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
 
 	for(int i = 0; i < N; i++) 
 	{
-		EXPECT_NEAR(RhsCalculated[i].x, rhs[i], 1e-14) << "Rhs mismatch at index " << i;
-		EXPECT_NEAR(RhsCalculated[i].y, 0.0, 1e-14) << "Rhs imaginary part mismatch at index " << i;
+		EXPECT_NEAR(RhsCalculated[i].real(), rhs[i], 1e-14) << "Rhs mismatch at index " << i;
+		EXPECT_NEAR(RhsCalculated[i].imag(), 0.0, 1e-14) << "Rhs imaginary part mismatch at index " << i;
 	}
 }

@@ -64,6 +64,26 @@ void prepareZPhi(std_complex* Z, std_complex* _Phi, std_complex* Zp, std_complex
 	}
 }
 
+double theoreticalMMatrix(int k, int j, double h) 
+{
+	if (k == 0 && j == 0) 
+	{
+		return 0.5 - 1.0 / (4.0) * h /  (1.0 - h) ;
+	}
+	if( k == 1 && j == 1) 
+	{
+		return 0.5 + 1.0 / (4.0) * h / (1.0 + h);
+	}
+	if (k == 1 && j == 0) 
+	{
+		return (h + 1) / 4.0 * std::sinh(2.0 * h) / (std::cosh(2.0 * h) + 1.0);
+	}
+	if (k == 0 && j == 1) 
+	{
+		return (h - 1) / 4.0 * std::sinh(2.0 * h) / (std::cosh(2.0 * h) + 1.0);
+	}
+}
+
 void createMMatrix(double* M, double h, double omega, double rho, double t, int N) 
 {
 	double k1, k2;
@@ -133,6 +153,71 @@ TEST(Kernels, Cotangent)
 	const int N = 64;
 
 
+}
+
+TEST(Kernels, TwoByTwoMMatrix) 
+{
+	const int N = 2;
+
+	double t = 0.0;
+	double h = 0.5;
+	double omega = 10;
+	double rho = 0.0;
+	double* devM; // device pointer for the matrix M
+
+	std_complex* devZ; // device pointer for ZPhi
+	std_complex* devZp; // device pointer for ZPhiPrime
+	std_complex* devZpp; // device pointer for Zpp
+
+	std_complex* devPhi;
+	std_complex* devPhiPrime;
+
+	cudaMalloc(&devM, N * N * sizeof(double));
+	cudaMalloc(&devZ, N * sizeof(std_complex));
+	cudaMalloc(&devZp, N * sizeof(std_complex));
+	cudaMalloc(&devZpp, N * sizeof(std_complex));
+
+	cudaMalloc(&devPhi, N * sizeof(std_complex));
+	cudaMalloc(&devPhiPrime, N * sizeof(std_complex));
+
+	dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
+
+	std::array<std_complex, N> Z;
+	std::array<std_complex, N> Zp;
+	std::array<std_complex, N> Zpp;
+	std::array<std_complex, N> ArrPhi;
+	std::array<std_complex, N> PhiPrime;
+	std::vector<double> MMatrix(N * N);
+	std::vector<double> MMatrixCalculated(N * N);
+
+	prepareZPhi(Z.data(), ArrPhi.data(), Zp.data(), Zpp.data(), PhiPrime.data(), h, omega, t, rho, N);
+
+	cudaMemcpy(devZ, Z.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZp, Zp.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+
+	std::vector<double> MMatrixExpected(N * N);
+
+	for(int k = 0; k < N; k++)
+	{
+		for(int j = 0; j < N; j++)
+		{
+			MMatrixExpected[k + j * N] = theoreticalMMatrix(k, j, h);
+		}
+	}
+
+	createMKernel << <matrix_blocks, matrix_threads >> > (devM, devZ, devZp, devZpp, 0.0, N);
+
+	cudaDeviceSynchronize();
+	cudaMemcpy(MMatrixCalculated.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost);
+
+	for (int i = 0; i < N; i++)
+	{
+		for (int j = 0; j < N; j++)
+		{
+			EXPECT_NEAR(MMatrixCalculated[i + j * N], MMatrixExpected[i + j * N], 1e-14) << "Mismatch at (" << i << ", " << j << ")";
+		}
+	}
 }
 
 TEST(Kernels, MMatrixKernel) 

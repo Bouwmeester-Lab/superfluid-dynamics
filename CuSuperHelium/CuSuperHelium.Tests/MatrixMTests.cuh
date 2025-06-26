@@ -148,12 +148,12 @@ TEST(Kernels, MMatrixKernel)
 	double omega = 10;
 	double rho = 0.0;
 	double* devM; // device pointer for the matrix M
-	cufftDoubleComplex* devZPhi; // device pointer for ZPhi
+	cufftDoubleComplex* devZ; // device pointer for ZPhi
 	cufftDoubleComplex* devZPhiPrime; // device pointer for ZPhiPrime
 	cufftDoubleComplex* devZpp; // device pointer for Zpp
 
 	cudaMalloc(&devM, N * N * sizeof(double));
-	cudaMalloc(&devZPhi, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZ, 2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
 
@@ -167,14 +167,14 @@ TEST(Kernels, MMatrixKernel)
 
 	prepareZPhi(ZPhi.data(), ZPhiPrime.data(), Zpp.data(), h, omega, t, rho, N);
 	// Copy the data to device
-	cudaMemcpy(devZPhi, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZ, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	cudaMemcpy(devZPhiPrime, ZPhiPrime.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	
 	// for comparison to the kernel output
 	createMMatrix(MMatrix.data(), h, omega, rho, t, N);
 	cudaDeviceSynchronize();
-	createMKernel<<<matrix_blocks, matrix_threads>>>(devM, devZPhi, devZPhiPrime, devZpp, 0.0, N);
+	createMKernel<<<matrix_blocks, matrix_threads>>>(devM, devZ, devZPhiPrime, devZpp, 0.0, N);
 	cudaDeviceSynchronize();
 	cudaMemcpy(MMatrixCalculated.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost);
 
@@ -199,7 +199,7 @@ TEST(Kernels, Velocities) {
 	std::array<cufftDoubleComplex, 2 * N> ZPhiPrime;
 	prepareZPhi(ZPhi.data(), ZPhiPrime.data(), Zpp.data(), h, omega, t, rho, N);
 
-	cufftDoubleComplex* devZPhi; // device pointer for ZPhi
+	cufftDoubleComplex* devZ; // device pointer for ZPhi
 	cufftDoubleComplex* devZPhiPrime; // device pointer for ZPhiPrime
 	cufftDoubleComplex* devZpp; // device pointer for Zpp
 	cufftDoubleComplex* devV1; // device pointer for V1
@@ -209,11 +209,11 @@ TEST(Kernels, Velocities) {
 	cudaMalloc(&devV1, N * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex)); // V2 is a diagonal matrix, so we only need N elements
 
-	cudaMalloc(&devZPhi, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZ, 2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
 	//
-	cudaMemcpy(devZPhi, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devZ, ZPhi.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	cudaMemcpy(devZPhiPrime, ZPhiPrime.data(), 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	cudaMemcpy(devZpp, Zpp.data(), N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
 	//
@@ -223,7 +223,7 @@ TEST(Kernels, Velocities) {
 	createVelocityMatrix(V1.data(), V2.data(), h, omega, t, N);
 
 	dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
-	createVelocityMatrices<<<matrix_blocks, matrix_threads >>>(devZPhi, devZPhiPrime, devZpp, N, devV1, devV2, true);
+	createVelocityMatrices<<<matrix_blocks, matrix_threads >>>(devZ, devZPhiPrime, devZpp, N, devV1, devV2, true);
 
 	cudaDeviceSynchronize();
 

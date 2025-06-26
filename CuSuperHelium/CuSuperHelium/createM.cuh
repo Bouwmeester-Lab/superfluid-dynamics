@@ -24,8 +24,8 @@ __global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_co
 /// <returns></returns>
 __global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double rho, int n)
 {
-    int k = blockIdx.y * blockDim.y + threadIdx.y; // row
-    int j = blockIdx.x * blockDim.x + threadIdx.x; // col
+    int j = blockIdx.y * blockDim.y + threadIdx.y; // row
+    int k = blockIdx.x * blockDim.x + threadIdx.x; // col
 
     if (k < n && j < n) {
         int indx = k + j * n; // column major index

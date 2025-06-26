@@ -37,8 +37,8 @@ __global__ void calculateDiagonalVectorMultiplication(std_complex* diag, std_com
 
 __global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower)
 {
-	int k = blockIdx.y * blockDim.y + threadIdx.y; // row
-	int j = blockIdx.x * blockDim.x + threadIdx.x; // col
+	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
+	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
 
 	if (k < N && j < N) {
 		int indx = k + j * N; // column major index

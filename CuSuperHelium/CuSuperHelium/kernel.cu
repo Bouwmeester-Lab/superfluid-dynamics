@@ -64,7 +64,7 @@ int runTimeStep()
     problemProperties.U = 0;
 
     const int N = 16;
-    const int steps = 500;
+    const int steps =2500;
 	double stepSize = 0.1e-2;
 	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties);
 

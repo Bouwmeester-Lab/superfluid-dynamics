@@ -24,5 +24,6 @@
     <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
+    <ClInclude Include="Jacobian.cuh" />
   </ItemGroup>
 </Project>

@@ -133,6 +133,7 @@ inline void WaterBoundaryIntegralCalculator<N>::initialize_device(std_complex* Z
 	// Copy initial conditions to device memory
 	cudaMemcpy(devZ, Z0, N * sizeof(std_complex), cudaMemcpyHostToDevice);
 	cudaMemcpy(devPhi, Phi0, N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaDeviceSynchronize();
 }
 
 template<int N>

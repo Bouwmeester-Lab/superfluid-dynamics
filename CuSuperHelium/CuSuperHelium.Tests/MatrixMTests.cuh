@@ -8,6 +8,8 @@
 #include "WaterVelocities.cuh"
 #include "matplotlibcpp.h"
 #include "utilities.cuh"
+#include "Jacobian.cuh"
+#include "WaterBoundaryIntegralCalculator.cuh"
 
 namespace plt = matplotlibcpp;
 
@@ -148,9 +150,41 @@ void createVelocityMatrix(std::complex<double>* V1, std::complex<double>* V2, do
 	}
 }
 
-TEST(Kernels, Cotangent) 
+TEST(Kernels, JacobianCalculation) 
 {
-	const int N = 64;
+	const int N = 4;
+
+	ProblemProperties properties;
+	properties.rho = 0.0;
+	properties.kappa = 0.0;
+	properties.U = 0.0;
+
+	WaterBoundaryIntegralCalculator<N> calculator(properties);
+
+	Jacobian<std_complex, 2 * N> jacobian(calculator);
+
+	std::array<std_complex, 2 * N> Z;
+	std_complex* devZ;
+
+	for(int i = 0; i < N; i++) 
+	{
+		double j = 2 * PI_d * i / (double)N;
+		Z[i] = std_complex(X(j, 0, 10, 0.0), 0.0);
+		Z[i + N] = 0.0;
+	}
+
+	//cudaMalloc(&devZ, 2 * N * sizeof(std_complex));
+	//cudaMemcpy(devZ, Z.data(), 2 * N * sizeof(std_complex), cudaMemcpyHostToDevice);
+
+	calculator.initialize_device(Z.data(), Z.data() + N);
+
+	jacobian.calculateJacobian(calculator.getY0());
+
+	cudaDeviceSynchronize();
+	// Retrieve the Jacobian matrix from the device
+	std::vector<std_complex> jacobianMatrix(4 * N * N);
+	cudaMemcpy(jacobianMatrix.data(), jacobian.jacobianMatrix, 4 * N * N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+
 
 
 }

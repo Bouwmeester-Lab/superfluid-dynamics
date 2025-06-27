@@ -27,12 +27,17 @@ class OscillatoryProblem : public AutonomousProblem<cuDoubleComplex, N>
 private:
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
+	cuDoubleComplex* devY0;
 public:
 	using AutonomousProblem<cuDoubleComplex, N>::AutonomousProblem;
 	virtual void run(cuDoubleComplex* initialState) override
 	{
+		this->devY0 = initialState; // store the initial state for later use
 		// Define the system of equations for the oscillatory problem
 		flip_x_y << <blocks, threads >> > (initialState, this->devTimeEvolutionRhs, N); // implements: dx/dt=-y, dy/dt=x
+	}
+	virtual cuDoubleComplex* getY0() {
+		return this->devY0; // return the initial state
 	}
 };
 

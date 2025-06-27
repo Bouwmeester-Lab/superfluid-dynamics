@@ -291,6 +291,45 @@ public:
 	using AutonomousRungeKuttaStepper<T, N>::AutonomousRungeKuttaStepper;
 };
 
+template <int N>
+class AutonomousRungeKuttaStepper<std_complex, N> : public AutonomousRungeKuttaStepperBase<std_complex, N>
+{
+public:
+	using AutonomousRungeKuttaStepperBase<std_complex, N>::AutonomousRungeKuttaStepperBase;
+protected:
+	virtual void step(const int i) override
+	{
+		cublasStatus_t result;
+		if (i == 1)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<const cuDoubleComplex*>(&this->halfTimeStep), reinterpret_cast<cuDoubleComplex*>(this->k1), 1, reinterpret_cast<cuDoubleComplex*>(this->devY1), 1);
+		}
+		else if (i == 2)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<cuDoubleComplex*>(&this->halfTimeStep), reinterpret_cast<cuDoubleComplex*>(this->k2), 1, reinterpret_cast<cuDoubleComplex*>(this->devY2), 1);
+		}
+		else if (i == 3)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<cuDoubleComplex*>(&this->timeStep), reinterpret_cast<cuDoubleComplex*>(this->k3), 1, reinterpret_cast<cuDoubleComplex*>(this->devY3), 1);
+		}
+		else if (i == 4)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<cuDoubleComplex*>(&this->sixthTimeStep), reinterpret_cast<cuDoubleComplex*>(this->k1), 1, reinterpret_cast<cuDoubleComplex*>(this->devY0), 1); // k1 must contain the sum of k1, k2, k3, and k4
+		}
+		else
+		{
+			fprintf(stderr, "Invalid step index: %d\n", i);
+			return;
+		}
+
+
+		if (result != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "cublasZaxpy failed with error code %d\n", result);
+			return;
+		}
+	}
+};
+
 
 template <int N>
 class AutonomousRungeKuttaStepper<cuDoubleComplex, N> : public AutonomousRungeKuttaStepperBase<cuDoubleComplex, N>

@@ -44,9 +44,12 @@
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;D:\repos\superfluid-dynamics\CuSuperHelium\CuSuperHelium</IncludePath>
-    <LibraryPath>C:\vcpkg\packages\gtest_x64-windows\lib;$(LibraryPath);$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Users\emore\anaconda3\libs</LibraryPath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;D:\repos\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\vcpkg\packages\gtest_x64-windows\include;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/</IncludePath>
+    <LibraryPath>C:\vcpkg\packages\gtest_x64-windows\lib;$(LibraryPath);$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64;C:\Users\emore\anaconda3\libs;C:\ProgramData\anaconda3\libs</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <VcpkgInstalledDir>C:\vcpkg</VcpkgInstalledDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -94,6 +97,11 @@
     <ClInclude Include="ComplexFunctionsTests.cuh" />
     <ClInclude Include="MatrixMTests.cuh" />
     <ClInclude Include="ODESolverTests.cuh" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CuSuperHelium\CuSuperHelium.vcxproj">
+      <Project>{6a1329a0-244a-41d8-b5a1-f43908bdebaf}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

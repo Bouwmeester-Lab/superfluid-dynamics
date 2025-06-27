@@ -64,7 +64,7 @@ int runTimeStep()
     problemProperties.U = 0;
 
     const int N = 16;
-    const int steps = 500;
+    const int steps =500;
 	double stepSize = 0.1e-2;
 	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties);
 
@@ -72,16 +72,16 @@ int runTimeStep()
     std::vector<double> x0;
 	std::vector<double> y0;
 
-    std::array<cufftDoubleComplex, N> Z0;
-	std::array<cufftDoubleComplex, N> PhiArr;
+    std::array<std_complex, N> Z0;
+	std::array<std_complex, N> PhiArr;
     std::vector<double> phiPrime;
     std::vector<double> phi0;
 
-	std::array<cufftDoubleComplex, N> VelocitiesLower;
-    std::array<cufftDoubleComplex, N> VelocitiesUpper;
+	std::array<std_complex, N> VelocitiesLower;
+    std::array<std_complex, N> VelocitiesUpper;
 
-    std::array<cufftDoubleComplex, N> ZVect;
-    std::array<cufftDoubleComplex, N> PhiVect;
+    std::array<std_complex, N> ZVect;
+    std::array<std_complex, N> PhiVect;
 
 
 
@@ -94,21 +94,17 @@ int runTimeStep()
     x.resize(N, 0);
 	y.resize(N, 0);
 	phiPrime.resize(N, 0);
-    double h = 0.1;
+    double h = 0.5;
     double omega = 1;
     double t0 = 0;
 	for (int i = 0; i < N; i++) {
 		j[i] = 2.0 * PI_d * i / (1.0 * N);
-		Z0[i].x = X(j[i], h, omega, t0);
-		x0[i] = Z0[i].x;
+		Z0[i] = std_complex(X(j[i], h, omega, t0), Y(j[i], h, omega, t0));
+		x0[i] = Z0[i].real();
+		y0[i] = Z0[i].imag();
 
-		Z0[i].y = Y(j[i], h, omega, t0);
-		y0[i] = Z0[i].y;
-
-        PhiArr[i].x = Phi(j[i], h, omega, t0, problemProperties.rho);
-		phi0[i] = PhiArr[i].x;
-
-        PhiArr[i].y = 0; // Phi is real.
+        PhiArr[i] = Phi(j[i], h, omega, t0, problemProperties.rho);
+		phi0[i] = PhiArr[i].real();
 	}
     plt::figure();
     plt::title("Interface And Potential");
@@ -118,10 +114,7 @@ int runTimeStep()
     //plt::show();
     
 	// Initialize the time step manager with the initial conditions.
-	cuDoubleComplex* devZ = nullptr;
-	cuDoubleComplex* devPhi = nullptr;
-
-    timeStepManager.initialize_device(Z0.data(), PhiArr.data(), devZ, devPhi);
+    timeStepManager.initialize_device(Z0.data(), PhiArr.data());
     /*timeStepManager.runTimeStep();
     cudaDeviceSynchronize();
 	cudaMemcpy(phiPrime.data(), timeStepManager.devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost);
@@ -137,11 +130,11 @@ int runTimeStep()
     plt::plot(x0, phiPrime);
     plt::show();*/
     // create Euler stepper
-	AutonomousRungeKuttaStepper<cuDoubleComplex, 2*N> rungeKunta(timeStepManager, stepSize);
+	AutonomousRungeKuttaStepper<std_complex, 2*N> rungeKunta(timeStepManager, stepSize);
 	// Euler<N> euler(timeStepManager, stepSize);
 	/*euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);*/
-    rungeKunta.initialize(devZ);
+    rungeKunta.initialize(timeStepManager.getY0());
 	rungeKunta.setTimeStep(stepSize);
 
 	for (int i = 0; i < steps; i++) {
@@ -153,9 +146,9 @@ int runTimeStep()
     // timeStepManager.runTimeStep();
 	cudaDeviceSynchronize();
 
-	cudaMemcpy(ZVect.data(), devZ, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-    cudaMemcpy(PhiVect.data(), devPhi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-    cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZVect.data(), timeStepManager.getDevZ(), N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(PhiVect.data(), timeStepManager.getDevPhi(), N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
     //cudaMemcpy(PhiVect.data(), devPhi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 
 	printf("\velocities after 1: ");
@@ -164,9 +157,9 @@ int runTimeStep()
 	std::vector<double> y_fin(N, 0);
 
 	for (int i = 0; i < N; i++) {
-		printf("{%f, %f} ", VelocitiesLower[i].x, VelocitiesLower[i].y);
-        x[i] = ZVect[i].x;
-        y[i] = ZVect[i].y;
+		printf("{%f, %f} ", VelocitiesLower[i].real(), VelocitiesLower[i].imag());
+        x[i] = ZVect[i].real();
+        y[i] = ZVect[i].imag();
 
 		x_fin[i] = X(j[i], h, omega, t);
 		y_fin[i] = Y(j[i], h, omega, t);
@@ -174,7 +167,7 @@ int runTimeStep()
 	printf("\n");
     printf("\nPhi: ");
     for (int i = 0; i < N; i++) {
-        printf("{%f, %f} ", PhiVect[i].x, -1 * PhiVect[i].y);
+        printf("{%f, %f} ", PhiVect[i].real(), -1 * PhiVect[i].imag());
     }
     plt::figure();
     auto title = std::format("Interface And Potential at t={:.4f}", steps * stepSize);
@@ -224,71 +217,6 @@ int main()
     //}
 
     return 0;
-}
-
-cudaError_t fftDerivative()
-{
-    cudaError_t cudaStatus;
-    cudaStatus = setDevice();
-    if (cudaStatus != cudaSuccess) {
-        return cudaStatus;
-    }
-    
-
-    const int N = 16;
-
-    std::array<cufftDoubleComplex, N> y;
-    std::array<cufftDoubleComplex, N> yp;
-    cufftDoubleComplex* devY;
-    cufftDoubleComplex* devYp;
-
-    for (int i = 0; i < N; i++) 
-    {
-        y[i].x = sin(2.0 * 2.0 * i * PI_d / (1.0*N));
-        y[i].y = 0;
-    }
-
-    FftDerivative<N, 1> derivativeFft;
-
-    cudaStatus = derivativeFft.initialize();
-
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "failed to initialize the fft derivatives! ");
-        return cudaStatus;
-    }
-    
-    cudaStatus = cudaMalloc(&devY, sizeof(cufftDoubleComplex) * N);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "failed to allocate devY to gpu! ");
-        return cudaStatus;
-    }
-    // copy y to the gpu
-    cudaStatus = cudaMemcpy(devY, y.data(), sizeof(cufftDoubleComplex) * N, cudaMemcpyHostToDevice);
-    cudaStatus = cudaMalloc(&devYp, sizeof(cufftDoubleComplex) * N);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "failed to copy to gpu! ");
-        return cudaStatus;
-    }
-
-    derivativeFft.exec(devY, devYp);
-
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        return cudaStatus;
-    }
-
-    cudaStatus = cudaMemcpy(yp.data(), devYp, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        return cudaStatus;
-    }
-    printf("end");
-    printf("d/dj y {%d, %d, %d, ... } = {%d,%d,%d, ...}\n",
-        y[0].x, y[1].x, y[2].x, yp[0].x, yp[1].x, yp[2].x);
-	return cudaStatus;
 }
 
 // Helper function for using CUDA to add vectors in parallel.

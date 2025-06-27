@@ -18,7 +18,7 @@
 namespace plt = matplotlibcpp;
 
 template<int N>
-class WaterBoundaryIntegralCalculator : public AutonomousProblem<cufftDoubleComplex, 2*N>
+class WaterBoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*N>
 {
 public:
 	WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties);
@@ -29,31 +29,39 @@ public:
 	/// </summary>
 	/// <param name="Z0"></param>
 	/// <param name="Phi0"></param>
-	void initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi);
-	void setZPhi(cufftDoubleComplex* devZPhi) { this->devZPhi = devZPhi; }
+	void initialize_device(std_complex* Z0, std_complex* Phi0);
+	void setZPhi(std_complex* devZ) { this->devZ = devZ; }
 	void runTimeStep();
 
-	virtual void run(cufftDoubleComplex* initialState) override;
+	virtual void run(std_complex* initialState) override;
 
-	cufftDoubleComplex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
-	cufftDoubleComplex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
-	cufftDoubleComplex* devRhsPhi; ///< Device pointer to the right-hand side of the phi equation (derivative of Phi/dt)
+	std_complex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
+	std_complex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
+	std_complex* devRhsPhi; ///< Device pointer to the right-hand side of the phi equation (derivative of Phi/dt)
 
 	double* devPhiPrime; ///< Device pointer to the PhiPrime array (derivative of Phi)
+
+	std_complex* getDevZ() { return devZ; } ///< Getter for the device pointer to the Z array
+	std_complex* getDevPhi() { return devPhi; } ///< Getter for the device pointer to the Phi array
+
+	virtual std_complex* getY0() override { return devZ; } ///< Getter for the initial state (Z array)
 private:
-	cufftDoubleComplex* devZPhi; ///< Device pointer to the ZPhi array
-	cufftDoubleComplex* devZPhiPrime; ///< Device pointer to the ZPhiPrime array
-	
-	cufftDoubleComplex* devZpp; ///< Device pointer to the Zpp array
+	cuda::std::complex<double>* devZ; ///< Device pointer to the Z array
+	cuda::std::complex<double>* devPhi; ///< Device pointer to the Phi array
+
+
+	std_complex* devZp; ///< Device pointer to the ZPhiPrime array
+	std_complex* devPhiPrimeComplex; ///< Device pointer to the PhiPrime array (derivative of Phi)
+	std_complex* devZpp; ///< Device pointer to the Zpp array
 
 	double* devM; ///< Device pointer to the matrix M (NxN, double precision)
 	double* deva; ///< Device pointer to the solution vector a
-	cufftDoubleComplex* devaComplex; ///< Device pointer to the solution vector a in complex form (for compatibility with velocity calculations)
+	std_complex* devaComplex; ///< Device pointer to the solution vector a in complex form (for compatibility with velocity calculations)
 
-	cufftDoubleComplex* devaprime; ///< Device pointer to the derivative of a
+	std_complex* devaprime; ///< Device pointer to the derivative of a
 
-	cufftDoubleComplex* devV1; ///< Device pointer to the V1 matrix
-	cufftDoubleComplex* devV2; ///< Device pointer to the V2 diagonal vector
+	std_complex* devV1; ///< Device pointer to the V1 matrix
+	std_complex* devV2; ///< Device pointer to the V2 diagonal vector
 
 	
 	
@@ -78,9 +86,11 @@ WaterBoundaryIntegralCalculator<N>::WaterBoundaryIntegralCalculator(ProblemPrope
 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
-	cudaMalloc(&devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZp, N * sizeof(std_complex));
+	cudaMalloc(&devPhiPrimeComplex, N * sizeof(std_complex)); // Device pointer for the PhiPrime array (derivative of Phi in complex form)
+
 	cudaMalloc(&devPhiPrime, N * sizeof(double)); // Device pointer for the PhiPrime array (derivative of Phi)
-	cudaMalloc(&devZpp, N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZpp, N * sizeof(std_complex));
 	cudaMalloc(&devM, N * N * sizeof(double)); // Matrix M for solving the system
 	cudaMalloc(&deva, N * sizeof(double));
 	cudaMalloc(&devaComplex, N * sizeof(cufftDoubleComplex)); // Device pointer for the solution vector a in complex form
@@ -99,8 +109,11 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 template<int N>
 WaterBoundaryIntegralCalculator<N>::~WaterBoundaryIntegralCalculator()
 {
-	cudaFree(devZPhi);
-	cudaFree(devZPhiPrime);
+	cudaFree(devZ);
+	cudaFree(devPhi);
+	cudaFree(devZp);
+	cudaFree(devPhiPrimeComplex);
+	cudaFree(devPhiPrime);
 	cudaFree(devZpp);
 	cudaFree(deva);
 	cudaFree(devaprime);
@@ -112,24 +125,14 @@ WaterBoundaryIntegralCalculator<N>::~WaterBoundaryIntegralCalculator()
 }
 
 template<int N>
-inline void WaterBoundaryIntegralCalculator<N>::initialize_device(cufftDoubleComplex* Z0, cufftDoubleComplex* Phi0, cufftDoubleComplex*& devZ, cufftDoubleComplex*& devPhi)
+inline void WaterBoundaryIntegralCalculator<N>::initialize_device(std_complex* Z0, std_complex* Phi0)
 {
-	cudaMalloc(&devZPhi, 2 * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devZ, 2 * N * sizeof(std_complex)); // we allocate 2*N for Z and Phi, in order to have them in the same memory space
+	devPhi = devZ + N; // Set the device pointer for Phi (second half of devZ) // but we use different pointers for Z and Phi to avoid confusion
+
 	// Copy initial conditions to device memory
-	cudaMemcpy(devZPhi, Z0, N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
-	cudaMemcpy(devZPhi + N, Phi0, N * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice);
-
-	devZ = this->devZPhi; // Set the device pointer for ZPhi
-	devPhi = this->devZPhi + N; // Set the device pointer for Phi (second half of ZPhi)
-
-	//// Initialize other device arrays as needed
-	//cudaMemset(devZpp, 0, N * sizeof(cufftDoubleComplex));
-	//cudaMemset(deva, 0, N * sizeof(double));
-	//cudaMemset(devaprime, 0, N * sizeof(double));
-	//cudaMemset(devV1, 0, N * N * sizeof(cufftDoubleComplex));
-	//cudaMemset(devV2, 0, N * sizeof(cufftDoubleComplex));
-	//cudaMemset(devVelocitiesLower, 0, N * sizeof(cufftDoubleComplex));
-	//cudaMemset(devVelocitiesUpper, 0, N * sizeof(cufftDoubleComplex));
+	cudaMemcpy(devZ, Z0, N * sizeof(std_complex), cudaMemcpyHostToDevice);
+	cudaMemcpy(devPhi, Phi0, N * sizeof(std_complex), cudaMemcpyHostToDevice);
 }
 
 template<int N>
@@ -145,11 +148,11 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	// 6. Calculating the velocities for both lower and upper fluids.
 	// 7. Updating the RHS of state variables (e.g., deva, devaprime) based on the calculated velocities.
 
-	zPhiDerivative.exec(devZPhi, devZPhiPrime, devZpp); // Calculate derivatives of Z and Phi
+	zPhiDerivative.exec(devZ, devPhi, devZp, devPhiPrimeComplex, devZpp); // Calculate derivatives of Z and Phi
 
-	createMKernel << <matrix_blocks, matrix_threads >> > (devM, devZPhi, devZPhiPrime, devZpp, problemProperties.rho,  N); // Create the M matrix
+	createMKernel << <matrix_blocks, matrix_threads >> > (devM, devZ, devZp, devZpp, problemProperties.rho,  N); // Create the M matrix
 	
-	complex_to_real << <blocks, threads >> > (devZPhiPrime + N, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
+	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
 	
 	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
 #ifdef DEBUG_DERIVATIVES_2
@@ -171,7 +174,7 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	std::vector<double> Phi(N, 0);
 
 	cudaMemcpy(ZPhiPrime_host.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-	cudaMemcpy(ZPhi_host.data(), devZPhi, 2*N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the Phi from device to host for debugging or further processing
+	cudaMemcpy(ZPhi_host.data(), devZ, 2*N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the Phi from device to host for debugging or further processing
 	cudaMemcpy(PhiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
 
 	for (int i = 0; i < 2 * N; i++)
@@ -220,7 +223,7 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	std::vector<double> PhiPrime_host(N, 0);
 	cudaDeviceSynchronize();
 	cudaMemcpy(ZPhiPrime_host.data(), devZPhiPrime, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-	cudaMemcpy(ZPhi_host.data(), devZPhi, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ZPhi_host.data(), devZ, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
 	cudaMemcpy(aHost.data(), deva, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
 	cudaMemcpy(aPrimeHost.data(), devaprime, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
 	cudaMemcpy(PhiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
@@ -243,9 +246,9 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 
 	// std::cin.get(); // Wait for user input to continue
 
-	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
+	velocityCalculator.calculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
 
-	velocityCalculator.calculateVelocities(devZPhi, devZPhiPrime, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid
+	velocityCalculator.calculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid
 #ifdef DEBUG_VELOCITIES
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 	std::array<cufftDoubleComplex, N> VelocitiesLower; // Host array to store the velocities for the lower fluid
@@ -269,7 +272,7 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	calculatePhiRhs();
 }
 template<int N>
-void WaterBoundaryIntegralCalculator<N>::run(cufftDoubleComplex* initialState)
+void WaterBoundaryIntegralCalculator<N>::run(std_complex* initialState)
 {
 	this->setZPhi(initialState); // Set the initial state for ZPhi
 	this->runTimeStep(); // Run the time step calculation
@@ -278,6 +281,6 @@ void WaterBoundaryIntegralCalculator<N>::run(cufftDoubleComplex* initialState)
 template<int N>
 void WaterBoundaryIntegralCalculator<N>::calculatePhiRhs()
 {
-	compute_rhs_phi_expression<<<blocks, threads>>>(devZPhi, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties.rho, N); // Calculate the right-hand side of the phi equation
+	compute_rhs_phi_expression<<<blocks, threads>>>(devZ, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties.rho, N); // Calculate the right-hand side of the phi equation
 }
 #endif // TIMESTEP_MANAGER_H

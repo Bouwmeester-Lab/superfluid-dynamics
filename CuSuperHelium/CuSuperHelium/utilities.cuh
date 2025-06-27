@@ -52,6 +52,12 @@ __global__ void add_k_vectors(cufftDoubleComplex* k1, cufftDoubleComplex* k2, cu
         result[i].y = k1[i].y + 2.0 * k2[i].y + 2.0 * k3[i].y + k4[i].y;
     }
 }
+__global__ void add_k_vectors(std_complex* k1, std_complex* k2, std_complex* k3, std_complex* k4, std_complex* result, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        result[i] = k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i];
+    }
+}
 
 /// <summary>
 /// Computes the RHS of Phi on the GPU using the expression: -(1+rho) * Im(Z) + 0.5 * abs(V1)^2 + 0.5 * rho * abs(V2)^2. - rho * V1 dot V2
@@ -103,8 +109,8 @@ __global__ void first_derivative_multiplication(
     else if (i == n / 2) 
     {
         x = a[i].x;
-        result[i].x = 0;// -PI_d * a[i].y / n;
-        result[i].y = 0;//- PI_d* x / n;// -PI_d * a[i].x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        result[i].x = 0;
+        result[i].y = 0;// -PI_d * a[i].x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
         // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
 		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }
@@ -147,16 +153,16 @@ __device__ __host__ inline double filterTanh(int k, int N, double eps, double d)
 __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufftDoubleComplex* result, const int n) 
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i <= n / 2) 
+    if (i < n / 2) 
     {
         result[i].x = - i * i * coeffsFft[i].x / n;
 		result[i].y = - i * i * coeffsFft[i].y / n;
     }
-  //  else if (i == n / 2) 
-  //  {
-  //      result[i].x = PI_d * PI_d * result[i].y / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
-		//result[i].y = 0;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
-  //  }
+    else if (i == n / 2) 
+    {
+        result[i].x = -i * i * coeffsFft[i].x / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
+		result[i].y = -i * i * coeffsFft[i].y / n;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
+    }
     else if(i < n)
     {
 		result[i].x = -(i - n) * (i - n) * coeffsFft[i].x / n; //https://math.mit.edu/~stevenj/fft-deriv.pdf
@@ -178,29 +184,26 @@ __global__ void set_mode_to_imaginary(cufftDoubleComplex* a, double img, int n)
 	a[n].y = img; // set the imaginary part of the Nyquist frequency to 1
 }
 
-__global__ void vector_subtract_complex_real(const cufftDoubleComplex* a, const double* b, cufftDoubleComplex* out, int n) {
+__global__ void vector_subtract_complex_real(const std_complex* a, const double* b, std_complex* out, int n) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
-        out[i].x = a[i].x - b[i]; // -b[i]; // modifies only the real part.
-		out[i].y = a[i].y; // keeps the imaginary part unchanged.
+        out[i] = a[i] - b[i];
     }
 }
 
-__global__ void vector_scalar_add_complex_real(const cufftDoubleComplex* a, const double b, cufftDoubleComplex* out, int n, int start)
+__global__ void vector_scalar_add_complex_real(const std_complex* a, const double b, std_complex* out, int n, int start)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
-        out[start + i].x = a[start + i].x + b; // modifies only the real part.
-		out[start + i].y = a[start + i].y; // keeps the imaginary part unchanged.
+		out[start + i] = a[start + i] + b; // adds the scalar to the real part of the complex number
     }
 }
 
-__global__ void vector_mutiply_scalar(const cufftDoubleComplex* a, const double b, cufftDoubleComplex* out, int n, int start)
+__global__ void vector_mutiply_scalar(const std_complex* a, const double b, std_complex* out, int n, int start)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
-        out[start + i].x = a[start + i].x*b;
-        out[start + i].y = a[start + i].y*b;
+		out[start + i] = a[start + i] * b; // multiplies the complex number by the scalar
     }
 }
 /// <summary>
@@ -233,10 +236,22 @@ __global__ void real_to_complex(const double* x, cuDoubleComplex* x_c, int N) {
         x_c[idx] = make_cuDoubleComplex(x[idx], 0.0);
 }
 
+__global__ void real_to_complex(const double* x, std_complex* x_c, int N) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N)
+        x_c[idx] = std_complex(x[idx], 0.0);
+}
+
 __global__ void complex_to_real(const cuDoubleComplex* x_c, double* x, int N) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx < N)
         x[idx] = x_c[idx].x; // only copy the real part
+}
+
+__global__ void complex_to_real(const std_complex* x_c, double* x, int N) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N)
+        x[idx] = x_c[idx].real(); // only copy the real part
 }
 
 __device__ inline cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
@@ -266,23 +281,9 @@ __device__ cuDoubleComplex cotangent_series(cuda::std::complex<double>& a)
 }
 
 
-__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj, const double scale)
+__device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj, const double scale)
 {
-    cuDoubleComplex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
-
-    auto eps_std = reinterpret_cast<cuda::std::complex<double>*>(&eps);
-
-    //   if(cuda::std::abs(*eps_std) < 1) {
-    //       // If the difference is too small, return a large value to avoid division by zero
-    //       // printf("Using series expansion");
-       //	return cotangent_series(*eps_std);
-       //}
-
-       //return (z1 * z2 + 1) / (z2 - z1);
-
-    auto __z = scale / cuda::std::tan(*eps_std);
-
-    return make_cuDoubleComplex(__z.real(), __z.imag());
+    return scale / cuda::std::tan(0.5 * (Zk - Zj));
 }
 
 __device__ cuDoubleComplex multiply_by_i(cuDoubleComplex z)
@@ -290,26 +291,21 @@ __device__ cuDoubleComplex multiply_by_i(cuDoubleComplex z)
     return make_cuDoubleComplex(-z.y, z.x); // multiply by i is equivalent to rotating the complex number by 90 degrees counter-clockwise
 }
 
-__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj, const cuda::std::complex<double> scale)
+__device__ std_complex multiply_by_i(std_complex z)
 {
-	cuDoubleComplex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
-
-	auto eps_std = reinterpret_cast<cuda::std::complex<double>*>(&eps);
-
- //   if(cuda::std::abs(*eps_std) < 1) {
- //       // If the difference is too small, return a large value to avoid division by zero
- //       // printf("Using series expansion");
-	//	return cotangent_series(*eps_std);
-	//}
-
-	//return (z1 * z2 + 1) / (z2 - z1);
-
-    auto __z = scale / cuda::std::tan(*eps_std);
-
-	return make_cuDoubleComplex(__z.real(), __z.imag());
+    return std_complex(-z.imag(), z.real()); // multiply by i is equivalent to rotating the complex number by 90 degrees counter-clockwise
 }
 
-__device__ cuDoubleComplex cotangent_green_function(cuDoubleComplex Zk, cuDoubleComplex Zj)
+__device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj, const cuda::std::complex<double> scale)
+{
+    std_complex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
+
+    auto __z = scale / cuda::std::tan(eps);
+
+    return __z;
+}
+
+__device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj)
 {
     return cotangent_green_function(Zk, Zj, 1.0); // default scale is 1.0
 }
@@ -353,17 +349,24 @@ __global__ void conjugate_vector(cuDoubleComplex* x, cuDoubleComplex* z, int N)
     }
 }
 
-__global__ void compute_rhs_phi_expression(const cuDoubleComplex* Z, const cuDoubleComplex* V1, const cuDoubleComplex* V2, cuDoubleComplex* result, double rho, int N)
+__global__ void conjugate_vector(std_complex* x, std_complex* z, int N)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+		z[i] = cuda::std::conj(x[i]); // use the standard library to conjugate the complex number
+    }
+}
+
+__global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < N) {
 		// Calculate the right-hand side of the phi equation
-		double Z_imag = cuCimag(Z[i]);
-		double V1_abs2 = V1[i].x * V1[i].x + V1[i].y * V1[i].y;
-		double V2_abs2 = V2[i].x * V2[i].x + V2[i].y * V2[i].y;
-		double V1_dot_V2 = V1[1].x * V2[i].x + V1[i].y * V2[i].y;
-		result[i].x = -(1 + rho) * Z_imag + 0.5 * V1_abs2 + 0.5 * rho * V2_abs2 - rho * V1_dot_V2;
-        result[i].y = 0;
+        double Z_imag = Z[i].imag();
+		double V1_abs2 = V1[i].real() * V1[i].real() + V1[i].imag() * V1[i].imag();
+		double V2_abs2 = V2[i].real() * V2[i].real() + V2[i].imag() * V2[i].imag();
+		double V1_dot_V2 = V1[1].real() * V2[i].real() + V1[i].imag() * V2[i].imag();
+		result[i] = -(1 + rho) * Z_imag + 0.5 * V1_abs2 + 0.5 * rho * V2_abs2 - rho * V1_dot_V2;
 	}
 }
 

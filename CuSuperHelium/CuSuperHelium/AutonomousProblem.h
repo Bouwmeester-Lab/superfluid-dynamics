@@ -11,7 +11,7 @@ class AutonomousProblem
 {
 public:
 	T* devTimeEvolutionRhs; ///< Device pointer to the right-hand side of the time evolution problem
-
+	virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
 	AutonomousProblem()
 	{
 		cudaMalloc(&devTimeEvolutionRhs, N * sizeof(T)); // Allocate device memory for the right-hand side of the time evolution problem

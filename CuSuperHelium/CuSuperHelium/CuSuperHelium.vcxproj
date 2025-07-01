@@ -106,6 +106,7 @@
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="Derivatives.cuh" />
+    <ClInclude Include="Energies.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />

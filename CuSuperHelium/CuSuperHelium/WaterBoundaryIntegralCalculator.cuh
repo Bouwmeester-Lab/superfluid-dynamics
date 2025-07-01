@@ -209,7 +209,7 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 #endif
 	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
 	//
-	fftDerivative.exec(devaComplex, devaprime, false); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
+	fftDerivative.exec(devaComplex, devaprime, false, 2.0*PI_d / N); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
 	
 	//force_real_only << <blocks, threads >> > (devaprime, N); // Force the imaginary part of the primed vorticities to be zero
 #ifdef DEBUG_DERIVATIVES_3

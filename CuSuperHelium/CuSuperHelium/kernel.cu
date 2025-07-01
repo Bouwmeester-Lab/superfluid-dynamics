@@ -63,8 +63,8 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 16;
-    const int steps =500;
+    const int N = 128;
+    const int steps =6283;
 	double stepSize = 0.1e-2;
 	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties);
 
@@ -76,6 +76,7 @@ int runTimeStep()
 	std::array<std_complex, N> PhiArr;
     std::vector<double> phiPrime;
     std::vector<double> phi0;
+    std::vector<std_complex> dPhi(N);
 
 	std::array<std_complex, N> VelocitiesLower;
     std::array<std_complex, N> VelocitiesUpper;
@@ -94,7 +95,7 @@ int runTimeStep()
     x.resize(N, 0);
 	y.resize(N, 0);
 	phiPrime.resize(N, 0);
-    double h = 0.5;
+    double h = 0.1;
     double omega = 1;
     double t0 = 0;
 	for (int i = 0; i < N; i++) {
@@ -115,20 +116,26 @@ int runTimeStep()
     
 	// Initialize the time step manager with the initial conditions.
     timeStepManager.initialize_device(Z0.data(), PhiArr.data());
-    /*timeStepManager.runTimeStep();
+    
+    timeStepManager.runTimeStep();
     cudaDeviceSynchronize();
-	cudaMemcpy(phiPrime.data(), timeStepManager.devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost);
-    cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(dPhi.data(), timeStepManager.devRhsPhi, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(VelocitiesLower.data(), timeStepManager.devVelocitiesLower, N * sizeof(std_complex), cudaMemcpyDeviceToHost);
     printf("\velocities after 1: ");
     for (int i = 0; i < N; i++) {
-        printf("{%f, %f} ", VelocitiesLower[i].x, VelocitiesLower[i].y);
-        x[i] = ZVect[i].x;
-        y[i] = ZVect[i].y;
+        printf("{%f, %f} ", VelocitiesLower[i].real(), VelocitiesLower[i].imag());
+        x[i] = VelocitiesLower[i].real();
+        y[i] = VelocitiesLower[i].imag();
+        phiPrime[i] = dPhi[i].real();
     }
     plt::figure();
-    plt::plot(x0, phi0);
-    plt::plot(x0, phiPrime);
-    plt::show();*/
+    // plt::plot(x0, phi0);
+    plt::title(std::format("Starting RHS using CUDA C++ using N = {}", N));
+    plt::plot(x0, x, {{"label", "vx"}});
+    plt::plot(x0, y, {{"label", "vy"}});
+    plt::plot(x0, phiPrime, { {"label", "dPhi"} });
+    plt::legend();
+    // plt::show();
     // create Euler stepper
 	AutonomousRungeKuttaStepper<std_complex, 2*N> rungeKunta(timeStepManager, stepSize);
 	// Euler<N> euler(timeStepManager, stepSize);
@@ -177,7 +184,7 @@ int runTimeStep()
     // Plot the initial position and the result of the Euler method
 
 	plt::plot(x0, y0, {{"label", "Initial Position"}});
-    plt::scatter(x, y);
+    plt::plot(x, y);
     plt::legend();
     plt::show();
     

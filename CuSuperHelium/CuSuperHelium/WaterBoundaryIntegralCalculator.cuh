@@ -29,6 +29,7 @@ public:
 	KineticEnergy<N> kineticEnergy; ///< Kinetic energy calculator for the water boundary integral problem
 	GravitationalEnergy<N> gravitationalEnergy; ///< Gravitational energy calculator for the water boundary integral problem
 	SurfaceEnergy<N> surfaceEnergy; ///< Surface energy calculator for the water boundary integral problem
+	VolumeFlux<N> volumeFlux; ///< Volume flux calculator for the water boundary integral problem
 
 	/// <summary>
 	/// Initializes the time step manager by copying the host data to the device memory for the initial conditions. Use this only once when setting up the problem from the host side.
@@ -88,7 +89,9 @@ private:
 };
 
 template<int N>
-WaterBoundaryIntegralCalculator<N>::WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties) : AutonomousProblem<cufftDoubleComplex, 2*N>(), problemProperties(problemProperties), kineticEnergy(problemProperties), gravitationalEnergy(problemProperties), surfaceEnergy(problemProperties),  zPhiDerivative(problemProperties), 
+WaterBoundaryIntegralCalculator<N>::WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties) : AutonomousProblem<cufftDoubleComplex, 2*N>(), problemProperties(problemProperties),
+kineticEnergy(problemProperties), gravitationalEnergy(problemProperties), surfaceEnergy(problemProperties), volumeFlux(problemProperties),
+	zPhiDerivative(problemProperties), 
 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
@@ -281,6 +284,7 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
 	gravitationalEnergy.CalculateEnergy(devZ, devZp); // Calculate the gravitational energy based on the current state
 	surfaceEnergy.CalculateEnergy(devZp); // Calculate the surface energy based on the current state
+	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower); // Calculate the volume flux based on the current state
 }
 template<int N>
 void WaterBoundaryIntegralCalculator<N>::run(std_complex* initialState)

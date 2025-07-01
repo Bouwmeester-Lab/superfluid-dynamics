@@ -60,6 +60,18 @@ public:
 	}
 };
 
+template <int N>
+class VolumeFlux : public EnergyBase<N>
+{
+public:
+	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	void CalculateEnergy(std_complex* devZp, std_complex* velocities);
+	virtual double scaleEnergy(double energy) const override
+	{
+		return energy * 0.5 / PI_d;
+	}
+};
+
 
 struct KineticEnergyCombination
 {
@@ -103,6 +115,18 @@ struct SurfaceEnergyCombination
 	__device__ double operator()(int k) const
 	{
 		return sqrt(Zp[k].real() * Zp[k].real() + Zp[k].imag() * Zp[k].imag());
+	}
+};
+
+struct VolumeFluxCombination
+{
+	const std_complex* Zp;
+	const std_complex* velocities;
+	__host__ __device__ VolumeFluxCombination(const std_complex* zp, const std_complex* velocities)
+		: Zp(zp), velocities(velocities) {}
+	__device__ double operator()(int k) const
+	{
+		return (velocities[k].imag() * Zp[k].real() + velocities[k].real() * Zp[k].imag());
 	}
 };
 
@@ -171,6 +195,21 @@ void SurfaceEnergy<N>::CalculateEnergy(std_complex* devZp)
 	// create a transform iterator that applies the SurfaceEnergyCombination functor
 	SurfaceEnergyCombination surfaceEnergyCombination(devZp);
 	auto transformIterator = thrust::make_transform_iterator(countingIterator, surfaceEnergyCombination);
+	// get temporary storage size
+	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
+	// allocate temporary storage
+	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	// perform the reduction
+	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
+}
+
+template<int N>
+void VolumeFlux<N>::CalculateEnergy(std_complex* devZp, std_complex* velocities)
+{
+	thrust::counting_iterator<int> countingIterator(0);
+	// create a transform iterator that applies the VolumeFluxCombination functor
+	VolumeFluxCombination volumeFluxCombination(devZp, velocities);
+	auto transformIterator = thrust::make_transform_iterator(countingIterator, volumeFluxCombination);
 	// get temporary storage size
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	// allocate temporary storage

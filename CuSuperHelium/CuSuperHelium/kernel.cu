@@ -93,6 +93,7 @@ int runTimeStep()
 	std::vector<double> PE(steps, 0);
 	std::vector<double> SurfaceEnergy(steps, 0);
 	std::vector<double> TotalEnergy(steps, 0);
+	std::vector<double> VolumeFlux(steps, 0);
 
 	x0.resize(N, 0);
 	y0.resize(N, 0);
@@ -155,6 +156,7 @@ int runTimeStep()
         KE[i] = timeStepManager.kineticEnergy.getEnergy();
 		PE[i] = timeStepManager.gravitationalEnergy.getEnergy();
 		SurfaceEnergy[i] = timeStepManager.surfaceEnergy.getEnergy();
+		VolumeFlux[i] = timeStepManager.volumeFlux.getEnergy();
 
 		TotalEnergy[i] = KE[i] + PE[i] + SurfaceEnergy[i];
 	}
@@ -207,6 +209,14 @@ int runTimeStep()
 	plt::legend();
 	plt::xlabel("Time Steps");
 	plt::ylabel("Energy");
+
+	plt::figure();
+	plt::title("Volume Flux");
+	plt::plot(VolumeFlux, { {"label", "Volume Flux"} });
+	plt::xlabel("Time Steps");
+	plt::ylabel("Volume Flux");
+	plt::legend();
+
     plt::show();
     
 

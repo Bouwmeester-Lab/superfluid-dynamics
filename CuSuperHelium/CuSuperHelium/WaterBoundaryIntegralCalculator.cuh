@@ -18,7 +18,7 @@
 namespace plt = matplotlibcpp;
 
 template<int N>
-class WaterBoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*N>
+class WaterBoundaryIntegralCalculator : public AutonomousProblem<double, 3*N>
 {
 public:
 	WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties);
@@ -33,7 +33,7 @@ public:
 	void setZPhi(std_complex* devZ) { this->devZ = devZ; }
 	void runTimeStep();
 
-	virtual void run(std_complex* initialState) override;
+	virtual void run(double* initialState) override;
 
 	std_complex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
 	std_complex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
@@ -44,11 +44,14 @@ public:
 	std_complex* getDevZ() { return devZ; } ///< Getter for the device pointer to the Z array
 	std_complex* getDevPhi() { return devPhi; } ///< Getter for the device pointer to the Phi array
 
-	virtual std_complex* getY0() override { return devZ; } ///< Getter for the initial state (Z array)
+	virtual double* getY0() override { return devZ; } ///< Getter for the initial state (Z array)
 private:
 	cuda::std::complex<double>* devZ; ///< Device pointer to the Z array
 	cuda::std::complex<double>* devPhi; ///< Device pointer to the Phi array
 
+	double* devX;
+	double* devY;
+	double* devDoublePhi;
 
 	std_complex* devZp; ///< Device pointer to the ZPhiPrime array
 	std_complex* devPhiPrimeComplex; ///< Device pointer to the PhiPrime array (derivative of Phi)

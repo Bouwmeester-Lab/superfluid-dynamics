@@ -14,6 +14,8 @@
 #include "WaterVelocities.cuh"
 #include "MatrixSolver.cuh"
 #include "AutonomousProblem.h"
+#include "Energies.cuh"
+
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
 
@@ -23,6 +25,10 @@ class WaterBoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*
 public:
 	WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties);
 	~WaterBoundaryIntegralCalculator();
+
+	KineticEnergy<N> kineticEnergy; ///< Kinetic energy calculator for the water boundary integral problem
+	GravitationalEnergy<N> gravitationalEnergy; ///< Gravitational energy calculator for the water boundary integral problem
+	SurfaceEnergy<N> surfaceEnergy; ///< Surface energy calculator for the water boundary integral problem
 
 	/// <summary>
 	/// Initializes the time step manager by copying the host data to the device memory for the initial conditions. Use this only once when setting up the problem from the host side.
@@ -82,7 +88,7 @@ private:
 };
 
 template<int N>
-WaterBoundaryIntegralCalculator<N>::WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties) : AutonomousProblem<cufftDoubleComplex, 2*N>(), problemProperties(problemProperties), zPhiDerivative(problemProperties), 
+WaterBoundaryIntegralCalculator<N>::WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties) : AutonomousProblem<cufftDoubleComplex, 2*N>(), problemProperties(problemProperties), kineticEnergy(problemProperties), gravitationalEnergy(problemProperties), surfaceEnergy(problemProperties),  zPhiDerivative(problemProperties), 
 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
@@ -270,6 +276,11 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	// 7. the RHS of the X, Y are the velocities above.
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	calculatePhiRhs();
+
+	// calculate the evolution constants like the energy:
+	kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
+	gravitationalEnergy.CalculateEnergy(devZ, devZp); // Calculate the gravitational energy based on the current state
+	surfaceEnergy.CalculateEnergy(devZp); // Calculate the surface energy based on the current state
 }
 template<int N>
 void WaterBoundaryIntegralCalculator<N>::run(std_complex* initialState)

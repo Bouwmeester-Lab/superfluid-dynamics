@@ -88,6 +88,11 @@ int runTimeStep()
 
     std::vector<double> x;
 	std::vector<double> y;
+	
+    std::vector<double> KE(steps, 0);
+	std::vector<double> PE(steps, 0);
+	std::vector<double> SurfaceEnergy(steps, 0);
+	std::vector<double> TotalEnergy(steps, 0);
 
 	x0.resize(N, 0);
 	y0.resize(N, 0);
@@ -147,6 +152,11 @@ int runTimeStep()
 	for (int i = 0; i < steps; i++) {
         // Perform a time step
         rungeKunta.runStep();
+        KE[i] = timeStepManager.kineticEnergy.getEnergy();
+		PE[i] = timeStepManager.gravitationalEnergy.getEnergy();
+		SurfaceEnergy[i] = timeStepManager.surfaceEnergy.getEnergy();
+
+		TotalEnergy[i] = KE[i] + PE[i] + SurfaceEnergy[i];
 	}
 	
 
@@ -186,6 +196,17 @@ int runTimeStep()
 	plt::plot(x0, y0, {{"label", "Initial Position"}});
     plt::plot(x, y);
     plt::legend();
+
+    plt::figure();
+	plt::title("Kinetic, Potential and Surface Energy");
+	plt::plot(KE, { {"label", "Kinetic Energy"} });
+	plt::plot(PE, { {"label", "Potential Energy"} });
+	plt::plot(SurfaceEnergy, { {"label", "Surface Energy"} });
+	plt::plot(TotalEnergy, { {"label", "Total Energy"} });
+
+	plt::legend();
+	plt::xlabel("Time Steps");
+	plt::ylabel("Energy");
     plt::show();
     
 

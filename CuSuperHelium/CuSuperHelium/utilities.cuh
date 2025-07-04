@@ -110,15 +110,17 @@ __global__ void first_derivative_multiplication(
     {
         x = a[i].x;
         result[i].x = 0;
-        result[i].y = - PI_d * x / n; // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        result[i].y = -PI_d * x / n; // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
         // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
 		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }
     else if (i == n /2 +1) 
     {
+        x = a[i].x;
+		y = a[i].y;
         // this is the Nyquist frequency, we want to set it to zero since we don't want to have any imaginary part in the result
         result[i].x = 0;
-        result[i].y = 0; // this is the same as setting the imaginary part to zero
+        result[i].y = -PI_d * x / n; // this is the same as setting the imaginary part to zero
 	}
     else if (i < n) {
         x = a[i].x;

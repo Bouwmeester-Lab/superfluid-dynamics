@@ -109,6 +109,7 @@
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
+    <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />

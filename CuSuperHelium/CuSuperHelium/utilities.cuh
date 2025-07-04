@@ -11,6 +11,9 @@
 #include "cuDoubleComplexOperators.cuh"
 #include <cuda/std/complex>
 
+#define FMA(a,b,c) __fma_rn((a),(b),(c))
+
+
 __global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
     cufftDoubleComplex* result,
@@ -302,6 +305,16 @@ __device__ cuDoubleComplex multiply_by_i(cuDoubleComplex z)
 __device__ std_complex multiply_by_i(std_complex z)
 {
     return std_complex(-z.imag(), z.real()); // multiply by i is equivalent to rotating the complex number by 90 degrees counter-clockwise
+}
+
+
+
+
+__device__ std_complex cotangent_substraction(std_complex Zk, std_complex Zj, const double scale)
+{
+    std_complex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
+    auto __z = scale / cuda::std::tan(eps);
+    return __z;
 }
 
 __device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj, const cuda::std::complex<double> scale)

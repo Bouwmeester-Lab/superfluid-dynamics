@@ -10,8 +10,8 @@
 #include <iostream>
 #include "cuDoubleComplexOperators.cuh"
 #include <cuda/std/complex>
+#include "PrecisionMath.cuh"
 
-#define FMA(a,b,c) __fma_rn((a),(b),(c))
 
 
 __global__ void first_derivative_multiplication(
@@ -265,6 +265,11 @@ __global__ void complex_to_real(const std_complex* x_c, double* x, int N) {
         x[idx] = x_c[idx].real(); // only copy the real part
 }
 
+__device__ __forceinline__ std_complex cot(std_complex z) 
+{
+	return 1.0 / tan(z); // using the standard complex library to calculate the cotangent
+}
+
 __device__ inline cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
 {
 	auto a_std = reinterpret_cast<cuda::std::complex<double>*>(&a);
@@ -285,18 +290,6 @@ __device__ inline cufftDoubleComplex cotangent_complex(cufftDoubleComplex a)
 	//return make_cuDoubleComplex(top.x * coeff, top.y * coeff);
 }
 
-__device__ cuDoubleComplex cotangent_series(cuda::std::complex<double>& a)
-{
-	auto __z = 1.0 / a - a / 3.0 + a * a * a / 45.0 - a * a * a * a * a / 945.0 + a * a * a * a * a * a * a / 4725.0 - 2.0 * cuda::std::pow(a, 9.0)/93555.0 - cuda::std::pow(a, 11.0) / 638512875.0; // this is the series expansion of cotangent
-	return make_cuDoubleComplex(__z.real(), __z.imag());
-}
-
-
-__device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj, const double scale)
-{
-    return scale / cuda::std::tan(0.5 * (Zk - Zj));
-}
-
 __device__ cuDoubleComplex multiply_by_i(cuDoubleComplex z)
 {
     return make_cuDoubleComplex(-z.y, z.x); // multiply by i is equivalent to rotating the complex number by 90 degrees counter-clockwise
@@ -307,28 +300,15 @@ __device__ std_complex multiply_by_i(std_complex z)
     return std_complex(-z.imag(), z.real()); // multiply by i is equivalent to rotating the complex number by 90 degrees counter-clockwise
 }
 
-
-
-
-__device__ std_complex cotangent_substraction(std_complex Zk, std_complex Zj, const double scale)
-{
-    std_complex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
-    auto __z = scale / cuda::std::tan(eps);
-    return __z;
-}
-
-__device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj, const cuda::std::complex<double> scale)
-{
-    std_complex eps = 0.5 * (Zk - Zj); // this is the difference between the two Z
-
-    auto __z = scale / cuda::std::tan(eps);
-
-    return __z;
-}
-
 __device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj)
 {
-    return cotangent_green_function(Zk, Zj, 1.0); // default scale is 1.0
+    std_complex cotZk = cot(0.5 * Zk);
+	std_complex cotZj = cot(0.5 * Zj);
+
+	// Using the cotangent subtraction formula: cot(Zk - Zj) = (cot(Zk) * cot(Zj) + 1) / (cot(Zj) - cot(Zk))
+	std_complex top = cotZk * cotZj + 1.0;
+	std_complex invBottom = fastPreciseInvSub(cotZj, cotZk); // using the precise inverse substraction using double double precision to avoid numerical issues
+	return top * invBottom; // this is the cotangent green function
 }
 
 __device__ void cos(cufftDoubleComplex z, cufftDoubleComplex& out)

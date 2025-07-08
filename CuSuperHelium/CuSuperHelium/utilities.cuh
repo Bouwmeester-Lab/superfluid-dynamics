@@ -102,28 +102,28 @@ __global__ void first_derivative_multiplication(
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     double x, y;
-    if (i < n / 2) 
+    if (i <= n / 2) 
     {
         x = a[i].x; // it's important to do this copy since if you don't you will be using the new value in the expression instead of the old one.
 		y = a[i].y;
         result[i].x = - i * y / static_cast<double>(n);
 		result[i].y = i * x / static_cast<double>(n);
     }
-    else if (i == n / 2) 
-    {
-        x = a[i].x;
-        result[i].x = 0;
-        result[i].y = -PI_d * x / n; // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
-        // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
-		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
-    }
+  //  else if (i == n / 2) 
+  //  {
+  //      x = a[i].x;
+  //      result[i].x = - i * a[i].y / static_cast<double>(n);
+  //      result[i].y = i * x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+  //      // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
+		//// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
+  //  }
     else if (i == n /2 +1) 
     {
         x = a[i].x;
 		y = a[i].y;
         // this is the Nyquist frequency, we want to set it to zero since we don't want to have any imaginary part in the result
         result[i].x = 0;
-        result[i].y = -PI_d * x / n; // this is the same as setting the imaginary part to zero
+        result[i].y = 0;// PI_d* x / n; // this is the same as setting the imaginary part to zero
 	}
     else if (i < n) {
         x = a[i].x;

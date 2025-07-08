@@ -20,12 +20,21 @@ struct dd_complex
 };
 
 
-
+//-----------------------------------------------------------------------
+// One Newton step for the real reciprocal of a double–double           //
+//    r ~ 1/dhi  ->  r += r * (1 - d*r)                                 //
+//-----------------------------------------------------------------------
+__device__ __forceinline__ double dd_inv_one_step(double dhi, double dlo)
+{
+	double r = 1.0 / dhi;                             // 1st approx
+	double err = FMA(-(dhi + dlo), r, 1.0);            // 1 - d*r   (exact)
+	return FMA(r, err, r);                             // refine
+}
 
 //-----------------------------------------------------------------------
 // Error–free subtraction: a – b = hi + lo                (Dekker/Kahan)
 //-----------------------------------------------------------------------
-__device__ __forceinline__ void twoDiff(double  a, double  b,
+__device__ __host__ __forceinline__ void twoDiff(double  a, double  b,
 	double& hi, double& lo)
 {
 	hi = a - b;
@@ -46,6 +55,14 @@ __device__ __host__ doubledouble operator+(doubledouble a, doubledouble b)
 	return z;
 }
 
+
+
+__device__ inline double operator/(double top, doubledouble bottom) 
+{
+	auto reciprocal = dd_inv_one_step(bottom.hi, bottom.lo); // calculate the reciprocal of the double-double number
+	return top * reciprocal; // multiply the top by the reciprocal to get the result
+}
+
 __device__ __forceinline__ void twoProd(double  a, double  b,
 	double& hi, double& lo)
 {
@@ -57,8 +74,13 @@ __device__ __forceinline__ dd_complex c_twoDiff(std_complex z1, std_complex z2)
 {
 	dd_complex d;
 	twoDiff(z1.real(), z2.real(), d.real.hi, d.real.lo); // calculate the high and low parts of the real part of the difference
-	twoDiff(z1.imag(), z2.imag(), d.imag.hi, d.li); // calculate the high and low parts of the imaginary part of the difference
+	twoDiff(z1.imag(), z2.imag(), d.imag.hi, d.imag.lo); // calculate the high and low parts of the imaginary part of the difference
 	return d;
+}
+
+__device__ inline dd_complex operator-(std_complex a, std_complex b)
+{
+	return c_twoDiff(a, b); // returns the double-double complex number representing the difference between the two complex numbers
 }
 
 /// <summary>
@@ -69,28 +91,45 @@ __device__ __forceinline__ dd_complex c_twoDiff(std_complex z1, std_complex z2)
 __device__ cuDoubleComplex dd_cinv(dd_complex z) 
 {
 	double r2h, r2l, i2h, i2l; // high and low parts of the real and imaginary parts of the inverse
+	doubledouble r2, i2; // real and imaginary parts of the double-double number
 	// real part
-	twoProd(z.hr, z.hr, r2h, r2l); // calculates the high and low parts of the square of the high part of the real part.
-	r2l = FMA(z.hr, z.lr, r2l) * 2.0 + z.lr * z.lr; // https://chatgpt.com/s/t_6867aecacafc8191ac4baf08cf79d2a1 on why doubling r2l is ok to do
+	twoProd(z.real.hi, z.real.hi, r2.hi, r2.lo); // calculates the high and low parts of the square of the high part of the real part.
+	r2l = FMA(z.real.hi, z.real.lo, r2.lo) * 2.0 + z.real.lo * z.real.lo; // https://chatgpt.com/s/t_6867aecacafc8191ac4baf08cf79d2a1 on why doubling r2l is ok to do
 	// imaginary part
-	twoProd(z.hi, z.hi, i2h, i2l); // calculates the high and low parts of the square of the high part of the imaginary part.
-	i2l = FMA(z.hi, z.li, i2l) * 2.0 + z.li * z.li; // https://chatgpt.com/s/t_6867aecacafc8191ac4baf08cf79d2a1 on why doubling i2l is ok to do
+	twoProd(z.imag.hi, z.imag.hi, i2.hi, i2.lo); // calculates the high and low parts of the square of the high part of the imaginary part.
+	i2l = FMA(z.imag.hi, z.imag.lo, i2.lo) * 2.0 + z.imag.lo * z.imag.lo; // https://chatgpt.com/s/t_6867aecacafc8191ac4baf08cf79d2a1 on why doubling i2l is ok to do
 
-	// denominator
+	// denominator (x^2 + y^2) using the double-double algorithm (with high and low parts)
+	auto denom = r2 + i2; // adds the real and imaginary parts of the double-double number
 
+	// calculate the reciprocal of the double-double number 1/denom
+	double invD = 1.0 / denom;
 
+	// calculate the numerator:
+	return make_cuDoubleComplex(z.real.hi * invD, -z.imag.hi * invD); // returns the high parts of the real and imaginary parts multiplied by the inverse of the denominator
 }
+
+__device__ inline cuDoubleComplex operator/(cuDoubleComplex top, dd_complex bottom)
+{
+	auto inv = dd_cinv(bottom); // calculates the inverse of the double-double complex number
+	return inv * top; // multiplies the top by the inverse to get the result
+}
+
+__device__ inline cuDoubleComplex operator/(double top, dd_complex bottom)
+{
+	auto inv = dd_cinv(bottom); // calculates the inverse of the double-double complex number
+	return top * inv; // multiplies the top by the inverse to get the result
+}
+
 /// <summary>
-/// Returns scale * (Zk - Zj) using the TwoDiff algorithm for precise subtraction.
+/// Returns 1.0 / (Z1 - Z2) using the TwoDiff algorithm for precise subtraction.
 /// </summary>
 /// <param name="Zk"></param>
 /// <param name="Zj"></param>
-/// <param name="scale"></param>
 /// <returns></returns>
-__device__ inline std_complex fastPreciseInvSub(std_complex Zk, std_complex Zj, const double scale)
+__device__ inline std_complex fastPreciseInvSub(std_complex Z1, std_complex Z2)
 {
-	double r2h, r2l, i2h, i2l; // real and imaginary parts of the high and low parts of the difference
-
-	twoProd(hi.real(), scale, r2h, r2l); // calculate the high and low parts of the real part of the difference
-	r2l = FMA()
+	dd_complex d = Z1 - Z2;
+	cuDoubleComplex inv = dd_cinv(d); // calculates the inverse of the double-double complex number
+	return std_complex(inv.x, inv.y); // returns the result as a standard complex number
 }

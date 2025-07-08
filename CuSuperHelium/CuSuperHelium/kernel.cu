@@ -63,10 +63,10 @@ int runTimeStep()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
 
-    const int N = 64;
+    const int N = 128;
     
 	const double stepSize = PI_d/4000;
-	const int steps = 3 / stepSize;
+	const int steps = 2.81 / stepSize;
 	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties);
 
 	std::array<double, N> j;

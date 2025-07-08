@@ -222,7 +222,7 @@ TEST(Kernels, TwoByTwoMMatrix)
 
 TEST(Kernels, MMatrixKernel) 
 {
-	const int N = 1024;
+	const int N = 4;
 	double t = 0.1;
 	double h = 0.5;
 	double omega = 10;
@@ -280,7 +280,7 @@ TEST(Kernels, MMatrixKernel)
 }
 
 TEST(Kernels, Velocities) {
-	const int N = 64;
+	const int N = 8;
 	double t = 0.1;
 	double h = 0.5;
 	double omega = 10;

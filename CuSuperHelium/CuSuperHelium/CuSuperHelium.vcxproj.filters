@@ -25,5 +25,6 @@
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="Energies.cuh" />
+    <ClInclude Include="PrecisionMath.cuh" />
   </ItemGroup>
 </Project>

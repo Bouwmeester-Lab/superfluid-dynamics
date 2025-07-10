@@ -62,12 +62,14 @@ int runTimeStep()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
+    problemProperties.depth = 1;
 
     const int N = 128;
     
 	const double stepSize = PI_d/4000;
-	const int steps = 2.81 / stepSize;
-	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties);
+	const int steps = 1/ stepSize;
+    HeliumBoundaryProblem<N> water;
+	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties, water);
 
 	std::array<double, N> j;
     std::vector<double> x0;

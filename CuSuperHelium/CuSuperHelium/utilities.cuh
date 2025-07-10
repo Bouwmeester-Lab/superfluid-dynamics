@@ -62,25 +62,6 @@ __global__ void add_k_vectors(std_complex* k1, std_complex* k2, std_complex* k3,
     }
 }
 
-/// <summary>
-/// Computes the RHS of Phi on the GPU using the expression: -(1+rho) * Im(Z) + 0.5 * abs(V1)^2 + 0.5 * rho * abs(V2)^2. - rho * V1 dot V2
-/// It assumes Kappa = 0, and there's no surface tension.
-/// The imag part of result is 0. Since this is purely real, but it's useful to stick to complex for consistency.
-/// </summary>
-/// <param name="Z"></param>
-/// <param name="V"></param>
-/// <param name="result"></param>
-/// <param name="alpha"></param>
-/// <param name="N"></param>
-/// <returns></returns>
-__global__ void compute_rhs_phi_expression(
-    const cuDoubleComplex* Z,
-    const cuDoubleComplex* V1,
-	const cuDoubleComplex* V2,
-    cuDoubleComplex* result,
-	double rho,
-    int N
-);
 
 void checkCuda(cudaError_t result);
 void checkCusolver(cusolverStatus_t status);
@@ -307,7 +288,7 @@ __device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj)
 
 	// Using the cotangent subtraction formula: cot(Zk - Zj) = (cot(Zk) * cot(Zj) + 1) / (cot(Zj) - cot(Zk))
 	std_complex top = cotZk * cotZj + 1.0;
-	std_complex invBottom = fastPreciseInvSub(cotZj, cotZk); // using the precise inverse substraction using double double precision to avoid numerical issues
+	std_complex invBottom = PrecisionMath::fastPreciseInvSub(cotZj, cotZk); // using the precise inverse substraction using double double precision to avoid numerical issues
 	return top * invBottom; // this is the cotangent green function
 }
 
@@ -358,18 +339,6 @@ __global__ void conjugate_vector(std_complex* x, std_complex* z, int N)
     }
 }
 
-__global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N)
-{
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < N) {
-		// Calculate the right-hand side of the phi equation
-        double Z_imag = Z[i].imag();
-		double V1_abs2 = V1[i].real() * V1[i].real() + V1[i].imag() * V1[i].imag();
-		double V2_abs2 = V2[i].real() * V2[i].real() + V2[i].imag() * V2[i].imag();
-		double V1_dot_V2 = V1[1].real() * V2[i].real() + V1[i].imag() * V2[i].imag();
-		result[i] = -(1 + rho) * Z_imag + 0.5 * V1_abs2 + 0.5 * rho * V2_abs2 - rho * V1_dot_V2;
-	}
-}
 
 void checkCuda(cudaError_t result) {
     if (result != cudaSuccess) {

@@ -98,7 +98,7 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
         // Calculate the right-hand side of the phi equation
         double Z_imag = Z[i].imag();
         double V1_abs2 = V1[i].real() * V1[i].real() + V1[i].imag() * V1[i].imag();
-        result[i] = h/3.0 * (1.0/cuda::std::pow(1.0+Z_imag/h, 3) - 1) + 0.5 * V1_abs2;
+        result[i] = h / 3.0 * (1.0/cuda::std::pow(1.0+Z_imag/h, 3) - 1) + 0.5 * V1_abs2;
     }
 }
 

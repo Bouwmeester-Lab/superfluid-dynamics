@@ -62,12 +62,12 @@ int runTimeStep()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    problemProperties.depth = 1;
+    problemProperties.depth = 0.15;
 
-    const int N = 128;
+    const int N = 256;
     
 	const double stepSize = PI_d/4000;
-	const int steps = 1/ stepSize;
+	const int steps = 1.7*PI_d/ stepSize;
     HeliumBoundaryProblem<N> water;
 	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties, water);
 
@@ -104,7 +104,7 @@ int runTimeStep()
     x.resize(N, 0);
 	y.resize(N, 0);
 	phiPrime.resize(N, 0);
-    double h = 0.5;
+    double h = 0.1;
     double omega = 1;
     double t0 = 0;
 	for (int i = 0; i < N; i++) {

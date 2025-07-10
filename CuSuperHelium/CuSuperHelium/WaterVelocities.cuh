@@ -65,6 +65,38 @@ __global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_comp
 	}
 }
 
+__global__ void createHeliumVelocityMatrices(std_complex* Z, std_complex* Zp, std_complex* Zpp, double h, int N, std_complex* out1, std_complex* out2, bool lower)
+{
+	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
+	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
+
+	if (k < N && j < N) {
+		int indx = k + j * N; // column major index
+
+		if (k == j)
+		{
+			// we are in the diagonal:
+
+			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * Zpp[k] / (cuda::std::pow(Zp[k], 2.0)));
+			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(std_complex(0, Z[k].imag() + h)));
+			if (lower)
+			{
+				out1[indx] += 1.0 / (2.0 * Zp[k]);
+			}
+			else
+			{
+				out1[indx] -= 0.5 / Zp[k];
+			}
+			out2[k] = multiply_by_i(1.0 / (2.0 * CUDART_PI * Zp[k]));
+		}
+		else
+		{
+			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * cotangent_green_function(Z[k], Z[j]));
+			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(0.5 * (Z[k] - cuda::std::conj(Z[j])) + std_complex(0, h)));
+		}
+	}
+}
+
 __global__ void calculateDiagonalVectorMultiplication(std_complex* diag, std_complex* vec, std_complex* out, int N)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -125,9 +157,6 @@ void VelocityCalculator<N>::calculateVelocities(std_complex* Z,
 	std_complex* velocities,
 	bool lower)
 {
-	// create the V1 matrix and V2 diagonal vector
-	createVelocityMatrices<<<matrix_blocks, matrix_threads>>>(Z, Zp, Zpp, N, V1, V2, lower);
-
 	// calculate v2*aprime
 	calculateDiagonalVectorMultiplication << <blocks, threads >> > (V2, aprime, velocities, N);
 

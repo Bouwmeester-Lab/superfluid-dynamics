@@ -45,6 +45,7 @@ public:
 		std_complex* V1,
 		std_complex* V2,
 		std_complex* velocities,
+		ProblemProperties& properties,
 		bool lower) = 0;
 	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) = 0;
 };
@@ -67,8 +68,11 @@ public:
 		std_complex* V1,
 		std_complex* V2,
 		std_complex* velocities,
+		ProblemProperties& properties,
 		bool lower) override
 	{
+		// create the V1 matrix and V2 diagonal vector
+		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
 	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) override
@@ -96,8 +100,11 @@ public:
 		std_complex* V1,
 		std_complex* V2,
 		std_complex* velocities,
+		ProblemProperties& properties,
 		bool lower) override
 	{
+		// create the V1 matrix and V2 diagonal vector
+		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp,properties.depth,  N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
 	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) override
@@ -342,9 +349,9 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 
 	// std::cin.get(); // Wait for user input to continue
 
-	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, true); // Calculate the velocities based on the vorticities and matrices
+	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, problemProperties, true); // Calculate the velocities based on the vorticities and matrices
 
-	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, false); // Calculate the velocities for the upper fluid
+	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, problemProperties, false); // Calculate the velocities for the upper fluid
 #ifdef DEBUG_VELOCITIES
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 	std::array<cufftDoubleComplex, N> VelocitiesLower; // Host array to store the velocities for the lower fluid

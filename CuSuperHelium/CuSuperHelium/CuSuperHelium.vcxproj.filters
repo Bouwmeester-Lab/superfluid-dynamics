@@ -26,5 +26,6 @@
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
+    <ClInclude Include="DevicePointers.cuh" />
   </ItemGroup>
 </Project>

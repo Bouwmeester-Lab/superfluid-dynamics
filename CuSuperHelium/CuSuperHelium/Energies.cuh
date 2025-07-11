@@ -49,6 +49,18 @@ public:
 };
 
 template <int N>
+class VanDerWaalsEnergy : public EnergyBase<N>
+{
+public:
+	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	void CalculateEnergy(std_complex* devZ);
+	virtual double scaleEnergy(double energy) const override
+	{
+		return energy * cuda::std::pow(this->properties.depth, 2) / 6.0;
+	}
+};
+
+template <int N>
 class SurfaceEnergy : public EnergyBase<N>
 {
 public:
@@ -91,6 +103,19 @@ struct KineticEnergyCombination
 		return (Phi[k].real() + 0.5 * properties.U * (1.0 + properties.rho) * Z[k].real()) * (-1.0 * Zp[k].imag() * velocitiesLower[k].real() + Zp[k].real() * velocitiesLower[k].imag()) \
 			- 0.5 * properties.U * ((velocitiesLower[k].real() + properties.rho * velocitiesUpper[k].real()) * Zp[k].real() + (velocitiesLower[k].imag() + properties.rho * velocitiesUpper[k].imag()) * Zp[k].imag() \
 				+ 0.5 * properties.U * (1.0 - properties.rho) * Zp[k].real()) * Z[k].imag();
+	}
+};
+
+struct VanDerWaalsEnergyCombination
+{
+	const std_complex* Z;
+	const ProblemProperties properties;
+	__host__ __device__ VanDerWaalsEnergyCombination(const std_complex* z, const ProblemProperties properties)
+		: Z(z), properties(properties) {
+	}
+	__device__ double operator()(int k) const
+	{
+		return (1 / cuda::std::pow(1 + Z[k].imag() / properties.depth, 2) - 1.0);
 	}
 };
 
@@ -180,6 +205,21 @@ void GravitationalEnergy<N>::CalculateEnergy(std_complex* devZ, std_complex* dev
 	// create a transform iterator that applies the GravitationalEnergyCombination functor
 	GravitationalEnergyCombination gravitationalEnergyCombination(devZ, devZp);
 	auto transformIterator = thrust::make_transform_iterator(countingIterator, gravitationalEnergyCombination);
+	// get temporary storage size
+	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
+	// allocate temporary storage
+	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	// perform the reduction
+	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
+}
+
+template<int N>
+void VanDerWaalsEnergy<N>::CalculateEnergy(std_complex* devZ)
+{
+	thrust::counting_iterator<int> countingIterator(0);
+	// create a transform iterator that applies the GravitationalEnergyCombination functor
+	VanDerWaalsEnergyCombination vanDerWaalsEnergyCombination(devZ, this->properties);
+	auto transformIterator = thrust::make_transform_iterator(countingIterator, vanDerWaalsEnergyCombination);
 	// get temporary storage size
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	// allocate temporary storage

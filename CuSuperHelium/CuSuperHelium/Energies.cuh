@@ -6,6 +6,7 @@
 #include "constants.cuh"
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
+#include "DevicePointers.cuh"
 
 template <int N>
 class EnergyBase
@@ -14,6 +15,7 @@ public:
 	EnergyBase(ProblemProperties& properties);
 	virtual ~EnergyBase();
 	double getEnergy() const;
+	virtual void CalculateEnergy(const DevicePointers& devPoints) = 0;
 protected:
 	ProblemProperties& properties;
 	double* devEnergy;
@@ -22,6 +24,30 @@ protected:
 	size_t tempStorageBytes = 0;
 
 	virtual double scaleEnergy(double energy) const = 0; // Pure virtual function to scale energy
+	
+};
+
+template <int N>
+class EnergyContainer {
+public:
+	EnergyBase<N>* kineticEnergy;
+	EnergyBase<N>* potentialEnergy;
+	EnergyBase<N>* surfaceEnergy;
+
+	void CalculateEnergy(const DevicePointers& devPoints) {
+		kineticEnergy->CalculateEnergy(devPoints);
+		potentialEnergy->CalculateEnergy(devPoints);
+		surfaceEnergy->CalculateEnergy(devPoints);
+	}
+
+	EnergyContainer(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface)
+		: kineticEnergy(kinetic), potentialEnergy(potential), surfaceEnergy(surface) {
+	}
+	~EnergyContainer() {
+		delete kineticEnergy;
+		delete potentialEnergy;
+		delete surfaceEnergy;
+	}
 };
 
 template <int N>
@@ -29,10 +55,16 @@ class KineticEnergy : public EnergyBase<N>
 {
 public:
 	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	
+
 	void CalculateEnergy(std_complex* devPhi, std_complex* devZ, std_complex* devZp, std_complex* velocitiesLower);
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * 0.25 / PI_d;
+	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		CalculateEnergy(devPoints.Phi, devPoints.Z, devPoints.Zp, devPoints.LowerVelocities);
 	}
 };
 
@@ -46,6 +78,10 @@ public:
 	{
 		return energy * 0.25 * (1.0 + this->properties.rho) / PI_d;
 	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Z, devPoints.Zp);
+	}
 };
 
 template <int N>
@@ -57,6 +93,10 @@ public:
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * cuda::std::pow(this->properties.depth, 2) / 6.0;
+	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Z);
 	}
 };
 
@@ -70,6 +110,10 @@ public:
 	{
 		return (energy - 2.0 * PI_d) * this->properties.kappa / (2.0 * PI_d);
 	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Zp);
+	}
 };
 
 template <int N>
@@ -81,6 +125,10 @@ public:
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * 0.5 / PI_d;
+	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Zp, devPoints.LowerVelocities);
 	}
 };
 

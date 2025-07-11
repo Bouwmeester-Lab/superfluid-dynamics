@@ -26,7 +26,10 @@ protected:
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 public:
-	BoundaryProblem() : matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16) {}
+	EnergyContainer<N> energyContainer; ///< Energy container for storing the energies calculated during the simulation
+
+	BoundaryProblem(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface) : matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16), energyContainer(kinetic, potential, surface)
+	{}
 	/// <summary>
 	/// reates the M matrix for the boundary integral problem.
 	/// </summary>
@@ -48,6 +51,10 @@ public:
 		ProblemProperties& properties,
 		bool lower) = 0;
 	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) = 0;
+	virtual void CalculateEnergy(const DevicePointers& devPointers) 
+	{
+		energyContainer.CalculateEnergy(devPointers); ///< Calculate the energies based on the device pointers containing the state variables
+	};
 };
 
 template<int N>
@@ -55,7 +62,11 @@ class WaterBoundaryProblem : public BoundaryProblem<N>
 {
 	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	using BoundaryProblem<N>::BoundaryProblem;
+	WaterBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N>(new KineticEnergy<N>(properties), new GravitationalEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	{
+		// Constructor for the water boundary problem, initializing the velocity calculator with the problem properties
+	}
+
 	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
 	{
 		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.rho, n);
@@ -77,7 +88,7 @@ public:
 	}
 	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) override
 	{
-		compute_rhs_phi_expression << <this->blocks, this->threads >> > (Z, V1, V2, result, properties.depth, N);
+		compute_rhs_phi_expression << <this->blocks, this->threads >> > (Z, V1, V2, result, properties.rho, N);
 	}
 };
 
@@ -86,7 +97,10 @@ class HeliumBoundaryProblem : public BoundaryProblem<N>
 {
 	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	using BoundaryProblem<N>::BoundaryProblem;
+	HeliumBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	{
+		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
+	}
 	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
 	{
 		createHeliumMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
@@ -114,15 +128,12 @@ public:
 };
 
 template<int N>
-class WaterBoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*N>
+class BoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*N>
 {
 public:
-	WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem);
-	~WaterBoundaryIntegralCalculator();
+	BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem);
+	~BoundaryIntegralCalculator();
 
-	KineticEnergy<N> kineticEnergy; ///< Kinetic energy calculator for the water boundary integral problem
-	GravitationalEnergy<N> gravitationalEnergy; ///< Gravitational energy calculator for the water boundary integral problem
-	SurfaceEnergy<N> surfaceEnergy; ///< Surface energy calculator for the water boundary integral problem
 	VolumeFlux<N> volumeFlux; ///< Volume flux calculator for the water boundary integral problem
 
 	/// <summary>
@@ -183,8 +194,7 @@ private:
 };
 
 template<int N>
-WaterBoundaryIntegralCalculator<N>::WaterBoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem) : AutonomousProblem<cufftDoubleComplex, 2*N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties),
-kineticEnergy(problemProperties), gravitationalEnergy(problemProperties), surfaceEnergy(problemProperties), volumeFlux(problemProperties),
+BoundaryIntegralCalculator<N>::BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem) : AutonomousProblem<cufftDoubleComplex, 2*N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties), volumeFlux(problemProperties),
 	zPhiDerivative(problemProperties), 
 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
@@ -210,7 +220,7 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 }
 
 template<int N>
-WaterBoundaryIntegralCalculator<N>::~WaterBoundaryIntegralCalculator()
+BoundaryIntegralCalculator<N>::~BoundaryIntegralCalculator()
 {
 	cudaFree(devZ);
 	cudaFree(devPhi);
@@ -228,7 +238,7 @@ WaterBoundaryIntegralCalculator<N>::~WaterBoundaryIntegralCalculator()
 }
 
 template<int N>
-inline void WaterBoundaryIntegralCalculator<N>::initialize_device(std_complex* Z0, std_complex* Phi0)
+inline void BoundaryIntegralCalculator<N>::initialize_device(std_complex* Z0, std_complex* Phi0)
 {
 	cudaMalloc(&devZ, 2 * N * sizeof(std_complex)); // we allocate 2*N for Z and Phi, in order to have them in the same memory space
 	devPhi = devZ + N; // Set the device pointer for Phi (second half of devZ) // but we use different pointers for Z and Phi to avoid confusion
@@ -239,7 +249,7 @@ inline void WaterBoundaryIntegralCalculator<N>::initialize_device(std_complex* Z
 }
 
 template<int N>
-inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
+inline void BoundaryIntegralCalculator<N>::runTimeStep()
 {
 	// Here you would implement the logic to run a time step of the simulation.
 	// This would typically involve:
@@ -376,20 +386,22 @@ inline void WaterBoundaryIntegralCalculator<N>::runTimeStep()
 	boundaryProblem.CalculateRhsPhi(devZ, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties, N); // Calculate the right-hand side of the phi equation
 
 	// calculate the evolution constants like the energy:
-	kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
-	gravitationalEnergy.CalculateEnergy(devZ, devZp); // Calculate the gravitational energy based on the current state
-	surfaceEnergy.CalculateEnergy(devZp); // Calculate the surface energy based on the current state
+	//kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
+	//gravitationalEnergy.CalculateEnergy(devZ);// , devZp); // Calculate the gravitational energy based on the current state
+	//surfaceEnergy.CalculateEnergy(devZp); // Calculate the surface energy based on the current state
+	boundaryProblem.CalculateEnergy({ devZ, devZp, devZpp, devPhi, devVelocitiesLower }); // Calculate the energies based on the device pointers containing the state variables
+
 	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower); // Calculate the volume flux based on the current state
 }
 template<int N>
-void WaterBoundaryIntegralCalculator<N>::run(std_complex* initialState)
+void BoundaryIntegralCalculator<N>::run(std_complex* initialState)
 {
 	this->setZPhi(initialState); // Set the initial state for ZPhi
 	this->runTimeStep(); // Run the time step calculation
 }
 
 template<int N>
-void WaterBoundaryIntegralCalculator<N>::calculatePhiRhs()
+void BoundaryIntegralCalculator<N>::calculatePhiRhs()
 {
 	compute_rhs_phi_expression<<<blocks, threads>>>(devZ, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties.rho, N); // Calculate the right-hand side of the phi equation
 }

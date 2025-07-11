@@ -13,7 +13,7 @@ template<int N>
 class Euler
 {
 public:
-	Euler(WaterBoundaryIntegralCalculator<N>& timeStepManager, double time_step = 0.001);
+	Euler(BoundaryIntegralCalculator<N>& timeStepManager, double time_step = 0.001);
 	~Euler();
 	void doTimeStep();
 	/// <summary>
@@ -28,7 +28,7 @@ public:
 	void setDevPhi(cuDoubleComplex* devPhi) { this->devPhi = devPhi; }
 
 private:
-	WaterBoundaryIntegralCalculator<N>& timeStepManager; ///< Instance of the TimeStepManager to handle time-stepping operations
+	BoundaryIntegralCalculator<N>& timeStepManager; ///< Instance of the TimeStepManager to handle time-stepping operations
 
 	cuDoubleComplex time_step;
 	double time_step_real; ///< Real part of the time step for convenience
@@ -40,7 +40,7 @@ private:
 };
 
 template <int N>
-Euler<N>::Euler(WaterBoundaryIntegralCalculator<N>& timeStepManager, double time_step) : timeStepManager(timeStepManager), time_step(make_cuDoubleComplex(time_step, 0)), time_step_real(time_step)
+Euler<N>::Euler(BoundaryIntegralCalculator<N>& timeStepManager, double time_step) : timeStepManager(timeStepManager), time_step(make_cuDoubleComplex(time_step, 0)), time_step_real(time_step)
 {
 	cublasCreate(&handle);
 	

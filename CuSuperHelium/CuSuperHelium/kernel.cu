@@ -64,12 +64,12 @@ int runTimeStep()
     problemProperties.U = 0;
     problemProperties.depth = 0.15;
 
-    const int N = 256;
+    const int N = 64;
     
 	const double stepSize = PI_d/4000;
-	const int steps = 1.7*PI_d/ stepSize;
-    HeliumBoundaryProblem<N> water;
-	WaterBoundaryIntegralCalculator<N> timeStepManager(problemProperties, water);
+	const int steps = 2*PI_d/ stepSize;
+    WaterBoundaryProblem<N> boundaryProblem(problemProperties);
+	BoundaryIntegralCalculator<N> timeStepManager(problemProperties, boundaryProblem);
 
 	std::array<double, N> j;
     std::vector<double> x0;
@@ -156,9 +156,9 @@ int runTimeStep()
 	for (int i = 0; i < steps; i++) {
         // Perform a time step
         rungeKunta.runStep();
-        KE[i] = timeStepManager.kineticEnergy.getEnergy();
-		PE[i] = timeStepManager.gravitationalEnergy.getEnergy();
-		SurfaceEnergy[i] = timeStepManager.surfaceEnergy.getEnergy();
+        KE[i] = boundaryProblem.energyContainer.kineticEnergy->getEnergy();
+		PE[i] = boundaryProblem.energyContainer.potentialEnergy->getEnergy();
+		SurfaceEnergy[i] = boundaryProblem.energyContainer.surfaceEnergy->getEnergy();
 		VolumeFlux[i] = timeStepManager.volumeFlux.getEnergy();
 
 		TotalEnergy[i] = KE[i] + PE[i] + SurfaceEnergy[i];

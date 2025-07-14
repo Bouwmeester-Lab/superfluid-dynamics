@@ -28,7 +28,6 @@ namespace plt = matplotlibcpp;
 
 #define j_complex std::complex<double>(0, 1)
 cudaError_t setDevice();
-cudaError_t fftDerivative();
 
 
 __global__ void addKernel(int *c, const int *a, const int *b)
@@ -62,13 +61,13 @@ int runTimeStep()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    problemProperties.depth = 0.15;
+    problemProperties.depth = 0.11;
 
-    const int N = 64;
+    const int N = 1024;
     
 	const double stepSize = PI_d/4000;
-	const int steps = 2*PI_d/ stepSize;
-    WaterBoundaryProblem<N> boundaryProblem(problemProperties);
+	const int steps = 0.7/ stepSize;
+    HeliumBoundaryProblem<N> boundaryProblem(problemProperties);
 	BoundaryIntegralCalculator<N> timeStepManager(problemProperties, boundaryProblem);
 
 	std::array<double, N> j;

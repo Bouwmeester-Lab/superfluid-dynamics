@@ -8,6 +8,7 @@ public:
 	double rho;
 	double U;
 	double kappa;
+	double depth;
 };
 
 #endif // !PROBLEM_PROPERTIES_H

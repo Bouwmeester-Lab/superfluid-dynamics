@@ -7,7 +7,9 @@
 #include "constants.cuh"
 
 #define FMA(x, y, z) __fma_rn(x, y, z) // defines fused multiply-add as a macro for better readability
-
+namespace PrecisionMath
+{
+	
 struct doubledouble
 {
 	double hi, lo; // high and low parts of the double-double number
@@ -133,3 +135,5 @@ __device__ inline std_complex fastPreciseInvSub(std_complex Z1, std_complex Z2)
 	cuDoubleComplex inv = dd_cinv(d); // calculates the inverse of the double-double complex number
 	return std_complex(inv.x, inv.y); // returns the result as a standard complex number
 }
+
+} // namespace PrecisionMath

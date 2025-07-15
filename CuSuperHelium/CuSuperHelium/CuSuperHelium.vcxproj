@@ -106,13 +106,17 @@
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
+    <ClInclude Include="DataLogger.cuh" />
     <ClInclude Include="Derivatives.cuh" />
+    <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
+    <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
+    <ClInclude Include="ValueLogger.h" />
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />

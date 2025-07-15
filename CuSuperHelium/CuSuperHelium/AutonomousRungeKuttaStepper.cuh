@@ -9,13 +9,14 @@
 #include "matplotlibcpp.h"
 #include "cuDoubleComplexOperators.cuh"
 #include "cublas_v2.h"
+#include "DataLogger.cuh"
 namespace plt = matplotlibcpp;
 
 template <typename T, int N>
 class AutonomousRungeKuttaStepperBase
 {
 public:
-	AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, double tstep = 1e-2);
+	AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep = 1e-2);
 	~AutonomousRungeKuttaStepperBase();
 	
 	void setTimeStep(double tstep) 
@@ -26,10 +27,12 @@ public:
 	}
 
 	void initialize(T* devY0);
-	void runStep();
+	void runStep(int _step);
 protected:
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
+
+	DataLogger<T, N>& logger; ///< Logger for data collection
 
 	T* k1;
 	T* k2;
@@ -53,7 +56,7 @@ protected:
 };
 
 template <typename T, int N>
-AutonomousRungeKuttaStepperBase<T, N>::AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, double tstep) : autonomousProblem(autonomousProblem)
+AutonomousRungeKuttaStepperBase<T, N>::AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep) : autonomousProblem(autonomousProblem), logger(logger)
 {
 	cublasCreate(&handle);
 	cudaMalloc(&k1, N * sizeof(T)); // allocate memory for k1
@@ -74,7 +77,7 @@ AutonomousRungeKuttaStepperBase<T, N>::~AutonomousRungeKuttaStepperBase()
 }
 
 template <typename T, int N>
-void AutonomousRungeKuttaStepperBase<T, N>::runStep()
+void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 {
 	autonomousProblem.run(devY0);
 
@@ -224,6 +227,8 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 
 #endif
 
+	logger.waitForCopy(); // wait for the logger to finish copying data before proceeding
+
 	step(4); // step 4 of the Runge-Kutta method, which combines the results of the previous steps, it should overwrite devY0 with the final result
 
 #ifdef DEBUG_RUNGE_KUTTA
@@ -251,6 +256,8 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep()
 	//plt::plot(dPhi, { {"label", "dPhi"} }); // plot the Phi component of k1
 	plt::legend();
 #endif
+	if(logger.shouldCopy(_step))
+		logger.setReadyToCopy(devY0);
 	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
 	initialize(devY0); // reinitialize the stepper with the initial state
 }

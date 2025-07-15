@@ -26,5 +26,15 @@
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
+    <ClInclude Include="DevicePointers.cuh" />
+    <ClInclude Include="ValueLogger.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="PingPongBuffer.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="DataLogger.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -144,14 +144,14 @@ __global__ void complexCotKernel(std_complex* zsk, std_complex* zsj, std_complex
 __global__ void test_precision_inversion(std_complex* zsk, std_complex* zsj, std_complex* out, int N) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < N) {
-		out[idx] = fastPreciseInvSub(zsk[idx], zsj[idx]);
+		out[idx] = PrecisionMath::fastPreciseInvSub(zsk[idx], zsj[idx]);
 	}
 }
 
 __global__ void test_precision_substraction(std_complex* zsk, std_complex* zsj, std_complex* out, std_complex* low, int N) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < N) {
-		dd_complex d = zsk[idx] - zsj[idx];
+		PrecisionMath::dd_complex d = PrecisionMath::c_twoDiff(zsk[idx], zsj[idx]);
 		out[idx] = std_complex(d.real.hi, d.imag.hi);
 		low[idx] = std_complex(d.real.lo, d.imag.lo);
 	}

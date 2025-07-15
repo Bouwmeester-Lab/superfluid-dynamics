@@ -6,6 +6,7 @@
 #include "constants.cuh"
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
+#include "DevicePointers.cuh"
 
 template <int N>
 class EnergyBase
@@ -14,6 +15,7 @@ public:
 	EnergyBase(ProblemProperties& properties);
 	virtual ~EnergyBase();
 	double getEnergy() const;
+	virtual void CalculateEnergy(const DevicePointers& devPoints) = 0;
 protected:
 	ProblemProperties& properties;
 	double* devEnergy;
@@ -22,6 +24,30 @@ protected:
 	size_t tempStorageBytes = 0;
 
 	virtual double scaleEnergy(double energy) const = 0; // Pure virtual function to scale energy
+	
+};
+
+template <int N>
+class EnergyContainer {
+public:
+	EnergyBase<N>* kineticEnergy;
+	EnergyBase<N>* potentialEnergy;
+	EnergyBase<N>* surfaceEnergy;
+
+	void CalculateEnergy(const DevicePointers& devPoints) {
+		kineticEnergy->CalculateEnergy(devPoints);
+		potentialEnergy->CalculateEnergy(devPoints);
+		surfaceEnergy->CalculateEnergy(devPoints);
+	}
+
+	EnergyContainer(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface)
+		: kineticEnergy(kinetic), potentialEnergy(potential), surfaceEnergy(surface) {
+	}
+	~EnergyContainer() {
+		delete kineticEnergy;
+		delete potentialEnergy;
+		delete surfaceEnergy;
+	}
 };
 
 template <int N>
@@ -29,10 +55,16 @@ class KineticEnergy : public EnergyBase<N>
 {
 public:
 	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	
+
 	void CalculateEnergy(std_complex* devPhi, std_complex* devZ, std_complex* devZp, std_complex* velocitiesLower);
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * 0.25 / PI_d;
+	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		CalculateEnergy(devPoints.Phi, devPoints.Z, devPoints.Zp, devPoints.LowerVelocities);
 	}
 };
 
@@ -46,6 +78,26 @@ public:
 	{
 		return energy * 0.25 * (1.0 + this->properties.rho) / PI_d;
 	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Z, devPoints.Zp);
+	}
+};
+
+template <int N>
+class VanDerWaalsEnergy : public EnergyBase<N>
+{
+public:
+	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	void CalculateEnergy(std_complex* devZ);
+	virtual double scaleEnergy(double energy) const override
+	{
+		return energy * cuda::std::pow(this->properties.depth, 2) / 6.0;
+	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Z);
+	}
 };
 
 template <int N>
@@ -58,6 +110,10 @@ public:
 	{
 		return (energy - 2.0 * PI_d) * this->properties.kappa / (2.0 * PI_d);
 	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Zp);
+	}
 };
 
 template <int N>
@@ -69,6 +125,10 @@ public:
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * 0.5 / PI_d;
+	}
+	virtual void CalculateEnergy(const DevicePointers& devPoints) override
+	{
+		this->CalculateEnergy(devPoints.Zp, devPoints.LowerVelocities);
 	}
 };
 
@@ -91,6 +151,19 @@ struct KineticEnergyCombination
 		return (Phi[k].real() + 0.5 * properties.U * (1.0 + properties.rho) * Z[k].real()) * (-1.0 * Zp[k].imag() * velocitiesLower[k].real() + Zp[k].real() * velocitiesLower[k].imag()) \
 			- 0.5 * properties.U * ((velocitiesLower[k].real() + properties.rho * velocitiesUpper[k].real()) * Zp[k].real() + (velocitiesLower[k].imag() + properties.rho * velocitiesUpper[k].imag()) * Zp[k].imag() \
 				+ 0.5 * properties.U * (1.0 - properties.rho) * Zp[k].real()) * Z[k].imag();
+	}
+};
+
+struct VanDerWaalsEnergyCombination
+{
+	const std_complex* Z;
+	const ProblemProperties properties;
+	__host__ __device__ VanDerWaalsEnergyCombination(const std_complex* z, const ProblemProperties properties)
+		: Z(z), properties(properties) {
+	}
+	__device__ double operator()(int k) const
+	{
+		return (1 / cuda::std::pow(1 + Z[k].imag() / properties.depth, 2) - 1.0);
 	}
 };
 
@@ -180,6 +253,21 @@ void GravitationalEnergy<N>::CalculateEnergy(std_complex* devZ, std_complex* dev
 	// create a transform iterator that applies the GravitationalEnergyCombination functor
 	GravitationalEnergyCombination gravitationalEnergyCombination(devZ, devZp);
 	auto transformIterator = thrust::make_transform_iterator(countingIterator, gravitationalEnergyCombination);
+	// get temporary storage size
+	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
+	// allocate temporary storage
+	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	// perform the reduction
+	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
+}
+
+template<int N>
+void VanDerWaalsEnergy<N>::CalculateEnergy(std_complex* devZ)
+{
+	thrust::counting_iterator<int> countingIterator(0);
+	// create a transform iterator that applies the GravitationalEnergyCombination functor
+	VanDerWaalsEnergyCombination vanDerWaalsEnergyCombination(devZ, this->properties);
+	auto transformIterator = thrust::make_transform_iterator(countingIterator, vanDerWaalsEnergyCombination);
 	// get temporary storage size
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	// allocate temporary storage

@@ -151,9 +151,13 @@ int runTimeStep()
     plt::plot(x0, y, {{"label", "vy"}});
     plt::plot(x0, phiPrime, { {"label", "dPhi"} });
     plt::legend();
+
+    DataLogger<std_complex, 2 * N> stateLogger;
+    stateLogger.setSize(steps / loggingSteps + 1);
+    stateLogger.setStep(loggingSteps);
     // plt::show();
     // create Euler stepper
-	AutonomousRungeKuttaStepper<std_complex, 2*N> rungeKunta(timeStepManager, stepSize);
+	AutonomousRungeKuttaStepper<std_complex, 2*N> rungeKunta(timeStepManager, stateLogger, stepSize);
 	// Euler<N> euler(timeStepManager, stepSize);
 	/*euler.setDevZ(devZ);
 	euler.setDevPhi(devPhi);*/
@@ -162,7 +166,7 @@ int runTimeStep()
 
 	for (int i = 0; i < steps; i++) {
         // Perform a time step
-        rungeKunta.runStep();
+        rungeKunta.runStep(i);
 		//cudaDeviceSynchronize();
         if (kineticEnergyLogger.shouldLog(i)) {
 			kineticEnergyLogger.logValue(boundaryProblem.energyContainer.kineticEnergy->getEnergy());
@@ -213,6 +217,19 @@ int runTimeStep()
     plt::figure();
     auto title = std::format("Interface And Potential at t={:.4f}", steps * stepSize);
 	plt::title(title);
+
+	auto& timeStepData = stateLogger.getAllData();
+
+    for (int i = 0; i < timeStepData.size(); i++) {
+        auto& stepData = timeStepData[i];
+        std::vector<double> x_step(N, 0);
+        std::vector<double> y_step(N, 0);
+        for (int j = 0; j < N; j++) {
+            x_step[j] = stepData[j].real();
+            y_step[j] = stepData[j].imag();
+        }
+        plt::plot(x_step, y_step, {{"label", "Interface at t=" + std::to_string(i * stepSize)}});
+	}
 
     //plt::plot(x_fin, y_fin, {{"label", "Interface at t=" + std::to_string(t)}});
     // Plot the initial position and the result of the Euler method

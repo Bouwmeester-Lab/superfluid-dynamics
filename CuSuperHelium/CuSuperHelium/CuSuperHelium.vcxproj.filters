@@ -30,5 +30,11 @@
     <ClInclude Include="ValueLogger.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="PingPongBuffer.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="DataLogger.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

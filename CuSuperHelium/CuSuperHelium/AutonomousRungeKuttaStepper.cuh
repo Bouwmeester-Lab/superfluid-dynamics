@@ -295,7 +295,7 @@ template <typename T, int N>
 class AutonomousRungeKuttaStepper : public AutonomousRungeKuttaStepperBase<T, N>
 {
 public:
-	using AutonomousRungeKuttaStepper<T, N>::AutonomousRungeKuttaStepper;
+	using AutonomousRungeKuttaStepperBase<T, N>::AutonomousRungeKuttaStepperBase;
 };
 
 template <int N>

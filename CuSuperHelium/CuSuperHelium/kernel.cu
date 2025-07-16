@@ -56,15 +56,15 @@ int main()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    problemProperties.depth = 0.11;
-    double h = 0.1;
+    problemProperties.depth = 1;
+    double h = 0.2;
     double omega = 1;
     double t0 = 0;
 
     const int N = 256;
     
 	const double stepSize = PI_d/4000;
-	const int steps = 0.9 / stepSize;
+	const int steps = 5*3.14 / stepSize;
 	const int loggingSteps = steps / 10;
     
 

@@ -101,7 +101,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
                 x_step[j] = stepData[j].real();
                 y_step[j] = stepData[j].imag();
             }
-            plt::plot(x_step, y_step, { {"label", "Interface at t=" + std::to_string(i * dt)} });
+            plt::plot(x_step, y_step, { {"label", "Interface at t=" + std::to_string(i * loggingSteps * dt)} });
         }
         plt::legend();
 

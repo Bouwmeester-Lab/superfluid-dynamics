@@ -116,6 +116,7 @@
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
+    <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="ValueLogger.h" />
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />

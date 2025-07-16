@@ -36,5 +36,8 @@
     <ClInclude Include="DataLogger.cuh">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="SimulationRunner.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

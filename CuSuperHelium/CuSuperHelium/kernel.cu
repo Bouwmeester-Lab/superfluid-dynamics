@@ -56,16 +56,28 @@ int main()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    problemProperties.depth = 1;
-    double h = 0.2;
+    
     double omega = 1;
     double t0 = 0;
+    
+    double g = 3 * 2.6e-24 / std::pow(15e-9, 4); //
+	double H0 = 15e-9; // 15 nm
+	double L0 = 40e-6/(2.0*PI_d); // 40 um
 
-    const int N = 256;
+    double _t0 = std::sqrt(L0 / g);
+
+
+    problemProperties.depth = H0 / L0;
+    double h = 0.01 * problemProperties.depth;
+
+	printf("Simulating with depth %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
+	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
+
+    const int N = 128;
     
 	const double stepSize = PI_d/4000;
-	const int steps = 5*3.14 / stepSize;
-	const int loggingSteps = steps / 10;
+	const int steps = 100 * 3.1415 / stepSize;
+	const int loggingSteps = steps / 1000;
     
 
     std::array<std_complex, N> Z0;

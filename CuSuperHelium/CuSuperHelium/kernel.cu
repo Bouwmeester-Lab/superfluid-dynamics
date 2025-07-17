@@ -56,43 +56,53 @@ int main()
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
-    
+    int frames = 800;
     double omega = 1;
     double t0 = 0;
+	double finalTime = 1e-3; // 1 ms
     
-    double g = 3 * 2.6e-24 / std::pow(15e-9, 4); //
-	double H0 = 15e-9; // 15 nm
-	double L0 = 40e-6/(2.0*PI_d); // 40 um
+    double H0 = 6.7e-9; // 15 nm
+    double g = 3 * 2.6e-24 / std::pow(H0, 4); //
+	
+	double L0 = 2*100e-6/(2.0*PI_d); // 40 um
 
     double _t0 = std::sqrt(L0 / g);
 
-
     problemProperties.depth = H0 / L0;
-    double h = 0.01 * problemProperties.depth;
+    double h = 0.1 * problemProperties.depth;
 
 	printf("Simulating with depth %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 128;
+    const int N = 64;
     
-	const double stepSize = PI_d/4000;
-	const int steps = 100 * 3.1415 / stepSize;
-	const int loggingSteps = steps / 1000;
+	const double stepSize = 0.05;
+	const int steps = (finalTime / _t0) / stepSize;
+	const int loggingSteps = steps / frames;
+
+    printf("Simulating %i steps representing %.2e s", steps, steps * stepSize * _t0);
     
 
     std::array<std_complex, N> Z0;
 	std::array<std_complex, N> PhiArr;
+
+    std::vector<double> Phireal(N, 0);
     double j;
 	for (int i = 0; i < N; i++) {
 		j = 2.0 * PI_d * i / (1.0 * N);
 		Z0[i] = std_complex(X(j, h, omega, t0), Y(j, h, omega, t0));
         PhiArr[i] = Phi(j, h, omega, t0, problemProperties.rho);
+		Phireal[i] = PhiArr[i].real();
 	}
+
+	plt::figure();
+    plt::plot(Phireal);
+    plt::show();
 
     ParticleData particleData;
 	particleData.Z = Z0.data();
 	particleData.Potential = PhiArr.data();
 
     
-     return runSimulationHelium<N>(steps, stepSize, problemProperties, particleData, loggingSteps);
+     return runSimulationHelium<N>(steps, stepSize, problemProperties, particleData, loggingSteps, true, true, _t0);
 }

@@ -53,7 +53,7 @@ void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int pe
 		plt::clf();  // Clear the current figure
 
 		plt::plot(x, y, { {"label", "Interface"} });
-		plt::title("Interface at t=" + std::to_string(i * periodLogging * dt) + "");
+		plt::title( std::format("Interface at t={:.10e}" , i * periodLogging * dt));
 
 		paths.push_back(std::format("temp/frames/frame_{}.png", i));
 

@@ -46,7 +46,7 @@
     <IncludePath>$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include</IncludePath>
+    <IncludePath>C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\opencv4_x64-windows\include\opencv4</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64;C:\Users\emore\anaconda3\libs;C:\ProgramData\anaconda3\libs</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -95,7 +95,8 @@
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <CodeGeneration>compute_86,sm_86</CodeGeneration>
       <AdditionalOptions>-std=c++20 %(AdditionalOptions)</AdditionalOptions>
-      <Optimization>O3</Optimization>
+      <Optimization>Od</Optimization>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -118,6 +119,7 @@
     <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="ValueLogger.h" />
+    <ClInclude Include="VideoMaking.h" />
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />

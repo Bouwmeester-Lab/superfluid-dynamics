@@ -10,6 +10,8 @@
 #include "AutonomousRungeKuttaStepper.cuh"
 #include "ValueLogger.h"
 #include "matplotlibcpp.h"
+#include "VideoMaking.h"
+
 namespace plt = matplotlibcpp;
 
 cudaError_t setDevice()
@@ -32,7 +34,7 @@ struct ParticleData {
 };
 
 template<int numParticles>
-int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true) {
+int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0) {
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
     if (cudaStatus != cudaSuccess) {
@@ -40,7 +42,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
     }
 
     
-	const int loggingSteps = loggingPeriod < 0 ? numSteps / 10 : loggingPeriod;
+	const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
     std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
 
     HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
@@ -89,6 +91,10 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
 
     if (plot) 
     {
+        std::vector<std::string> paths;
+        createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths);
+        createVideo("temp/frames/video.avi", 640, 480, paths, 4);
+
         plt::figure();
         auto title = "Interface And Potential";
         plt::title(title);
@@ -103,6 +109,9 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
             }
             plt::plot(x_step, y_step, { {"label", "Interface at t=" + std::to_string(i * loggingSteps * dt)} });
         }
+
+
+
         plt::legend();
 
         plt::figure();

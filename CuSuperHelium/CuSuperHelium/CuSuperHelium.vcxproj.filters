@@ -10,6 +10,9 @@
     <Filter Include="Common">
       <UniqueIdentifier>{a5f139e1-83a6-4f75-b8fe-6f6d00c3f453}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Visualization">
+      <UniqueIdentifier>{5b2aa12b-a661-4796-9102-19b4a9f1ce38}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -38,6 +41,9 @@
     </ClInclude>
     <ClInclude Include="SimulationRunner.cuh">
       <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="VideoMaking.h">
+      <Filter>Visualization</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

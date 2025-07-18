@@ -40,15 +40,15 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 }
 
 double X(double j, double h, double omega, double t) {
-    return j; //- h * std::sin((j - omega * t));
+    return j - h * std::sin((j - omega * t));
 }
 
 double Y(double j, double h, double omega, double t) {
-    return -h * PeriodicFunctions::sech2_periodic(j);  // std::cos((j - omega * t));
+    return h * PeriodicFunctions::sech2::sech2_periodic(j);  // std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
-    return h * ((1 + rho) * omega * std::sin((j - omega * t)));
+    return h * (1 + rho) * omega * PeriodicFunctions::sech2::sech2_periodic(j)*sin(j+0.2);//  std::cos((j - omega * t));
 }
 
 int main() 
@@ -59,7 +59,7 @@ int main()
     problemProperties.U = 0;
     
     int frames = 800;
-    double omega = 1;
+    double omega = 100;
     double t0 = 0;
 	double finalTime = 1e-3; // 0.5 ms
     
@@ -70,10 +70,10 @@ int main()
     double _t0 = std::sqrt(L0 / g);
 
     problemProperties.depth = H0 / L0;
-    double h = 0.01 * problemProperties.depth;
+    double h = 0.001 * problemProperties.depth;
 
-	problemProperties.y_min = -0.001 * problemProperties.depth; // -0.5 * H0
-	problemProperties.y_max = h + 0.001 * problemProperties.depth; // 0.5 * H0
+	problemProperties.y_min = -h - 0.001 * problemProperties.depth; // -0.5 * H0
+	problemProperties.y_max =  0.002 * problemProperties.depth; // 0.5 * H0
 	printf("Simulating with depth %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
@@ -97,7 +97,7 @@ int main()
 	for (int i = 0; i < N; i++) {
 		j = 2.0 * PI_d * i / (1.0 * N);
 		Z0[i] = std_complex(X(j, h, omega, t0), Y(j, h, omega, t0));
-        PhiArr[i] = Phi(j, h, omega, t0, problemProperties.rho);
+        PhiArr[i] = std_complex(Phi(j, h, omega, t0, problemProperties.rho), 0.0);
 		Phireal[i] = PhiArr[i].real();
 
 		X0[i] = Z0[i].real();
@@ -105,8 +105,8 @@ int main()
 	}
 
 	plt::figure();
-    //plt::plot(Phireal);
-	plt::plot(X0, Y0);
+    plt::plot(X0, Phireal);
+	//plt::plot(X0, Y0);
     //plt::show();
 
     ParticleData particleData;

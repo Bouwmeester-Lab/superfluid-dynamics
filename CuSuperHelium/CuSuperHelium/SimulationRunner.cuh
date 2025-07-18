@@ -34,7 +34,7 @@ struct ParticleData {
 };
 
 template<int numParticles>
-int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0) {
+int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
     if (cudaStatus != cudaSuccess) {
@@ -93,7 +93,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
     {
         std::vector<std::string> paths;
         createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
-        createVideo("temp/frames/video.avi", 640, 480, paths, 4);
+        createVideo("temp/frames/video.avi", 640, 480, paths, fps);
 
         plt::figure();
         auto title = "Interface And Potential";

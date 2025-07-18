@@ -9,6 +9,10 @@ public:
 	double U;
 	double kappa;
 	double depth;
+
+	// for plotting
+	double y_min;
+	double y_max;
 };
 
 #endif // !PROBLEM_PROPERTIES_H

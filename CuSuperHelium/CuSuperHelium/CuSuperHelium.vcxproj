@@ -118,6 +118,7 @@
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="SimulationRunner.cuh" />
+    <ClInclude Include="SolitonPeak.h" />
     <ClInclude Include="ValueLogger.h" />
     <ClInclude Include="VideoMaking.h" />
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />

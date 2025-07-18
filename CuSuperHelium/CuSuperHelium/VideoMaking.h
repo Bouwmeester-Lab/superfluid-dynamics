@@ -30,7 +30,7 @@ void createVideo(const std::string name, int width, int height, std::vector<std:
 	writer.release();
 }
 template <size_t N>
-void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int periodLogging, std::vector<std::string>& paths, int width = 640, int height = 480) 
+void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int periodLogging, std::vector<std::string>& paths, int width = 640, int height = 480, double ylim1 = -0.1, double ylim2 = 0.1) 
 {
 	
 	paths.clear();
@@ -53,6 +53,7 @@ void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int pe
 		plt::clf();  // Clear the current figure
 
 		plt::plot(x, y, { {"label", "Interface"} });
+		plt::ylim(ylim1, ylim2);
 		plt::title( std::format("Interface at t={:.10e}" , i * periodLogging * dt));
 
 		paths.push_back(std::format("temp/frames/frame_{}.png", i));

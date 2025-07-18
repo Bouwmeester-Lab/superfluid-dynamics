@@ -13,6 +13,9 @@
     <Filter Include="Visualization">
       <UniqueIdentifier>{5b2aa12b-a661-4796-9102-19b4a9f1ce38}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Functions">
+      <UniqueIdentifier>{7fa26592-7f1d-4ac7-8460-1ba46b0b55ab}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -44,6 +47,9 @@
     </ClInclude>
     <ClInclude Include="VideoMaking.h">
       <Filter>Visualization</Filter>
+    </ClInclude>
+    <ClInclude Include="SolitonPeak.h">
+      <Filter>Functions</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

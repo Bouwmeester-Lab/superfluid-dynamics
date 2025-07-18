@@ -54,7 +54,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
     ValueLogger totalEnergyLogger(loggingSteps);
     ValueLogger volumeFluxLogger(loggingSteps);
 
-
+    
 
 	timeStepManager.initialize_device(data.Z, data.Potential);
 
@@ -92,7 +92,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
     if (plot) 
     {
         std::vector<std::string> paths;
-        createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths);
+        createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
         createVideo("temp/frames/video.avi", 640, 480, paths, 4);
 
         plt::figure();

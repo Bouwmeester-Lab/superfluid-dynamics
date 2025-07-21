@@ -43,7 +43,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
 
     
 	const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
-    std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
+    std::vector<double> loggedSteps(numSteps / loggingSteps+1, 0);
 
     HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
     BoundaryIntegralCalculator<numParticles> timeStepManager(properties, boundaryProblem);
@@ -59,7 +59,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
 	timeStepManager.initialize_device(data.Z, data.Potential);
 
     DataLogger<std_complex, 2 * numParticles> stateLogger;
-    stateLogger.setSize(numSteps / loggingSteps + 1);
+    stateLogger.setSize(numSteps / loggingSteps);
     stateLogger.setStep(loggingSteps);
 
     AutonomousRungeKuttaStepper<std_complex, 2 * numParticles> rungeKunta(timeStepManager, stateLogger, dt);
@@ -95,7 +95,7 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
         createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
         createVideo("temp/frames/video.avi", 640, 480, paths, fps);
 
-        plt::figure();
+        //plt::figure();
         auto title = "Interface And Potential";
         plt::title(title);
 
@@ -120,8 +120,8 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
         plt::plot(loggedSteps, potentialEnergyLogger.getLoggedValues(), { {"label", "Potential Energy"} });
         plt::plot(loggedSteps, totalEnergyLogger.getLoggedValues(), { {"label", "Total Energy"} });
 
-        plt::xlabel("Time Steps");
-        plt::ylabel("Energy");
+        //plt::xlabel("Time Steps");
+        //plt::ylabel("Energy");
 
         plt::figure();
         plt::title("Volume Flux");

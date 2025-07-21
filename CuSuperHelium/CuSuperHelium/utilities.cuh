@@ -283,13 +283,15 @@ __device__ std_complex multiply_by_i(std_complex z)
 
 __device__ std_complex cotangent_green_function(std_complex Zk, std_complex Zj)
 {
-    std_complex cotZk = cot(0.5 * Zk);
-	std_complex cotZj = cot(0.5 * Zj);
+    return cot(0.5 * (Zk - Zj));
 
-	// Using the cotangent subtraction formula: cot(Zk - Zj) = (cot(Zk) * cot(Zj) + 1) / (cot(Zj) - cot(Zk))
-	std_complex top = cotZk * cotZj + 1.0;
-	std_complex invBottom = PrecisionMath::fastPreciseInvSub(cotZj, cotZk); // using the precise inverse substraction using double double precision to avoid numerical issues
-	return top * invBottom; // this is the cotangent green function
+ //   std_complex cotZk = cot(0.5 * Zk);
+	//std_complex cotZj = cot(0.5 * Zj);
+
+	//// Using the cotangent subtraction formula: cot(Zk - Zj) = (cot(Zk) * cot(Zj) + 1) / (cot(Zj) - cot(Zk))
+	//std_complex top = cotZk * cotZj + 1.0;
+	//std_complex invBottom = PrecisionMath::fastPreciseInvSub(cotZj, cotZk); // using the precise inverse substraction using double double precision to avoid numerical issues
+	//return top * invBottom; // this is the cotangent green function
 }
 
 __device__ void cos(cufftDoubleComplex z, cufftDoubleComplex& out)

@@ -1,6 +1,7 @@
 ﻿
 //#define DEBUG_DERIVATIVES
 //#define DEBUG_RUNGE_KUTTA
+//#define DEBUG_DERIVATIVES_3
 //#define DEBUG_VELOCITIES
 #include "ProblemProperties.hpp"
 #include "array"
@@ -58,7 +59,7 @@ int main()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
     
-    int frames = 800;
+    int frames = 200;
     double omega = 100;
     double t0 = 0;
 	double finalTime = 1e-3; // 0.5 ms
@@ -80,7 +81,7 @@ int main()
     const int N = 128;
     
 	const double stepSize = 0.1;
-	const int steps = (finalTime / _t0) / stepSize;
+    const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 
     printf("Simulating %i steps representing %.2e s", steps, steps * stepSize * _t0);
@@ -104,8 +105,8 @@ int main()
 		Y0[i] = Z0[i].imag();
 	}
 
-	plt::figure();
-    plt::plot(X0, Phireal);
+	/*plt::figure();
+    plt::plot(X0, Phireal);*/
 	//plt::plot(X0, Y0);
     //plt::show();
 

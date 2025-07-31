@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.integrate import quad
+import matplotlib.pyplot as plt
 
 # Fix the syntax error: missing multiplication symbol in sin argument
 def compute_fourier_series(f, N, a=0, b=2 * np.pi):
@@ -26,14 +27,24 @@ def compute_fourier_series(f, N, a=0, b=2 * np.pi):
 
     return a0, an, bn
 
+def fourier_series(x, a0, an, bn):
+    """Evaluate Fourier series at x, given coefficients a0, an, bn"""
+    result = a0 / 2
+    for n in range(1, len(an) + 1):
+        result += an[n - 1] * np.cos(n * x) + bn[n - 1] * np.sin(n * x)
+    return result
+
 if __name__ == "__main__":
     # Example usage: compute Fourier coefficients of a Gaussian centered at π
-    def gaussian(x, sigma=0.4):
-        return np.exp(-((x - 0.75 * np.pi) ** 2) / (2 * sigma ** 2))
+    def gaussian(x, x0 = 0.75*np.pi, sigma=0.4):
+        return np.exp(-((x - x0) ** 2) / (2 * sigma ** 2))
+    def bimodal(x, x0, x1, sigma = 0.4):
+        return gaussian(x, x0, sigma) + gaussian(x, x1, sigma)
+
 
     # Compute coefficients
     N = 20
-    a0_ex, an_ex, bn_ex = compute_fourier_series(lambda x: gaussian(x, sigma=0.4), N)
+    a0_ex, an_ex, bn_ex = compute_fourier_series(lambda x: bimodal(x, 0.35 *np.pi, 1.35 * np.pi,  sigma=0.2), N)
 
     print(f"a0 = {a0_ex:.16e}")
     for a in an_ex:
@@ -42,3 +53,15 @@ if __name__ == "__main__":
     
     for b in bn_ex:
         print(f"{b:.16e}, ", end = "")
+
+    x_vals = np.linspace(0, 2 * np.pi, 1000)
+    y_vals = [fourier_series(x, a0_ex, an_ex, bn_ex) for x in x_vals]
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(x_vals, y_vals, label='Fourier Approximation')
+    plt.title('Fourier Series Approximation')
+    plt.xlabel('x')
+    plt.ylabel('f(x)')
+    plt.grid(True)
+    plt.legend()
+    plt.show()

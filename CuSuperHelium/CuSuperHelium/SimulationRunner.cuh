@@ -33,19 +33,20 @@ struct ParticleData {
     std_complex* Potential; // Array of particle potentials
 };
 
-template<int numParticles>
-int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+template <int numParticles>
+int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10)
+{ 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
     if (cudaStatus != cudaSuccess) {
         return cudaStatus;
     }
 
-    
-	const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
-    std::vector<double> loggedSteps(numSteps / loggingSteps+1, 0);
 
-    HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
+    const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
+    std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
+
+    /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
     BoundaryIntegralCalculator<numParticles> timeStepManager(properties, boundaryProblem);
 
     ValueLogger kineticEnergyLogger(loggingSteps);
@@ -54,9 +55,9 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
     ValueLogger totalEnergyLogger(loggingSteps);
     ValueLogger volumeFluxLogger(loggingSteps);
 
-    
 
-	timeStepManager.initialize_device(data.Z, data.Potential);
+
+    timeStepManager.initialize_device(data.Z, data.Potential);
 
     DataLogger<std_complex, 2 * numParticles> stateLogger;
     stateLogger.setSize(numSteps / loggingSteps);
@@ -85,16 +86,18 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
         if (i % loggingSteps == 0) {
             loggedSteps[i / loggingSteps] = i;
         }
-	}
+    }
 
     auto& timeStepData = stateLogger.getAllData();
 
-    if (plot) 
+    if (plot)
     {
         std::vector<std::string> paths;
+        std::vector<std::string> pathsPotential;
         createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
+		createPotentialFrames<numParticles>(timeStepData, dt * t0, loggingSteps, pathsPotential, 640, 480);
         createVideo("temp/frames/video.avi", 640, 480, paths, fps);
-
+        createVideo("temp/frames/video_pot.avi", 640, 480, pathsPotential, fps);
         //plt::figure();
         auto title = "Interface And Potential";
         plt::title(title);
@@ -129,7 +132,29 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
         plt::xlabel("Time Steps");
         plt::ylabel("Volume Flux");
         plt::legend();
-        if(show)
-			plt::show();
+        if (show)
+            plt::show();
     }
+	return 0;
+}
+
+template<int numParticles>
+int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+    
+    HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
+}
+
+template <int numParticles>
+int runSimulationWater(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+    
+    WaterBoundaryProblem<numParticles> boundaryProblem(properties);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
+}
+
+template <int numParticles>
+int runSimulationHeliumInfiniteDepth(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+    
+    HeliumInfiniteDepthBoundaryProblem<numParticles> boundaryProblem(properties);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
 }

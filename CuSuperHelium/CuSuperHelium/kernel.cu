@@ -45,11 +45,11 @@ double X(double j, double h, double omega, double t) {
 }
 
 double Y(double j, double h, double omega, double t) {
-    return h * PeriodicFunctions::sech2::sech2_periodic(j);  // std::cos((j - omega * t));
+    return h * PeriodicFunctions::bimodal::bimodal(j);  // std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
-    return h * (1 + rho) * omega * PeriodicFunctions::sech2::sech2_periodic(j)*sin(j+0.2);//  std::cos((j - omega * t));
+    return h * (1 + rho) * omega * PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
 }
 
 int main() 
@@ -59,10 +59,10 @@ int main()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
     
-    int frames = 200;
-    double omega = 100;
+    int frames = 500;
+    double omega = 1;
     double t0 = 0;
-	double finalTime = 1e-3; // 0.5 ms
+	double finalTime = 1e-2; // 0.5 ms
     
     double H0 = 10e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
@@ -74,13 +74,13 @@ int main()
     double h = 0.001 * problemProperties.depth;
 
 	problemProperties.y_min = -h - 0.001 * problemProperties.depth; // -0.5 * H0
-	problemProperties.y_max =  0.002 * problemProperties.depth; // 0.5 * H0
+	problemProperties.y_max =  0.005 * problemProperties.depth; // 0.5 * H0
 	printf("Simulating with depth %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
     const int N = 128;
     
-	const double stepSize = 0.1;
+	const double stepSize = 0.01;
     const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 
@@ -98,17 +98,17 @@ int main()
 	for (int i = 0; i < N; i++) {
 		j = 2.0 * PI_d * i / (1.0 * N);
 		Z0[i] = std_complex(X(j, h, omega, t0), Y(j, h, omega, t0));
-        PhiArr[i] = std_complex(Phi(j, h, omega, t0, problemProperties.rho), 0.0);
+        PhiArr[i] = std_complex(0.0*Phi(j, h, omega, t0, problemProperties.rho), 0.0);
 		Phireal[i] = PhiArr[i].real();
 
 		X0[i] = Z0[i].real();
 		Y0[i] = Z0[i].imag();
 	}
 
-	/*plt::figure();
-    plt::plot(X0, Phireal);*/
-	//plt::plot(X0, Y0);
-    //plt::show();
+	plt::figure();
+    plt::plot(X0, Phireal);
+	plt::plot(X0, Y0);
+    plt::show();
 
     ParticleData particleData;
 	particleData.Z = Z0.data();

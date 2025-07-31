@@ -103,7 +103,7 @@ public:
 	}
 	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
 	{
-		createHeliumMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
+		createFiniteDepthMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
 	}
 
 	virtual void CalculateVelocities(std_complex* Z,
@@ -126,6 +126,41 @@ public:
 		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (Z, V1, result, properties.depth, N);
 	}
 };
+
+template <int N>
+class HeliumInfiniteDepthBoundaryProblem : public BoundaryProblem<N>
+{
+	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+public:
+	HeliumInfiniteDepthBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	{
+		// Constructor for the helium infinite depth boundary problem, initializing the velocity calculator with the problem properties
+	}
+	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
+	{
+		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
+	}
+	virtual void CalculateVelocities(std_complex* Z,
+		std_complex* Zp,
+		std_complex* Zpp,
+		std_complex* a,
+		std_complex* aprime,
+		std_complex* V1,
+		std_complex* V2,
+		std_complex* velocities,
+		ProblemProperties& properties,
+		bool lower) override
+	{
+		// create the V1 matrix and V2 diagonal vector
+		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
+		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
+	}
+	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) override
+	{
+		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (Z, V1, result, properties.depth,N);
+	}
+};
+
 
 template<int N>
 class BoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*N>

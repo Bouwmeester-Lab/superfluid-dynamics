@@ -15,7 +15,7 @@ namespace PeriodicFunctions
         double x_mod = x;
 
         // Evaluate Fourier series
-        double sum = a0/2.0;
+        double sum = a0;
         for (size_t n = 1; n < an.size()+1; n++) {
             double k = (n)*x_mod;
             sum += an[n-1] * cos(k) + bn[n-1] * sin(k);

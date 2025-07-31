@@ -88,7 +88,7 @@ void createPotentialFrames(std::vector<std::vector<std_complex>>& data, double d
 		plt::clf();  // Clear the current figure
 
 		plt::plot(x, y, { {"label", "Potential"} });
-		// plt::ylim(ylim1, ylim2);
+		//plt::ylim(ylim1, ylim2);
 		plt::title(std::format("Potential at t={:.10e}", i * periodLogging * dt));
 
 		paths.push_back(std::format("temp/frames/frame_pot_{}.png", i));

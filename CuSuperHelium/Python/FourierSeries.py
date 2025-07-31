@@ -29,7 +29,7 @@ def compute_fourier_series(f, N, a=0, b=2 * np.pi):
 
 def fourier_series(x, a0, an, bn):
     """Evaluate Fourier series at x, given coefficients a0, an, bn"""
-    result = a0 / 2
+    result = a0
     for n in range(1, len(an) + 1):
         result += an[n - 1] * np.cos(n * x) + bn[n - 1] * np.sin(n * x)
     return result
@@ -43,8 +43,8 @@ if __name__ == "__main__":
 
 
     # Compute coefficients
-    N = 20
-    a0_ex, an_ex, bn_ex = compute_fourier_series(lambda x: bimodal(x, 0.35 *np.pi, 1.35 * np.pi,  sigma=0.2), N)
+    N = 200
+    a0_ex, an_ex, bn_ex = compute_fourier_series(lambda x: 9.4247779608e-06 * gaussian(x, np.pi,  sigma=0.2), N)
 
     print(f"a0 = {a0_ex:.16e}")
     for a in an_ex:

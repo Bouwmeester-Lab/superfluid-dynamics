@@ -106,7 +106,9 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 		file.createAttribute<double>("y_max", properties.y_max);*/
 		file.createAttribute<double>("dt", dt);
 		file.createAttribute<double>("initial_amplitude", properties.initial_amplitude);
-    
+		file.createAttribute<int>("numParticles", numParticles);
+		file.createAttribute<int>("numSteps", numSteps);
+		file.createAttribute<int>("loggingSteps", loggingSteps);
 
         std::vector<std::array<double, 2>> row_tmp(vector_size);
         //row_tmp.reserve(2 * vector_size);
@@ -123,6 +125,20 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 	    }
 
         //dataset.write(reinterpret_cast<std::vector<std::vector<std::complex<double>>&>(timeStepData));
+		// Create datasets for energy logs
+        HighFive::DataSpace energySpace({ kineticEnergyLogger.getLoggedValuesCount() });
+        HighFive::DataSet kineticEnergyDataset = file.createDataSet<double>("KineticEnergy", energySpace);
+        kineticEnergyDataset.write(kineticEnergyLogger.getLoggedValues());
+
+        
+        HighFive::DataSet potentialEnergyDataset = file.createDataSet<double>("PotentialEnergy", energySpace);
+        potentialEnergyDataset.write(potentialEnergyLogger.getLoggedValues());
+
+        HighFive::DataSet totalEnergyDataset = file.createDataSet<double>("TotalEnergy", energySpace);
+        totalEnergyDataset.write(totalEnergyLogger.getLoggedValues());
+
+        HighFive::DataSet volumeFluxDataset = file.createDataSet<double>("VolumeFlux", energySpace);
+		volumeFluxDataset.write(volumeFluxLogger.getLoggedValues());
     }
     
 

@@ -59,26 +59,27 @@ int main()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
     
-    int frames = 600;
+    int frames = 10;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 15e-3; // 6 ms
+	double finalTime = 15e-6; // 6 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
-	double L0 = 1000e-6/(2.0*PI_d); // 40 um
+	double L0 = 1000e-6/(2.0*PI_d); // 1mm
 
     double _t0 = std::sqrt(L0 / g);
 
     problemProperties.depth = H0 / L0;
     double h = 0.1 * problemProperties.depth;
 
+	problemProperties.initial_amplitude = h;
 	problemProperties.y_min = -h - 0.001 * problemProperties.depth; // -0.5 * H0
 	problemProperties.y_max = h +  0.005 * problemProperties.depth; // 0.5 * H0
 	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 512;
+    const int N = 64;//512;
     
 	const double stepSize = 0.01;
     const int steps = (finalTime / _t0) / stepSize;
@@ -105,10 +106,10 @@ int main()
 		Y0[i] = Z0[i].imag();
 	}
 
-	plt::figure();
+	/*plt::figure();
     plt::plot(X0, Phireal);
 	plt::plot(X0, Y0);
-    plt::show();
+    plt::show();*/
 
     ParticleData particleData;
 	particleData.Z = Z0.data();

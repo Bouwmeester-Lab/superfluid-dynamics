@@ -9,6 +9,7 @@ public:
 	double U;
 	double kappa;
 	double depth;
+	double initial_amplitude;
 
 	// for plotting
 	double y_min;

@@ -11,6 +11,7 @@
 #include "ValueLogger.h"
 #include "matplotlibcpp.h"
 #include "VideoMaking.h"
+#include <highfive/H5File.hpp>
 
 namespace plt = matplotlibcpp;
 
@@ -34,7 +35,7 @@ struct ParticleData {
 };
 
 template <int numParticles>
-int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10)
+int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
@@ -88,7 +89,42 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
         }
     }
 
-    auto& timeStepData = stateLogger.getAllData();
+    std::vector<std::vector<std_complex>>& timeStepData = stateLogger.getAllData();
+
+    if (saveH5) {
+	    size_t vector_size = timeStepData[0].size();
+        //    // Create HDF5 file
+        HighFive::File file("temp/data.h5", HighFive::File::Overwrite);
+        //HighFive::DataSpace dataspace = HighFive::DataSpace({ (size_t)loggingSteps,  vector_size });
+
+		// add properties to the file
+		file.createAttribute<double>("rho", properties.rho);
+		file.createAttribute<double>("kappa", properties.kappa);
+		file.createAttribute<double>("U", properties.U);
+		file.createAttribute<double>("depth", properties.depth);
+		/*file.createAttribute<double>("y_min", properties.y_min);
+		file.createAttribute<double>("y_max", properties.y_max);*/
+		file.createAttribute<double>("dt", dt);
+		file.createAttribute<double>("initial_amplitude", properties.initial_amplitude);
+    
+
+        std::vector<std::array<double, 2>> row_tmp(vector_size);
+        //row_tmp.reserve(2 * vector_size);
+
+        for (size_t i = 0; i < timeStepData.size(); ++i) {
+            for (size_t j = 0; j < timeStepData[i].size(); ++j) {
+                row_tmp[j] = { timeStepData[i][j].real(), timeStepData[i][j].imag() };
+            }
+
+            HighFive::DataSpace space({ vector_size, 2 });
+            HighFive::DataSet dataset = file.createDataSet<double>(std::format("i = {}", std::to_string(i * loggingSteps)), space);
+
+            dataset.write(row_tmp);
+	    }
+
+        //dataset.write(reinterpret_cast<std::vector<std::vector<std::complex<double>>&>(timeStepData));
+    }
+    
 
     if (plot)
     {

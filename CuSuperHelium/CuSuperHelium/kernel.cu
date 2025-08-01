@@ -78,9 +78,9 @@ int main()
 	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 128;
+    const int N = 512;
     
-	const double stepSize = 0.03;
+	const double stepSize = 0.01;
     const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 

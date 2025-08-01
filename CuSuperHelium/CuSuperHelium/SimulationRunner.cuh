@@ -11,6 +11,7 @@
 #include "ValueLogger.h"
 #include "matplotlibcpp.h"
 #include "VideoMaking.h"
+#include <highfive/H5File.hpp>
 
 namespace plt = matplotlibcpp;
 
@@ -33,19 +34,20 @@ struct ParticleData {
     std_complex* Potential; // Array of particle potentials
 };
 
-template<int numParticles>
-int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+template <int numParticles>
+int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
+{ 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
     if (cudaStatus != cudaSuccess) {
         return cudaStatus;
     }
 
-    
-	const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
-    std::vector<double> loggedSteps(numSteps / loggingSteps+1, 0);
 
-    HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
+    const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
+    std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
+
+    /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
     BoundaryIntegralCalculator<numParticles> timeStepManager(properties, boundaryProblem);
 
     ValueLogger kineticEnergyLogger(loggingSteps);
@@ -54,9 +56,9 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
     ValueLogger totalEnergyLogger(loggingSteps);
     ValueLogger volumeFluxLogger(loggingSteps);
 
-    
 
-	timeStepManager.initialize_device(data.Z, data.Potential);
+
+    timeStepManager.initialize_device(data.Z, data.Potential);
 
     DataLogger<std_complex, 2 * numParticles> stateLogger;
     stateLogger.setSize(numSteps / loggingSteps);
@@ -85,16 +87,69 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
         if (i % loggingSteps == 0) {
             loggedSteps[i / loggingSteps] = i;
         }
-	}
+    }
 
-    auto& timeStepData = stateLogger.getAllData();
+    std::vector<std::vector<std_complex>>& timeStepData = stateLogger.getAllData();
 
-    if (plot) 
+    if (saveH5) {
+	    size_t vector_size = timeStepData[0].size();
+        //    // Create HDF5 file
+        HighFive::File file("temp/data.h5", HighFive::File::Overwrite);
+        //HighFive::DataSpace dataspace = HighFive::DataSpace({ (size_t)loggingSteps,  vector_size });
+
+		// add properties to the file
+		file.createAttribute<double>("rho", properties.rho);
+		file.createAttribute<double>("kappa", properties.kappa);
+		file.createAttribute<double>("U", properties.U);
+		file.createAttribute<double>("depth", properties.depth);
+		/*file.createAttribute<double>("y_min", properties.y_min);
+		file.createAttribute<double>("y_max", properties.y_max);*/
+		file.createAttribute<double>("dt", dt);
+		file.createAttribute<double>("initial_amplitude", properties.initial_amplitude);
+		file.createAttribute<int>("numParticles", numParticles);
+		file.createAttribute<int>("numSteps", numSteps);
+		file.createAttribute<int>("loggingSteps", loggingSteps);
+
+        std::vector<std::array<double, 2>> row_tmp(vector_size);
+        //row_tmp.reserve(2 * vector_size);
+
+        for (size_t i = 0; i < timeStepData.size(); ++i) {
+            for (size_t j = 0; j < timeStepData[i].size(); ++j) {
+                row_tmp[j] = { timeStepData[i][j].real(), timeStepData[i][j].imag() };
+            }
+
+            HighFive::DataSpace space({ vector_size, 2 });
+            HighFive::DataSet dataset = file.createDataSet<double>(std::format("i = {}", std::to_string(i * loggingSteps)), space);
+
+            dataset.write(row_tmp);
+	    }
+
+        //dataset.write(reinterpret_cast<std::vector<std::vector<std::complex<double>>&>(timeStepData));
+		// Create datasets for energy logs
+        HighFive::DataSpace energySpace({ kineticEnergyLogger.getLoggedValuesCount() });
+        HighFive::DataSet kineticEnergyDataset = file.createDataSet<double>("KineticEnergy", energySpace);
+        kineticEnergyDataset.write(kineticEnergyLogger.getLoggedValues());
+
+        
+        HighFive::DataSet potentialEnergyDataset = file.createDataSet<double>("PotentialEnergy", energySpace);
+        potentialEnergyDataset.write(potentialEnergyLogger.getLoggedValues());
+
+        HighFive::DataSet totalEnergyDataset = file.createDataSet<double>("TotalEnergy", energySpace);
+        totalEnergyDataset.write(totalEnergyLogger.getLoggedValues());
+
+        HighFive::DataSet volumeFluxDataset = file.createDataSet<double>("VolumeFlux", energySpace);
+		volumeFluxDataset.write(volumeFluxLogger.getLoggedValues());
+    }
+    
+
+    if (plot)
     {
         std::vector<std::string> paths;
+        std::vector<std::string> pathsPotential;
         createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
+		createPotentialFrames<numParticles>(timeStepData, dt * t0, loggingSteps, pathsPotential, 640, 480);
         createVideo("temp/frames/video.avi", 640, 480, paths, fps);
-
+        createVideo("temp/frames/video_pot.avi", 640, 480, pathsPotential, fps);
         //plt::figure();
         auto title = "Interface And Potential";
         plt::title(title);
@@ -129,7 +184,29 @@ int runSimulationHelium(const int numSteps, double dt, ProblemProperties& proper
         plt::xlabel("Time Steps");
         plt::ylabel("Volume Flux");
         plt::legend();
-        if(show)
-			plt::show();
+        if (show)
+            plt::show();
     }
+	return 0;
+}
+
+template<int numParticles>
+int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+    
+    HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
+}
+
+template <int numParticles>
+int runSimulationWater(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+    
+    WaterBoundaryProblem<numParticles> boundaryProblem(properties);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
+}
+
+template <int numParticles>
+int runSimulationHeliumInfiniteDepth(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+    
+    HeliumInfiniteDepthBoundaryProblem<numParticles> boundaryProblem(properties);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
 }

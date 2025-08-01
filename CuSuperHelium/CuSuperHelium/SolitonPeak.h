@@ -9,16 +9,16 @@ namespace PeriodicFunctions
     const double PI = std::numbers::pi;
     double PeriodicSeries(double x, const double a0, const std::vector<double>& an, const std::vector<double>& bn) {
         // Map x into [-pi, pi) for evaluation
-        double x_mod = fmod(x + PI, 2 * PI);
+        /*double x_mod = fmod(x + PI, 2 * PI);
         if (x_mod < 0) x_mod += 2 * PI;
-        x_mod -= PI;
-
+        x_mod -= PI;*/
+        double x_mod = x;
 
         // Evaluate Fourier series
         double sum = a0;
-        for (size_t n = 0; n < an.size(); ++n) {
+        for (size_t n = 1; n < an.size()+1; n++) {
             double k = (n)*x_mod;
-            sum += an[n] * cos(k) + bn[n] * sin(k);
+            sum += an[n-1] * cos(k) + bn[n-1] * sin(k);
         }
         return sum;
     }
@@ -67,6 +67,18 @@ namespace PeriodicFunctions::gaussian
         // Evaluate Fourier series
         return PeriodicFunctions::PeriodicSeries(x, a0, an, bn);
 	}
+}
+
+namespace PeriodicFunctions::bimodal {
+    const double a0 = 1.5957691062629392e-01;
+    const std::vector<double> an = { -3.0650464552593487e-09, -1.7317100891853296e-01, -3.0372115972901532e-09, -7.1615693357362259e-02, -2.9828983428199540e-09, 1.4774552742577363e-01, -2.9046711953897060e-09, -7.1789475086402932e-02, -2.8060306559965609e-09, -2.7503222644971376e-09, -2.6910728169895891e-09, 1.4494041842830990e-02, -2.5641238028081491e-09, -6.0224359434162744e-03, -2.4294154732096473e-09, 5.8937665589190228e-04, -2.2908220433559505e-09, 2.8773132315834389e-04, -2.1516893463953816e-09, -1.0706626341016840e-04 };
+
+    const std::vector<double> bn = { 1.0511989972143337e-10, 2.3834944183054343e-01, 3.1263600914839784e-10, -2.2041043076185798e-01, 5.1219384396767367e-10, 4.8005433455860468e-02, 6.9916169059363772e-10, 5.2158105423964263e-02, 8.6981803244252374e-10, -4.3192772262388143e-02, 1.0215322886452160e-09, 1.0530540801238919e-02, 1.1528171619772920e-09, 1.9568084564639773e-03, 1.2632544912050875e-09, -1.8139207847607411e-03, 1.3533384629560178e-09, 3.9603263938379297e-04, 1.4242679357387493e-09, 1.4530607711567880e-09 };
+
+    double bimodal(double x) {
+        // Evaluate Fourier series
+        return PeriodicFunctions::PeriodicSeries(x, PeriodicFunctions::bimodal::a0, PeriodicFunctions::bimodal::an, PeriodicFunctions::bimodal::bn);
+    }
 }
 
 /// <summary>

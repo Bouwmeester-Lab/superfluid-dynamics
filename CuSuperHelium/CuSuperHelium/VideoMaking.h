@@ -65,4 +65,39 @@ void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int pe
 	plt::clf();
 }
 
+template <size_t N>
+void createPotentialFrames(std::vector<std::vector<std_complex>>& data, double dt, int periodLogging, std::vector<std::string>& paths, int width = 640, int height = 480, double ylim1 = -0.1, double ylim2 = 0.1) 
+{
+	paths.clear();
+	int i = 0;
+	std::cout << fs::current_path().string();
+	fs::create_directories("temp/frames");
+	plt::figure();
+	plt::figure_size(width, height);
+
+	for (auto& frame : data)
+	{
+		std::vector<double> x(N, 0);
+		std::vector<double> y(N, 0);
+
+		for (int i = 0; i < N; ++i)
+		{
+			x[i] = (frame[i].real());
+			y[i] = (frame[i+N].real());
+		}
+		plt::clf();  // Clear the current figure
+
+		plt::plot(x, y, { {"label", "Potential"} });
+		//plt::ylim(ylim1, ylim2);
+		plt::title(std::format("Potential at t={:.10e}", i * periodLogging * dt));
+
+		paths.push_back(std::format("temp/frames/frame_pot_{}.png", i));
+
+		plt::save(paths.back());
+
+		i++;
+	}
+	plt::clf();
+}
+
 

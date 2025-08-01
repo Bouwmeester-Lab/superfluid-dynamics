@@ -15,7 +15,7 @@
 #include "utilities.cuh"
 
 __global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double rho, int n);
-__global__ void createHeliumMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double h, int n);
+__global__ void createFiniteDepthMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double h, int n);
 
 /// <summary>
 /// Computes the RHS of Phi on the GPU using the expression: -(1+rho) * Im(Z) + 0.5 * abs(V1)^2 + 0.5 * rho * abs(V2)^2. - rho * V1 dot V2
@@ -56,7 +56,7 @@ __global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_co
     }
 }
 
-__global__ void createHeliumMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double h, int n)
+__global__ void createFiniteDepthMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double h, int n)
 {
     int j = blockIdx.y * blockDim.y + threadIdx.y; // row
     int k = blockIdx.x * blockDim.x + threadIdx.x; // col

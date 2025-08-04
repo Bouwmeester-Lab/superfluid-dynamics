@@ -43,8 +43,8 @@ if __name__ == "__main__":
 
 
     # Compute coefficients
-    N = 200
-    a0_ex, an_ex, bn_ex = compute_fourier_series(lambda x: 9.4247779608e-06 * gaussian(x, np.pi,  sigma=0.2), N)
+    N = 150
+    a0_ex, an_ex, bn_ex = compute_fourier_series(lambda x: gaussian(x, np.pi,  sigma=0.05), N)
 
     print(f"a0 = {a0_ex:.16e}")
     for a in an_ex:
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     for b in bn_ex:
         print(f"{b:.16e}, ", end = "")
 
-    x_vals = np.linspace(0, 2 * np.pi, 1000)
+    x_vals = np.linspace(0, 2 * np.pi, 10000)
     y_vals = [fourier_series(x, a0_ex, an_ex, bn_ex) for x in x_vals]
 
     plt.figure(figsize=(8, 4))

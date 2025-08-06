@@ -3,21 +3,31 @@
 #include <gtest/gtest.h>
 
 
-
+template <size_t N>
 class FiniteDepthOperator : public LinearOperator<double>
 {
 public:
 	FiniteDepthOperator();
-	~FiniteDepthOperator();
-
+	virtual ~FiniteDepthOperator() override;
+	virtual void apply(const double* x, double* y, cudaStream_t stream = cudaStreamPerThread) const override;
+	virtual int size() const override;
 private:
 
 };
 
-FiniteDepthOperator::FiniteDepthOperator()
+template<size_t N>
+FiniteDepthOperator<N>::FiniteDepthOperator()
 {
 }
 
-FiniteDepthOperator::~FiniteDepthOperator()
+template<size_t N>
+FiniteDepthOperator<N>::~FiniteDepthOperator()
 {
+	LinearOperator<double>::~LinearOperator();
+}
+
+template<size_t N>
+void FiniteDepthOperator<N>::apply(const double* x, double* y, cudaStream_t stream) const
+{
+
 }

@@ -57,5 +57,8 @@
     <ClInclude Include="FiniteDepthOperator.cuh">
       <Filter>Operators</Filter>
     </ClInclude>
+    <ClInclude Include="MatrixOperations.cuh">
+      <Filter>Operators</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

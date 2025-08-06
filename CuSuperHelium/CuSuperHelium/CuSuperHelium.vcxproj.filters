@@ -16,6 +16,9 @@
     <Filter Include="Functions">
       <UniqueIdentifier>{7fa26592-7f1d-4ac7-8460-1ba46b0b55ab}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Operators">
+      <UniqueIdentifier>{62b82cd1-901d-4cc4-bc0c-a901dc99402b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -50,6 +53,9 @@
     </ClInclude>
     <ClInclude Include="SolitonPeak.h">
       <Filter>Functions</Filter>
+    </ClInclude>
+    <ClInclude Include="FiniteDepthOperator.cuh">
+      <Filter>Operators</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

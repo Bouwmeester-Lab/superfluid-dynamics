@@ -15,7 +15,7 @@
 #include "MatrixSolver.cuh"
 #include "AutonomousProblem.h"
 #include "Energies.cuh"
-
+#include "FiniteDepthOperator.cuh"
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
 template<int N>

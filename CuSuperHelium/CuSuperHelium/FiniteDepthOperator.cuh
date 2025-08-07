@@ -1,5 +1,6 @@
 #pragma once
 #include <CuDenseSolvers/Operators/LinearOperator.h>
+#include <CuDenseSolvers/Operators/MatrixOperator.cuh>
 #include "MatrixOperations.cuh"
 #include "createM.cuh"
 
@@ -18,13 +19,35 @@ struct FiniteDepthFunctor {
 };
 
 template <size_t N>
-class FiniteDepthOperator : public LinearOperator<double>
+class BoundaryMatrixOperator : public DoubleMatrixOperator<N>
 {
 public:
-	FiniteDepthOperator(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h);
-	virtual ~FiniteDepthOperator() override;
-	virtual void apply(const double* x, double* y, cudaStream_t stream = cudaStreamPerThread) const override;
+	virtual void createMatrix(std_complex* Z, std_complex* Zp, std_complex* Zpp, double h) = 0;
 	virtual int size() const override;
+	virtual void apply(const double* x, double* y, cudaStream_t stream = cudaStreamPerThread) const override;
+};
+
+template<size_t N>
+int BoundaryMatrixOperator<N>::size() const
+{
+	return N;
+}
+
+template<size_t N>
+void BoundaryMatrixOperator<N>::apply(const double* x, double* y, cudaStream_t stream) const
+{
+	DoubleMatrixOperator<N>::apply(x, y, stream);
+}
+
+
+template <size_t N>
+class FiniteDepthOperator : public BoundaryMatrixOperator<N>
+{
+public:
+	FiniteDepthOperator();
+
+
+	virtual void createMatrix(std_complex* Z, std_complex* Zp, std_complex* Zpp, double h) override;
 private:
 	const std_complex* Z;   // Pointer to the Z array
 	const std_complex* Zp;  // Pointer to the Z' array
@@ -33,32 +56,15 @@ private:
 };
 
 template<size_t N>
-FiniteDepthOperator<N>::FiniteDepthOperator(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h) : LinearOperator<double>(), Z(Z), Zp(Zp), Zpp(Zpp), h(h)
+FiniteDepthOperator<N>::FiniteDepthOperator() : BoundaryMatrixOperator<N>()
 {
+
 }
 
 template<size_t N>
-FiniteDepthOperator<N>::~FiniteDepthOperator()
+void FiniteDepthOperator<N>::createMatrix(std_complex* Z, std_complex* Zp, std_complex* Zpp, double h)
 {
-	LinearOperator<double>::~LinearOperator();
-}
-
-template<size_t N>
-void FiniteDepthOperator<N>::apply(const double* x, double* y, cudaStream_t stream) const
-{
-	FiniteDepthFunctor functor(Z, Zp, Zpp, h);
-	int blockSize = 256;
-	int gridSize = (N + blockSize - 1) / blockSize;
-	int sharedMemSize = blockSize * sizeof(double);
-
-	matVectMultiply << <gridSize, blockSize, sharedMemSize, stream >> > (x, y, N, functor);
-	if (cudaGetLastError() != cudaSuccess) {
-		fprintf(stderr, "Error in FiniteDepthOperator::apply: %s\n", cudaGetErrorString(cudaGetLastError()));
-	}
-}
-
-template<size_t N>
-int FiniteDepthOperator<N>::size() const
-{
-	return N;
+	const int threads = 256;
+	const int blocks = (N + threads - 1) / threads;
+	createFiniteDepthMKernel << <blocks, threads >> > (this->devData, Z, Zp, Zpp, h, N);
 }

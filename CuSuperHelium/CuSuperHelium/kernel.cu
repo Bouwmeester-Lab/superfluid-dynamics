@@ -62,11 +62,11 @@ int main()
     int frames = 500;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 15e-3; // 15 ms
+	double finalTime = 12e-3; // 15 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
-	double L0 = 1000e-6/(2.0*PI_d); // 6mm
+	double L0 = 500e-6/(2.0*PI_d); // 6mm
 
     double _t0 = std::sqrt(L0 / g);
 
@@ -79,9 +79,9 @@ int main()
 	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 512;//512;
+    const int N = 1024;//512;
     
-	const double stepSize = 0.02;
+	const double stepSize = 0.015;
     const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 

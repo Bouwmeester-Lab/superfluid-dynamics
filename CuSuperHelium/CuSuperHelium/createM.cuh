@@ -31,7 +31,7 @@ __global__ void createFiniteDepthMKernel(double* A, std_complex* Z, std_complex*
 __global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N);
 __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N);
 
-__device__ double InfiniteDepthMij(size_t i, size_t j, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho)
+__device__ __forceinline__ double InfiniteDepthMij(size_t i, size_t j, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho)
 {
     if (i == j)
     {
@@ -61,7 +61,7 @@ __global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_co
     }
 }
 
-__device__ inline double FiniteDepthMij(size_t i, size_t j, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h)
+__device__ __forceinline__ double FiniteDepthMij(size_t i, size_t j, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h)
 {
     if(i == j)
     {

@@ -25,7 +25,7 @@ protected:
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
-	std::unique_ptr<LinearOperator<double>> linearOperator; ///< Linear operator for applying the M matrix to the vorticities
+	std::unique_ptr<BoundaryMatrixOperator<N>> linearOperator; ///< Linear operator for applying the M matrix to the vorticities
 public:
 	EnergyContainer<N> energyContainer; ///< Energy container for storing the energies calculated during the simulation
 
@@ -118,8 +118,9 @@ public:
 		// createFiniteDepthMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
 		if(this->linearOperator == nullptr)
 		{
-			this->linearOperator = std::make_unique<FiniteDepthOperator<N>>(Z, Zp, Zpp, properties.depth);
+			this->linearOperator = std::make_unique<FiniteDepthOperator<N>>();
 		}
+		this->linearOperator->createMatrix(Z, Zp, Zpp, properties.depth);
 	}
 
 	virtual void CalculateVelocities(std_complex* Z,

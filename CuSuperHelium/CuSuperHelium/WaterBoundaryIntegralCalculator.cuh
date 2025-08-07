@@ -2,7 +2,7 @@
 #ifndef TIMESTEP_MANAGER_H
 #define TIMESTEP_MANAGER_H
 
-
+#include <CuDenseSolvers/Solvers/BiCGStab.cuh>
 #include "ProblemProperties.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -25,11 +25,19 @@ protected:
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
+	std::unique_ptr<LinearOperator<double>> linearOperator; ///< Linear operator for applying the M matrix to the vorticities
 public:
 	EnergyContainer<N> energyContainer; ///< Energy container for storing the energies calculated during the simulation
 
 	BoundaryProblem(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface) : matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16), energyContainer(kinetic, potential, surface)
 	{}
+	virtual ~BoundaryProblem() 
+	{
+		/*if (linearOperator != nullptr)
+		{
+			delete linearOperator; ///< Clean up the linear operator if it was created
+		}*/
+	}
 	/// <summary>
 	/// reates the M matrix for the boundary integral problem.
 	/// </summary>
@@ -55,6 +63,10 @@ public:
 	{
 		energyContainer.CalculateEnergy(devPointers); ///< Calculate the energies based on the device pointers containing the state variables
 	};
+	virtual LinearOperator<double>* GetLinearOperator() const
+	{
+		return linearOperator.get(); ///< Get the linear operator for applying the M matrix to the vorticities
+	}
 };
 
 template<int N>
@@ -103,7 +115,11 @@ public:
 	}
 	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
 	{
-		createFiniteDepthMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
+		// createFiniteDepthMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
+		if(this->linearOperator == nullptr)
+		{
+			this->linearOperator = std::make_unique<FiniteDepthOperator<N>>(Z, Zp, Zpp, properties.depth);
+		}
 	}
 
 	virtual void CalculateVelocities(std_complex* Z,
@@ -216,7 +232,8 @@ private:
 	ProblemProperties& problemProperties; ///< Reference to the problem properties for configuration
 	ZPhiDerivative<N> zPhiDerivative; ///< Derivative calculator for Z and Phi
 	FftDerivative<N, 1> fftDerivative; ///< FFT derivative calculator for single batch
-	MatrixSolver<N> matrixSolver; ///< Matrix solver for solving the vorticities.
+	// MatrixSolver<N> matrixSolver; ///< Matrix solver for solving the vorticities.
+	DoubleBiCGStab linearSolver; ///< Linear solver for solving the system of equations
 	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
@@ -298,11 +315,19 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep()
 
 	zPhiDerivative.exec(devZ, devPhi, devZp, devPhiPrimeComplex, devZpp); // Calculate derivatives of Z and Phi
 
-	boundaryProblem.CreateMMatrix(devM, devZ, devZp, devZpp, problemProperties,  N); // Create the M matrix
+	boundaryProblem.CreateMMatrix(devM, devZ, devZp, devZpp, problemProperties, N); // Create the M matrix linear operator for the boundary integral problem
 	
 	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
-	
-	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
+	// set the linear operator for the solver
+	linearSolver.setOperator(*boundaryProblem.GetLinearOperator());
+
+	linearSolver.solve(devPhiPrime, deva, problemProperties.maxIterations, problemProperties.tolerance); // Solve the system Ma = phi' to get the vorticities (a)
+	if (linearSolver.getNumIterations() >= problemProperties.maxIterations) {
+		printf("Warning: Linear solver reached maximum iterations (%d) without converging to the specified tolerance (%e).\n", problemProperties.maxIterations, problemProperties.tolerance);
+		printf("Consider increasing the tolerance or checking the problem setup.\n");
+		printf("Solver residual norm: %e\n", linearSolver.getResidualNorm());
+	}
+	//matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
 #ifdef DEBUG_DERIVATIVES_2
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 

@@ -30,6 +30,19 @@ __global__ void createFiniteDepthMKernel(double* A, std_complex* Z, std_complex*
 /// <returns></returns>
 __global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N);
 __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N);
+
+__device__ double InfiniteDepthMij(size_t i, size_t j, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho)
+{
+    if (i == j)
+    {
+        // we are on the diagonal:
+        return 0.5 * (1 + rho) + 0.25 * (1 - rho) / PI_d * (Zpp[i] / Zp[i]).imag(); // imaginary part
+    }
+    else
+    {
+        return 0.25 * (1 - rho) / PI_d * (Zp[i] * cotangent_green_function(Z[i], Z[j])).imag();
+    }
+}
 /// <summary>
 /// Creates the matrix M used in eq. 2.9 from Roberts 1983
 /// </summary>
@@ -44,15 +57,21 @@ __global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_co
 
     if (k < n && j < n) {
         int indx = k + j * n; // column major index
-        if (k == j)
-        {
-            // we are on the diagonal:
-            A[indx] = 0.5 * (1 + rho) + 0.25 * (1 - rho) / PI_d * (Zpp[k] / Zp[k]).imag(); // imaginary part
-        }
-        else
-        {
-            A[indx] = 0.25 * (1 - rho) / PI_d * (Zp[k] * cotangent_green_function(Z[k], Z[j])).imag();// cuCmul(ZPhiPrime[k], cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j])))).y; // 0.25 * (1 - rho) / PI_d * (cuCmul(ZPhiPrime[k], cotangent_complex(cMulScalar(0.5, cuCsub(ZPhi[k], ZPhi[j]))))).y;
-        }
+		A[indx] = InfiniteDepthMij(j, k, Z, Zp, Zpp, rho);
+    }
+}
+
+__device__ inline double FiniteDepthMij(size_t i, size_t j, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h)
+{
+    if(i == j)
+    {
+        // we are on the diagonal:
+        return 0.5 + 0.25 / PI_d * (Zpp[i] / Zp[i]).imag() - 0.25 / PI_d * cot(std_complex(0, Z[i].imag() + h)).imag(); // imaginary part
+    }
+    else
+    {
+        std_complex cotTerm = 0.5 * (Z[i] - cuda::std::conj(Z[j])) + std_complex(0, h);
+        return 0.25 / PI_d * (Zp[i] * cotangent_green_function(Z[i], Z[j])).imag() - 0.25 / PI_d * cot(cotTerm).imag();
     }
 }
 
@@ -63,16 +82,7 @@ __global__ void createFiniteDepthMKernel(double* A, std_complex* Z, std_complex*
 
     if (k < n && j < n) {
         int indx = k + j * n; // column major index
-        if (k == j)
-        {
-            // we are on the diagonal:
-            A[indx] = 0.5 + 0.25 / PI_d * (Zpp[k] / Zp[k]).imag() - 0.25 / PI_d * cot(std_complex(0, Z[k].imag()+h)).imag(); // imaginary part
-        }
-        else
-        {
-            std_complex cotTerm = 0.5*(Z[k] - cuda::std::conj(Z[j]))+std_complex(0, h);
-            A[indx] = 0.25 / PI_d * (Zp[k] * cotangent_green_function(Z[k], Z[j])).imag() - 0.25/PI_d * cot(cotTerm).imag();
-        }
+		A[indx] = FiniteDepthMij(j, k, Z, Zp, Zpp, h);
     }
 }
 

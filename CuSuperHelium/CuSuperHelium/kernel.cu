@@ -28,6 +28,7 @@
 //#include "complex.h"
 #include "matplotlibcpp.h"
 #include "SimulationRunner.cuh"
+#include <chrono>
 namespace plt = matplotlibcpp;
 
 #define j_complex std::complex<double>(0, 1)
@@ -45,7 +46,7 @@ double X(double j, double h, double omega, double t) {
 }
 
 double Y(double j, double h, double omega, double t) {
-    return h * PeriodicFunctions::gaussian::gaussian_periodic(j);  // std::cos((j - omega * t));
+    return h * PeriodicFunctions::gaussian::gaussian_periodic(j) * std::sin(j);  // std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
@@ -54,15 +55,19 @@ double Phi(double j, double h, double omega, double t, double rho) {
 
 int main() 
 {
+	auto time0 = std::chrono::high_resolution_clock::now();
+
 	ProblemProperties problemProperties;
     problemProperties.rho = 0;
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
+    problemProperties.tolerance = 1e-8;
+	problemProperties.maxIterations = 200;
     
-    int frames = 800;
+    int frames = 22;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 15e-3; // 15 ms
+	double finalTime = 10e-6; // 15 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
@@ -81,7 +86,7 @@ int main()
 
     const int N = 512;//512;
     
-	const double stepSize = 0.02;
+	const double stepSize = 0.1;
     const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 
@@ -116,5 +121,10 @@ int main()
 	particleData.Potential = PhiArr.data();
 
     
-     return runSimulationHelium<N>(steps, stepSize, problemProperties, particleData, loggingSteps, true, true, _t0);
+     auto res = runSimulationHelium<N>(steps, stepSize, problemProperties, particleData, loggingSteps, true, false, _t0);
+
+	 auto time1 = std::chrono::high_resolution_clock::now();
+	 std::chrono::duration<double, std::milli> elapsed = time1 - time0;
+
+     std::cout << "Elapsed time: " << elapsed.count() << " ms\n";
 }

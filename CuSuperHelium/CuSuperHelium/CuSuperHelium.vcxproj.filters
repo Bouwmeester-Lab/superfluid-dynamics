@@ -51,5 +51,11 @@
     <ClInclude Include="SolitonPeak.h">
       <Filter>Functions</Filter>
     </ClInclude>
+    <ClInclude Include="JacobiSolver.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Solver.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

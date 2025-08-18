@@ -12,7 +12,7 @@
 #include "matplotlibcpp.h"
 #include "VideoMaking.h"
 #include <highfive/H5File.hpp>
-
+#include "JacobiSolver.cuh"
 namespace plt = matplotlibcpp;
 
 cudaError_t setDevice()
@@ -46,9 +46,9 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
     const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
     std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
-
+    JacobiSolver<numParticles> solver;
     /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
-    BoundaryIntegralCalculator<numParticles> timeStepManager(properties, boundaryProblem);
+    BoundaryIntegralCalculator<numParticles> timeStepManager(properties, boundaryProblem, solver);
 
     ValueLogger kineticEnergyLogger(loggingSteps);
     ValueLogger potentialEnergyLogger(loggingSteps);

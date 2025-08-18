@@ -111,6 +111,7 @@
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
+    <ClInclude Include="JacobiSolver.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
@@ -119,6 +120,7 @@
     <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="SolitonPeak.h" />
+    <ClInclude Include="Solver.cuh" />
     <ClInclude Include="ValueLogger.h" />
     <ClInclude Include="VideoMaking.h" />
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />

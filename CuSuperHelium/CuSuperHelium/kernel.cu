@@ -28,6 +28,8 @@
 //#include "complex.h"
 #include "matplotlibcpp.h"
 #include "SimulationRunner.cuh"
+
+
 namespace plt = matplotlibcpp;
 
 #define j_complex std::complex<double>(0, 1)

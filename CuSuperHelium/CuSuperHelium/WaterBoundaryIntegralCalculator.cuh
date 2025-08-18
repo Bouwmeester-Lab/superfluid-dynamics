@@ -15,6 +15,7 @@
 #include "MatrixSolver.cuh"
 #include "AutonomousProblem.h"
 #include "Energies.cuh"
+#include "Solver.cuh"
 
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
@@ -161,12 +162,11 @@ public:
 	}
 };
 
-
 template<int N>
 class BoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*N>
 {
 public:
-	BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem);
+	BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem, Solver& solver);
 	~BoundaryIntegralCalculator();
 
 	VolumeFlux<N> volumeFlux; ///< Volume flux calculator for the water boundary integral problem
@@ -224,14 +224,14 @@ private:
 	const dim3 matrix_threads;// (16, 16);     // 256 threads per block in 2D
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 
-
+	Solver& solver;
 	void calculatePhiRhs(); ///< Helper function to calculate the right-hand side of the phi equation
 };
 
 template<int N>
-BoundaryIntegralCalculator<N>::BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem) : AutonomousProblem<cufftDoubleComplex, 2*N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties), volumeFlux(problemProperties),
+BoundaryIntegralCalculator<N>::BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem, Solver& solver) : AutonomousProblem<cufftDoubleComplex, 2*N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties), volumeFlux(problemProperties),
 	zPhiDerivative(problemProperties), 
-matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
+matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16), solver(solver)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
 	cudaMalloc(&devZp, N * sizeof(std_complex));
@@ -302,7 +302,8 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep()
 	
 	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
 	
-	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
+	solver.solve(devM, devPhiPrime, deva);
+	//matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
 #ifdef DEBUG_DERIVATIVES_2
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 

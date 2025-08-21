@@ -51,7 +51,6 @@ protected:
 	T halfTimeStep;
 	T sixthTimeStep;
 	
-	void copyk(const int i);
 	virtual void step(const int i) = 0;
 };
 
@@ -79,9 +78,9 @@ AutonomousRungeKuttaStepperBase<T, N>::~AutonomousRungeKuttaStepperBase()
 template <typename T, int N>
 void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 {
-	autonomousProblem.run(devY0);
+	autonomousProblem.run(devY0, k1); // run the autonomous problem with the initial state devY0 and store the result in k1
 
-	copyk(1); // copy k1 from the autonomousProblem
+	// copyk(1); // copy k1 from the autonomousProblem
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
 	std::vector<cufftDoubleComplex> k1_host(N);
@@ -142,9 +141,9 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 	
 #endif
 
-	autonomousProblem.run(devY1);
+	autonomousProblem.run(devY1, k2);
 
-	copyk(2); // copy k2 from the autonomousProblem
+	//copyk(2); // copy k2 from the autonomousProblem
 
 	step(2); // step 2 of the Runge-Kutta method
 
@@ -167,15 +166,15 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 	//plt::legend();
 #endif
 
-	autonomousProblem.run(devY2);
+	autonomousProblem.run(devY2, k3);
 
-	copyk(3); // copy k3 from the autonomousProblem
+	//copyk(3); // copy k3 from the autonomousProblem
 	
 	step(3);
 
-	autonomousProblem.run(devY3);
+	autonomousProblem.run(devY3, k4);
 
-	copyk(4); // copy k4 from the autonomousProblem
+	//copyk(4); // copy k4 from the autonomousProblem
 
 #ifdef DEBUG_RUNGE_KUTTA
 	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
@@ -272,24 +271,6 @@ void AutonomousRungeKuttaStepperBase<T, N>::initialize(T* devY0)
 	cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY3
 	//cudaMemcpy(devZPhi4, devY0, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToDevice); // copy initial state to devZPhi4
 }
-
-template<typename T, int N>
-void AutonomousRungeKuttaStepperBase<T, N>::copyk(const int i)
-{
-	if (i == 1) {
-		cudaMemcpy(k1, autonomousProblem.devTimeEvolutionRhs, N * sizeof(T), cudaMemcpyDeviceToDevice);
-	}
-	else if (i == 2) {
-		cudaMemcpy(k2, autonomousProblem.devTimeEvolutionRhs, N * sizeof(T), cudaMemcpyDeviceToDevice);
-	}
-	else if (i == 3) {
-		cudaMemcpy(k3, autonomousProblem.devTimeEvolutionRhs, N * sizeof(T), cudaMemcpyDeviceToDevice);
-	}
-	else if (i == 4) {
-		cudaMemcpy(k4, autonomousProblem.devTimeEvolutionRhs, N * sizeof(T), cudaMemcpyDeviceToDevice);
-	}
-}
-
 
 template <typename T, int N>
 class AutonomousRungeKuttaStepper : public AutonomousRungeKuttaStepperBase<T, N>

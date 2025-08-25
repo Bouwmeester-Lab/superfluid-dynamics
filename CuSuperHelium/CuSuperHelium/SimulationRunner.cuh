@@ -48,7 +48,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
 
     /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
-    BoundaryIntegralCalculator<numParticles> timeStepManager(properties, boundaryProblem);
+    BoundaryIntegralCalculator<numParticles> boundaryIntegrator(properties, boundaryProblem);
 
     ValueLogger kineticEnergyLogger(loggingSteps);
     ValueLogger potentialEnergyLogger(loggingSteps);
@@ -58,15 +58,15 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
 
 
-    timeStepManager.initialize_device(data.Z, data.Potential);
+    boundaryIntegrator.initialize_device(data.Z, data.Potential);
 
     DataLogger<std_complex, 2 * numParticles> stateLogger;
     stateLogger.setSize(numSteps / loggingSteps);
     stateLogger.setStep(loggingSteps);
 
-    AutonomousRungeKuttaStepper<std_complex, 2 * numParticles> rungeKunta(timeStepManager, stateLogger, dt);
+    AutonomousRungeKuttaStepper<std_complex, 2 * numParticles> rungeKunta(boundaryIntegrator, stateLogger, dt);
 
-    rungeKunta.initialize(timeStepManager.getY0());
+    rungeKunta.initialize(boundaryIntegrator.getY0());
     rungeKunta.setTimeStep(dt);
 
     for (int i = 0; i < numSteps; ++i) {
@@ -79,7 +79,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
             potentialEnergyLogger.logValue(boundaryProblem.energyContainer.potentialEnergy->getEnergy());
         }
         if (volumeFluxLogger.shouldLog(i)) {
-            volumeFluxLogger.logValue(timeStepManager.volumeFlux.getEnergy());
+            volumeFluxLogger.logValue(boundaryIntegrator.volumeFlux.getEnergy());
         }
         if (totalEnergyLogger.shouldLog(i)) {
             totalEnergyLogger.logValue(kineticEnergyLogger.getLastLoggedValue() + potentialEnergyLogger.getLastLoggedValue());

@@ -51,5 +51,6 @@
     <ClInclude Include="SolitonPeak.h">
       <Filter>Functions</Filter>
     </ClInclude>
+    <ClInclude Include="RK45.cuh" />
   </ItemGroup>
 </Project>

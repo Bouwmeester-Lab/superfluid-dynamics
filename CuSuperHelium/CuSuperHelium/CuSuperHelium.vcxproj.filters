@@ -16,9 +16,6 @@
     <Filter Include="Functions">
       <UniqueIdentifier>{7fa26592-7f1d-4ac7-8460-1ba46b0b55ab}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ODE Solvers">
-      <UniqueIdentifier>{3987e746-31c6-4e83-84a5-5b2d2b93ff00}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -29,6 +26,8 @@
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
+    <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
+    <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="Energies.cuh" />
@@ -51,18 +50,6 @@
     </ClInclude>
     <ClInclude Include="SolitonPeak.h">
       <Filter>Functions</Filter>
-    </ClInclude>
-    <ClInclude Include="AutonomousRungeKuttaStepper.cuh">
-      <Filter>ODE Solvers</Filter>
-    </ClInclude>
-    <ClInclude Include="SimpleEuler.cuh">
-      <Filter>ODE Solvers</Filter>
-    </ClInclude>
-    <ClInclude Include="RK45.cuh">
-      <Filter>ODE Solvers</Filter>
-    </ClInclude>
-    <ClInclude Include="RKBase.cuh">
-      <Filter>ODE Solvers</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

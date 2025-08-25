@@ -45,7 +45,7 @@ double X(double j, double h, double omega, double t) {
 }
 
 double Y(double j, double h, double omega, double t) {
-    return h * PeriodicFunctions::gaussianNarrow::gaussianNarrow_periodic(j);  // std::cos((j - omega * t));
+    return h * PeriodicFunctions::gaussian::gaussian_periodic(j);// *std::sin(j);  // std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
@@ -59,10 +59,10 @@ int main()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
     
-    int frames = 500;
+    int frames = 800;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 12e-3; // 15 ms
+	double finalTime = 10e-3; // 15 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
@@ -79,11 +79,11 @@ int main()
 	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 1024;//512;
+    const int N = 512*4;//512;
     
-	const double stepSize = 0.015;
-    const int steps = (finalTime / _t0) / stepSize;
-	const int loggingSteps = steps / frames;
+	const double stepSize = 0.012*4;
+    const int steps = abs( (finalTime / _t0) / stepSize);
+	const int loggingSteps = abs( steps / frames);
 
     printf("Simulating %i steps representing %.2e s", steps, steps * stepSize * _t0);
     

@@ -178,9 +178,9 @@ public:
 	/// <param name="Phi0"></param>
 	void initialize_device(std_complex* Z0, std_complex* Phi0);
 	void setZPhi(std_complex* devZ) { this->devZ = devZ; }
-	void runTimeStep(std_complex* rhs);
+	void runTimeStep();
 
-	virtual void run(std_complex* initialState, std_complex* rhs) override;
+	virtual void run(std_complex* initialState) override;
 
 	std_complex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
 	std_complex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
@@ -247,6 +247,10 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devVelocitiesUpper, N * sizeof(cufftDoubleComplex)); // Device pointer for the velocities of the upper fluid
 
+	// create device pointers for the velocities and right-hand side of the phi equation
+	devVelocitiesLower = this->devTimeEvolutionRhs; // Device pointer for the velocities of the lower fluid
+	devRhsPhi = this->devTimeEvolutionRhs + N; // Device pointer for the right-hand side of the phi equation
+
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
 
@@ -280,12 +284,8 @@ inline void BoundaryIntegralCalculator<N>::initialize_device(std_complex* Z0, st
 }
 
 template<int N>
-inline void BoundaryIntegralCalculator<N>::runTimeStep(std_complex* rhs)
+inline void BoundaryIntegralCalculator<N>::runTimeStep()
 {
-	// set the right-hand pointers using the rhs pointer
-	devVelocitiesLower = rhs; // Device pointer for the velocities of the lower fluid
-	devRhsPhi = rhs + N; // Device pointer for the right-hand side of the phi equation
-
 	// Here you would implement the logic to run a time step of the simulation.
 	// This would typically involve:
 	// 1. Calculating ZPhiPrime and Zpp from devZPhi.
@@ -430,10 +430,10 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(std_complex* rhs)
 	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower); // Calculate the volume flux based on the current state
 }
 template<int N>
-void BoundaryIntegralCalculator<N>::run(std_complex* initialState, std_complex* rhs)
+void BoundaryIntegralCalculator<N>::run(std_complex* initialState)
 {
 	this->setZPhi(initialState); // Set the initial state for ZPhi
-	this->runTimeStep(rhs); // Run the time step calculation
+	this->runTimeStep(); // Run the time step calculation
 }
 
 template<int N>

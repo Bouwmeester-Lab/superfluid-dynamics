@@ -30,11 +30,11 @@ private:
 	cuDoubleComplex* devY0;
 public:
 	using AutonomousProblem<cuDoubleComplex, N>::AutonomousProblem;
-	virtual void run(cuDoubleComplex* initialState) override
+	virtual void run(cuDoubleComplex* initialState, cuDoubleComplex* rhs) override
 	{
 		this->devY0 = initialState; // store the initial state for later use
 		// Define the system of equations for the oscillatory problem
-		flip_x_y << <blocks, threads >> > (initialState, this->devTimeEvolutionRhs, N); // implements: dx/dt=-y, dy/dt=x
+		flip_x_y << <blocks, threads >> > (initialState, rhs, N); // implements: dx/dt=-y, dy/dt=x
 	}
 	virtual cuDoubleComplex* getY0() {
 		return this->devY0; // return the initial state
@@ -63,12 +63,17 @@ TEST(ODE_Solvers, RK4)
 	OscillatoryProblem<N> problem;
 	double dt = 0.001;
 	int steps = 10000;
+	int loggingSteps = 100; // log every 1000 steps
+	DataLogger<cuDoubleComplex, N> stateLogger;
+	stateLogger.setSize(steps / loggingSteps);
+	stateLogger.setStep(loggingSteps);
 
-	AutonomousRungeKuttaStepper<cuDoubleComplex, N> stepper(problem, dt);
+
+	AutonomousRungeKuttaStepper<cuDoubleComplex, N> stepper(problem, stateLogger, dt);
 	stepper.initialize(devInitialState);
 	for(int i = 0; i < steps; ++i) 
 	{
-		stepper.runStep();
+		stepper.runStep(i);
 	}
 	cudaDeviceSynchronize();
 	// Copy the results back to the host

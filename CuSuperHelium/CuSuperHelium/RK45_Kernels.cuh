@@ -1,6 +1,7 @@
 #pragma once
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include "Reductions.cuh"
 #ifdef __INTELLISENSE__ // for Visual Studio IntelliSense https://stackoverflow.com/questions/77769389/intellisense-in-visual-studio-cannot-find-cuda-cooperative-groups-namespace
 #define __CUDACC__
 #endif // __INTELLISENSE__
@@ -43,9 +44,18 @@ struct RK45Coefficients {
 	static constexpr double b4s = 2197.0 / 4104.0;
 	static constexpr double b5s = -1.0 / 5.0;
 	static constexpr double b6s = 0.0;
+	// difference bi - b*i:
+	static constexpr double d1 = b1 - b1s;
+	static constexpr double d2 = b2 - b2s;
+	static constexpr double d3 = b3 - b3s;
+	static constexpr double d4 = b4 - b4s;
+	static constexpr double d5 = b5 - b5s;
+	static constexpr double d6 = b6 - b6s;
+
 	// c_i coefficients (nodes)
 	static constexpr double c1 = 0;
 };
+
 
 
 template <class T, size_t BLOCK_SIZE>
@@ -74,16 +84,17 @@ __global__ void rk45_error_and_y5(
 		y5_out[i] = y5;
 
 		// e = h * sum d_j k_j
-		T e = (T)(h * RK45Coefficients::b1s) * k1[i] + (T)(h * RK45Coefficients::b2s) * k2[i] + (T)(h * RK45Coefficients::b3s) * k3[i]
-			+ (T)(h * RK45Coefficients::b4s) * k4[i] + (T)(h * RK45Coefficients::b5s) * k5[i] + (T)(h * RK45Coefficients::b6s) * k6[i];
+		T e = (T)(h * RK45Coefficients::d1) * k1[i] + (T)(h *(RK45Coefficients::d2)) * k2[i] + (T)(h * RK45Coefficients::d3) * k3[i]
+			+ (T)(h * RK45Coefficients::d4) * k4[i] + (T)(h * RK45Coefficients::d5) * k5[i] + (T)(h * RK45Coefficients::d6) * k6[i];
 
 		double sc = atol + rtol * fmax(mag(y[i]), mag(y5));
+		// printf("%i: e %.5e sc %f\n", i, mag(e), sc);
 		// guard against sc=0 if both are exactly zero
 		// this is the scale for the relative error
 		sc = fmax(sc, 1e-300);
 
 		double z = mag(e) / sc;
-		local_sumsq += z * z;
+		local_sumsq += 1.0/N * z * z;
 	}
 
 	double block_sum = block_reduce_sum<BLOCK_SIZE, cg::plus<double>>(local_sumsq);

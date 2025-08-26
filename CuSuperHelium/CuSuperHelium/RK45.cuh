@@ -32,13 +32,13 @@ struct RK45WorkspaceGpu
 	T* yTemp; // Temporary storage for intermediate y values
 
 	// Scalars
-	T* scaledError; // Temporary storage for the scaled error calculation
+	double* scaledError; // Temporary storage for the scaled error calculation
 
 	T* rawMemory;
 
 	__host__ RK45WorkspaceGpu()
 	{
-		CHECK_CUDA(cudaMalloc((void**)&rawMemory, sizeof(T) * (8 * N + 1)));
+		CHECK_CUDA(cudaMalloc((void**)&rawMemory, sizeof(T) * (8 * N) + sizeof(double) * 1));
 		k1 = rawMemory;
 		k2 = k1 + N;
 		k3 = k2 + N;
@@ -48,7 +48,8 @@ struct RK45WorkspaceGpu
 
 		yAcceptedStep = k6 + N;
 		yTemp = yAcceptedStep + N;
-		scaledError = yTemp + 1;
+		scaledError = reinterpret_cast<double*>(yTemp + N);
+		cudaMemset(&scaledError, 0, sizeof(double));
 	}
 	__host__ ~RK45WorkspaceGpu()
 	{
@@ -84,7 +85,7 @@ template <typename T, size_t N>
 class RK45Base
 {
 public:
-	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep = 1e-2, double h_max = 1e10, double _h_min = -1.0);
+	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep = 1e-2, double h_max = 1e10, double _h_min = 1e-16);
 	~RK45Base();
 
 	[[nodiscard]] RK45_Result runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
@@ -97,6 +98,10 @@ public:
 	{ 
 		this->stream = stream;
 		this->problem.setStream(stream);
+	}
+	void initialize(T* initialState, bool onDevice = false);
+	T* getY() {
+		return this->workspace.yAcceptedStep;
 	}
 protected:
 	RK45WorkspaceGpu<T, N> workspace;
@@ -112,7 +117,7 @@ protected:
 	virtual inline double calculateNewTimestep(double oldTimestep, double error, bool accepting);
 	
 
-	void initialize(T* initialState, bool onDevice = false);
+	
 
 	cudaStream_t stream = cudaStreamPerThread; // default stream
 	AutonomousProblem<T, N>& problem;
@@ -136,12 +141,8 @@ protected:
 	const double h_max;
 };
 template <typename T, size_t N>
-RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), currentTimeStep(tstep), h_max(_h_max)
+RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
 {
-	if (_h_min > 0.0) // only set h_min if a positive value is given, otherwise use the default value
-	{
-		this->h_min = _h_min;
-	}
 }
 template <typename T, size_t N>
 RK45Base<T, N>::~RK45Base()
@@ -235,9 +236,11 @@ void RK45Base<T, N>::initialize(T* initialState, bool onDevice)
 template <size_t N>
 class RK45_std_complex : public RK45Base<std_complex, N>
 {
+public:
+	using RK45Base<std_complex, N>::RK45Base;
 private:
-	size_t threads = 256;
-	size_t blocks = (N + threads - 1) / threads;
+	const size_t threads = 256;
+	const size_t blocks = (N + threads - 1) / threads;
 protected:
 	virtual inline void calculateTempY(uint16_t step, double timeStep) override;
 	// Calculate the new y value after a successful step and saves it in workspace.yAcceptedStep
@@ -283,8 +286,10 @@ inline void RK45_std_complex<N>::calculateWeightedY(double timeStep)
 template<size_t N>
 inline void RK45_std_complex<N>::calculateScaledError(double atol, double rtol, double timeStep)
 {
+	// set to 0 the global variable
+	cudaMemsetAsync(this->workspace.scaledError, 0, sizeof(double), this->stream);
 	// calculates the scaled error and the 5th order solution and saves it in this->workspace.scaledError and workspace.yTemp respectively
-	rk45_error_and_y5<std_complex, threads><<<blocks, threads, 0, this->stream>>>(this->workspace.yAcceptedStep,
+	rk45_error_and_y5<std_complex, 256><<<blocks, threads, 0, this->stream>>>(this->workspace.yAcceptedStep,
 																this->workspace.k1,
 																this->workspace.k2,
 																this->workspace.k3,
@@ -297,4 +302,5 @@ inline void RK45_std_complex<N>::calculateScaledError(double atol, double rtol, 
 	// copy the scaled error back to host
 	cudaMemcpyAsync(&this->tempValues.scaledError, this->workspace.scaledError, sizeof(double), cudaMemcpyDeviceToHost, this->stream);
 	cudaStreamSynchronize(this->stream);
+	this->tempValues.scaledError = sqrt(this->tempValues.scaledError);
 }

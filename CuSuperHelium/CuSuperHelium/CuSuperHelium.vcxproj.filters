@@ -55,5 +55,11 @@
     <ClInclude Include="LinearAlgebra.cuh">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="Reductions.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="RK45_Kernels.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

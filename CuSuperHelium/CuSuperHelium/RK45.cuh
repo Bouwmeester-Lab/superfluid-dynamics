@@ -12,6 +12,8 @@
 #include <algorithm> // std::clamp
 #include <cmath>     // std::pow
 #include "LinearAlgebra.cuh"
+#include "RK45_Kernels.cuh"
+
 /// <summary>
 /// Defines the workspace memory needed for the RK45 method in the GPU.
 /// </summary>
@@ -29,11 +31,14 @@ struct RK45WorkspaceGpu
 	T* yAcceptedStep; // Y values for each accepted step. This is kept unchanged during the step and is only updated when the step is accepted.
 	T* yTemp; // Temporary storage for intermediate y values
 
+	// Scalars
+	T* scaledError; // Temporary storage for the scaled error calculation
+
 	T* rawMemory;
 
 	__host__ RK45WorkspaceGpu()
 	{
-		CHECK_CUDA(cudaMalloc((void**)&rawMemory, sizeof(T) * (8 * N)));
+		CHECK_CUDA(cudaMalloc((void**)&rawMemory, sizeof(T) * (8 * N + 1)));
 		k1 = rawMemory;
 		k2 = k1 + N;
 		k3 = k2 + N;
@@ -43,6 +48,7 @@ struct RK45WorkspaceGpu
 
 		yAcceptedStep = k6 + N;
 		yTemp = yAcceptedStep + N;
+		scaledError = yTemp + 1;
 	}
 	__host__ ~RK45WorkspaceGpu()
 	{
@@ -87,18 +93,28 @@ public:
 		this->atol = atol;
 		this->rtol = rtol;
 	}
+	void setStream(cudaStream_t stream) 
+	{ 
+		this->stream = stream;
+		this->problem.setStream(stream);
+	}
 protected:
 	RK45WorkspaceGpu<T, N> workspace;
 	virtual inline void calculateTempY(uint16_t step, double timeStep) = 0;
 	// Calculate the new y value after a successful step and saves it in workspace.yAcceptedStep
 	virtual inline void calculateWeightedY(double timeStep) = 0;
-	virtual inline double calculateScaledError(double atol, double rtol) = 0;
+	/// <summary>
+	/// Calulates the scaled error for the current step and saves it in tempValues.scaledError
+	/// </summary>
+	/// <param name="atol"></param>
+	/// <param name="rtol"></param>
+	virtual inline void calculateScaledError(double atol, double rtol, double timeStep) = 0; 
 	virtual inline double calculateNewTimestep(double oldTimestep, double error, bool accepting);
 	
 
 	void initialize(T* initialState, bool onDevice = false);
 
-
+	cudaStream_t stream = cudaStreamPerThread; // default stream
 	AutonomousProblem<T, N>& problem;
 	DataLogger<T, N>& logger;
 
@@ -157,7 +173,7 @@ RK45_Result RK45Base<T, N>::runStep(int i)
 	problem.run(workspace.yTemp, workspace.k6);
 
 	
-	tempValues.scaledError = calculateScaledError(atol, rtol);
+	calculateScaledError(atol, rtol, h);
 	tempValues.acceptedStep = tempValues.scaledError <= 1.0;
 	
 
@@ -214,41 +230,7 @@ void RK45Base<T, N>::initialize(T* initialState, bool onDevice)
 }
 
 
-struct RK45Coefficients{
-	// Coefficients for the RK45 method
-	// a_ij coefficients
-	static constexpr double a21 = 1.0 / 4.0;
-	static constexpr double a31 = 3.0 / 32.0;
-	static constexpr double a32 = 9.0 / 32.0;
-	static constexpr double a41 = 1932.0 / 2197.0;
-	static constexpr double a42 = -7200.0 / 2197.0;
-	static constexpr double a43 = 7296.0 / 2197.0;
-	static constexpr double a51 = 439.0 / 216.0;
-	static constexpr double a52 = -8.0;
-	static constexpr double a53 = 3680.0 / 513.0;
-	static constexpr double a54 = -845.0 / 4104.0;
-	static constexpr double a61 = -8.0 / 27.0;
-	static constexpr double a62 = 2.0;
-	static constexpr double a63 = -3544.0 / 2565.0;
-	static constexpr double a64 = 1859.0 / 4104.0;
-	static constexpr double a65 = -11.0 / 40.0;
-	// b_i coefficients for the 5th order solution
-	static constexpr double b1 = 16.0 / 135.0;
-	static constexpr double b2 = 0.0;
-	static constexpr double b3 = 6656.0 / 12825.0;
-	static constexpr double b4 = 28561.0 / 56430.0;
-	static constexpr double b5 = -9.0 / 50.0;
-	static constexpr double b6 = 2.0 / 55.0;
-	// b*_i coefficients for the 4th order solution
-	static constexpr double b1s = 25.0 / 216.0;
-	static constexpr double b2s = 0.0;
-	static constexpr double b3s = 1408.0 / 2565.0;
-	static constexpr double b4s = 2197.0 / 4104.0;
-	static constexpr double b5s = -1.0 / 5.0;
-	static constexpr double b6s = 0.0;
-	// c_i coefficients (nodes)
-	static constexpr double c1 = 0;
-};
+
 
 template <size_t N>
 class RK45_std_complex : public RK45Base<std_complex, N>
@@ -260,7 +242,7 @@ protected:
 	virtual inline void calculateTempY(uint16_t step, double timeStep) override;
 	// Calculate the new y value after a successful step and saves it in workspace.yAcceptedStep
 	virtual inline void calculateWeightedY(double timeStep) override;
-	virtual inline double calculateScaledError(double atol, double rtol) override;
+	virtual inline void calculateScaledError(double atol, double rtol, double timeStep) override;
 };
 
 template<size_t N>
@@ -271,19 +253,19 @@ inline void RK45_std_complex<N>::calculateTempY(uint16_t step, double timeStep)
 	{
 	case 1:
 		// calculate y + a21*h*k1 (because k1 is not multiplied by h yet)
-		axpy<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a21 * timeStep, N);
+		axpy<std_complex><<<blocks, threads,0, this->stream>>>(this->workspace.k1, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a21 * timeStep, N);
 		break;
 	case 2:
-		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a31 * timeStep, RK45Coefficients::a32 * timeStep, N);
+		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a31 * timeStep, RK45Coefficients::a32 * timeStep, N);
 		break;
 	case 3:
-		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a41 * timeStep, RK45Coefficients::a42 * timeStep, RK45Coefficients::a43 * timeStep, N);
+		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a41 * timeStep, RK45Coefficients::a42 * timeStep, RK45Coefficients::a43 * timeStep, N);
 		break;
 	case 4:
-		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a51 * timeStep, RK45Coefficients::a52 * timeStep, RK45Coefficients::a53 * timeStep, RK45Coefficients::a54 * timeStep, N);
+		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a51 * timeStep, RK45Coefficients::a52 * timeStep, RK45Coefficients::a53 * timeStep, RK45Coefficients::a54 * timeStep, N);
 		break;
 	case 5:
-		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.k5, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a61 * timeStep, RK45Coefficients::a62 * timeStep, RK45Coefficients::a63 * timeStep, RK45Coefficients::a64 * timeStep, RK45Coefficients::a65 * timeStep, N);
+		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.k5, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a61 * timeStep, RK45Coefficients::a62 * timeStep, RK45Coefficients::a63 * timeStep, RK45Coefficients::a64 * timeStep, RK45Coefficients::a65 * timeStep, N);
 		break;
 	default:
 		throw std::invalid_argument("Invalid step number in calculateTempY");
@@ -292,7 +274,27 @@ inline void RK45_std_complex<N>::calculateTempY(uint16_t step, double timeStep)
 }
 
 template<size_t N>
-inline double RK45_std_complex<N>::calculateScaledError(double atol, double rtol)
+inline void RK45_std_complex<N>::calculateWeightedY(double timeStep)
 {
-	return 0.0;
+	// at this stage the new y is saved in yTemp, so we just need to copy it to yAcceptedStep
+	cudaMemcpyAsync(this->workspace.yAcceptedStep, this->workspace.yTemp, sizeof(std_complex) * N, cudaMemcpyDeviceToDevice, this->stream);
+}
+
+template<size_t N>
+inline void RK45_std_complex<N>::calculateScaledError(double atol, double rtol, double timeStep)
+{
+	// calculates the scaled error and the 5th order solution and saves it in this->workspace.scaledError and workspace.yTemp respectively
+	rk45_error_and_y5<std_complex, threads><<<blocks, threads, 0, this->stream>>>(this->workspace.yAcceptedStep,
+																this->workspace.k1,
+																this->workspace.k2,
+																this->workspace.k3,
+																this->workspace.k4,
+																this->workspace.k5,
+																this->workspace.k6,
+																this->workspace.yTemp, // reuse yTemp as temporary storage for the 5th order solution
+																timeStep, atol, rtol, 
+																this->workspace.scaledError, N);
+	// copy the scaled error back to host
+	cudaMemcpyAsync(&this->tempValues.scaledError, this->workspace.scaledError, sizeof(double), cudaMemcpyDeviceToHost, this->stream);
+	cudaStreamSynchronize(this->stream);
 }

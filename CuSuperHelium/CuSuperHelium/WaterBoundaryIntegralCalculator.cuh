@@ -182,6 +182,12 @@ public:
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override;
 
+	// TODO: implement the setStream function to allow for asynchronous operations
+	virtual void setStream(cudaStream_t stream) override
+	{
+		
+	} ///< Set the CUDA stream for asynchronous operations
+
 	std_complex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
 	std_complex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
 	std_complex* devRhsPhi; ///< Device pointer to the right-hand side of the phi equation (derivative of Phi/dt)

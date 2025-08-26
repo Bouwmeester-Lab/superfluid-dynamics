@@ -24,4 +24,5 @@ public:
 	/// <param name="initialState"></param>
 	/// <param name="rhs">The rhs vector where to place the result</param>
 	virtual void run(T* initialState, T* rhs) = 0;
+	virtual void setStream(cudaStream_t stream) = 0;
 };

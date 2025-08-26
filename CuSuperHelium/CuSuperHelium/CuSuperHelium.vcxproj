@@ -117,7 +117,9 @@
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
+    <ClInclude Include="Reductions.cuh" />
     <ClInclude Include="RK45.cuh" />
+    <ClInclude Include="RK45_Kernels.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="SolitonPeak.h" />

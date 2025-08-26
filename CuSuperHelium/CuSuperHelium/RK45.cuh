@@ -13,7 +13,7 @@
 #include <cmath>     // std::pow
 #include "LinearAlgebra.cuh"
 #include "RK45_Kernels.cuh"
-
+#include <stdexcept>
 /// <summary>
 /// Defines the workspace memory needed for the RK45 method in the GPU.
 /// </summary>
@@ -75,11 +75,17 @@ struct RK45WorkspaceGpu
 	RK45WorkspaceGpu& operator=(RK45WorkspaceGpu&&) = delete;
 };
 
-enum class RK45_Result
+enum class RK45StepResult
 {
 	StepAccepted,
 	StepRejected
 };
+
+enum class RK45Result {
+	ReachedEndTime,
+
+};
+
 
 template <typename T, size_t N>
 class RK45Base
@@ -88,7 +94,9 @@ public:
 	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep = 1e-2, double h_max = 1e10, double _h_min = 1e-16);
 	~RK45Base();
 
-	[[nodiscard]] RK45_Result runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
+	[[nodiscard]] RK45StepResult runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
+	RK45Result runEvolution(size_t maxSteps, double endTime, size_t maxRejected = 500);
+
 	void setTolerance(double atol, double rtol) 
 	{ 
 		this->atol = atol;
@@ -102,6 +110,9 @@ public:
 	void initialize(T* initialState, bool onDevice = false);
 	T* getY() {
 		return this->workspace.yAcceptedStep;
+	}
+	double getCurrentTime() const {
+		return currentTime;
 	}
 protected:
 	RK45WorkspaceGpu<T, N> workspace;
@@ -128,7 +139,7 @@ protected:
 
 	
 	double currentTimeStep = 1e-3;
-
+	double currentTime = 0.0;
 
 	struct StepTempValues {
 		double timestepNew = 1e-3;
@@ -139,6 +150,7 @@ protected:
 	// bounds for timestep
 	const double h_min = 1e-16;
 	const double h_max;
+
 };
 template <typename T, size_t N>
 RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
@@ -150,7 +162,42 @@ RK45Base<T, N>::~RK45Base()
 }
 
 template <typename T, size_t N>
-RK45_Result RK45Base<T, N>::runStep(int i)
+RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t maxRejectedSteps)
+{
+	size_t rejectedTimes = 0;
+	double maxStepSize = -1;
+	for (size_t i = 0; i < maxSteps; ++i) {
+		// before running check for completion
+		if (currentTime >= endTime) 
+		{
+			return RK45Result::ReachedEndTime;
+		}
+		// ensure that the time step is not larger than needed to reach the end time! We do not want to over shoot.
+		maxStepSize = endTime - currentTime;
+
+		if (maxStepSize < currentTimeStep) {
+			currentTimeStep = maxStepSize;
+		}
+		
+		rejectedTimes = 0;
+		for (;;) {
+			auto state = runStep(i);
+			if (state == RK45StepResult::StepAccepted) {
+				
+				break;
+			}
+			else {
+				rejectedTimes++;
+			}
+			if (rejectedTimes > maxRejectedSteps) {
+				throw std::runtime_error("The equation might be stiff. Max number of rejected steps reached.");
+			}
+		}
+	}
+}
+
+template <typename T, size_t N>
+RK45StepResult RK45Base<T, N>::runStep(int i)
 {
 	const double h = currentTimeStep;
 	// calculate k1
@@ -184,14 +231,16 @@ RK45_Result RK45Base<T, N>::runStep(int i)
 		// accept step
 		calculateWeightedY(h);
 		currentTimeStep = tempValues.timestepNew;
+		// if the step is accepted then the currentTime can be updated
+		currentTime += h;
 		if (logger.shouldCopy(i))
-			logger.setReadyToCopy(workspace.yAcceptedStep);
-		return RK45_Result::StepAccepted;
+			logger.setReadyToCopy(workspace.yAcceptedStep, this->stream, currentTime);
+		return RK45StepResult::StepAccepted;
 	}
 	else {
 		// reject step
 		currentTimeStep = tempValues.timestepNew;
-		return RK45_Result::StepRejected;
+		return RK45StepResult::StepRejected;
 	}
 }
 

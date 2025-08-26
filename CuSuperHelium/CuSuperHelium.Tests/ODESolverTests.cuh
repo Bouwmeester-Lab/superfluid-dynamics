@@ -264,8 +264,8 @@ TEST(ODE_Solvers, RK45)
 
 	// create a simple test problem
 	OscillatoryProblemStdComplex<N> problem;
-	double dt = 0.1;
-	int steps = 500;
+	double dt = 0.001;
+	int steps = 10000;
 	int loggingSteps = 100; // log every 1000 steps
 	DataLogger<std_complex, N> stateLogger;
 	stateLogger.setSize(steps / loggingSteps);
@@ -274,21 +274,9 @@ TEST(ODE_Solvers, RK45)
 
 	RK45_std_complex<N> stepper(problem, stateLogger, dt);
 	stepper.initialize(devInitialState, true);
+	stepper.setTolerance(1e-8, 1e-8);
 
-	size_t rejectedTimes = 0;
-	for (int i = 0; i < steps; ++i)
-	{
-		rejectedTimes = 0;
-		for (;;) {
-			auto state = stepper.runStep(i);
-			if (state == RK45_Result::StepAccepted) {
-				break;
-			}
-			else {
-				rejectedTimes++;
-			}
-		}
-	}
+	stepper.runEvolution(steps, dt * steps);
 	cudaDeviceSynchronize();
 	// Copy the results back to the host
 	cuDoubleComplex* results = new cuDoubleComplex[N];
@@ -310,6 +298,7 @@ TEST(ODE_Solvers, RK45)
 	plt::plot(x0, y0, { {"label", "initial ys"} });
 	//plt::plot(y0, { {"label", "initial y0"} });
 	plt::plot(x, y, { {"label", "final y"} });
+	plt::title(std::format("Evolution of equation until t={:.5e} s", stepper.getCurrentTime()));
 	//plt::plot(y, { {"label", "final y"} });
 
 	plt::legend();

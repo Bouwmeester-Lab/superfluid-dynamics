@@ -10,22 +10,29 @@ public:
 	DataLogger();
 	~DataLogger();
 
-	void setSize(size_t size)
+	void setSize(size_t size, bool allocateTimes = true)
 	{
 		this->size = size;
 		data.resize(size, std::vector<T>(N));
+		if (allocateTimes) {
+			times.resize(size, 0.0);
+		}
 	}
 	void setStep(size_t steps)
 	{
 		this->steps = steps;
 	}
-	void setReadyToCopy(T* devPointer, cudaStream_t stream = cudaStreamPerThread) 
+	void setReadyToCopy(T* devPointer, cudaStream_t stream = cudaStreamPerThread, double time = -1) 
 	{
 		cudaEventRecord(readyToCopy, stream);
 		copyScheduled = true;
 
 		cudaStreamWaitEvent(copyStream, readyToCopy, 0);
+		if (time >= 0.0) {
+			times[currentIndex] = time;
+		}
 		cudaMemcpyAsync(data.at(currentIndex++).data(), devPointer, N * sizeof(T), cudaMemcpyDeviceToHost, copyStream);
+		
 		cudaEventRecord(copyDone, copyStream);
 	}
 
@@ -59,11 +66,19 @@ public:
 	{
 		return data;
 	}
+
+	std::vector<double>& getTimes() {
+		return times;
+	}
+
 private:
 	cudaEvent_t readyToCopy, copyDone;
 	cudaStream_t copyStream;
 	size_t size;
+
 	std::vector<std::vector<T>> data;
+	std::vector<double> times;
+
 	bool copyScheduled = false;
 	size_t currentIndex = 0;
 	size_t steps = 1;

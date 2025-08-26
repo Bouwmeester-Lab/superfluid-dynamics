@@ -11,7 +11,7 @@
 #include "utilities.cuh"
 #include <algorithm> // std::clamp
 #include <cmath>     // std::pow
-
+#include "LinearAlgebra.cuh"
 /// <summary>
 /// Defines the workspace memory needed for the RK45 method in the GPU.
 /// </summary>
@@ -75,11 +75,11 @@ enum class RK45_Result
 };
 
 template <typename T, size_t N>
-class RK45
+class RK45Base
 {
 public:
-	RK45(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep = 1e-2, double h_max = 1e10, double _h_min = -1.0);
-	~RK45();
+	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep = 1e-2, double h_max = 1e10, double _h_min = -1.0);
+	~RK45Base();
 
 	[[nodiscard]] RK45_Result runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
 	void setTolerance(double atol, double rtol) 
@@ -120,7 +120,7 @@ protected:
 	const double h_max;
 };
 template <typename T, size_t N>
-RK45<T, N>::RK45(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), currentTimeStep(tstep), h_max(_h_max)
+RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), currentTimeStep(tstep), h_max(_h_max)
 {
 	if (_h_min > 0.0) // only set h_min if a positive value is given, otherwise use the default value
 	{
@@ -128,12 +128,12 @@ RK45<T, N>::RK45(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& l
 	}
 }
 template <typename T, size_t N>
-RK45<T, N>::~RK45()
+RK45Base<T, N>::~RK45Base()
 {
 }
 
 template <typename T, size_t N>
-RK45_Result RK45<T, N>::runStep(int i)
+RK45_Result RK45Base<T, N>::runStep(int i)
 {
 	const double h = currentTimeStep;
 	// calculate k1
@@ -179,7 +179,7 @@ RK45_Result RK45<T, N>::runStep(int i)
 }
 
 template<typename T, size_t N>
-inline double RK45<T, N>::calculateNewTimestep(double oldTimestep, double error, bool accepting)
+inline double RK45Base<T, N>::calculateNewTimestep(double oldTimestep, double error, bool accepting)
 {
 	constexpr double safety = 0.9;
 	constexpr double minfac = 0.2;   // at most 5x shrink
@@ -203,7 +203,7 @@ inline double RK45<T, N>::calculateNewTimestep(double oldTimestep, double error,
 }
 
 template<typename T, size_t N>
-void RK45<T, N>::initialize(T* initialState, bool onDevice)
+void RK45Base<T, N>::initialize(T* initialState, bool onDevice)
 {
 	if (onDevice) {
 		CHECK_CUDA(cudaMemcpy(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyDeviceToDevice));
@@ -211,4 +211,88 @@ void RK45<T, N>::initialize(T* initialState, bool onDevice)
 	else {
 		CHECK_CUDA(cudaMemcpy(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyHostToDevice));
 	}
+}
+
+
+struct RK45Coefficients{
+	// Coefficients for the RK45 method
+	// a_ij coefficients
+	static constexpr double a21 = 1.0 / 4.0;
+	static constexpr double a31 = 3.0 / 32.0;
+	static constexpr double a32 = 9.0 / 32.0;
+	static constexpr double a41 = 1932.0 / 2197.0;
+	static constexpr double a42 = -7200.0 / 2197.0;
+	static constexpr double a43 = 7296.0 / 2197.0;
+	static constexpr double a51 = 439.0 / 216.0;
+	static constexpr double a52 = -8.0;
+	static constexpr double a53 = 3680.0 / 513.0;
+	static constexpr double a54 = -845.0 / 4104.0;
+	static constexpr double a61 = -8.0 / 27.0;
+	static constexpr double a62 = 2.0;
+	static constexpr double a63 = -3544.0 / 2565.0;
+	static constexpr double a64 = 1859.0 / 4104.0;
+	static constexpr double a65 = -11.0 / 40.0;
+	// b_i coefficients for the 5th order solution
+	static constexpr double b1 = 16.0 / 135.0;
+	static constexpr double b2 = 0.0;
+	static constexpr double b3 = 6656.0 / 12825.0;
+	static constexpr double b4 = 28561.0 / 56430.0;
+	static constexpr double b5 = -9.0 / 50.0;
+	static constexpr double b6 = 2.0 / 55.0;
+	// b*_i coefficients for the 4th order solution
+	static constexpr double b1s = 25.0 / 216.0;
+	static constexpr double b2s = 0.0;
+	static constexpr double b3s = 1408.0 / 2565.0;
+	static constexpr double b4s = 2197.0 / 4104.0;
+	static constexpr double b5s = -1.0 / 5.0;
+	static constexpr double b6s = 0.0;
+	// c_i coefficients (nodes)
+	static constexpr double c1 = 0;
+};
+
+template <size_t N>
+class RK45_std_complex : public RK45Base<std_complex, N>
+{
+private:
+	size_t threads = 256;
+	size_t blocks = (N + threads - 1) / threads;
+protected:
+	virtual inline void calculateTempY(uint16_t step, double timeStep) override;
+	// Calculate the new y value after a successful step and saves it in workspace.yAcceptedStep
+	virtual inline void calculateWeightedY(double timeStep) override;
+	virtual inline double calculateScaledError(double atol, double rtol) override;
+};
+
+template<size_t N>
+inline void RK45_std_complex<N>::calculateTempY(uint16_t step, double timeStep)
+{
+	// This method calculates the intermediate y values needed for the RK45 method.
+	switch (step)
+	{
+	case 1:
+		// calculate y + a21*h*k1 (because k1 is not multiplied by h yet)
+		axpy<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a21 * timeStep, N);
+		break;
+	case 2:
+		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a31 * timeStep, RK45Coefficients::a32 * timeStep, N);
+		break;
+	case 3:
+		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a41 * timeStep, RK45Coefficients::a42 * timeStep, RK45Coefficients::a43 * timeStep, N);
+		break;
+	case 4:
+		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a51 * timeStep, RK45Coefficients::a52 * timeStep, RK45Coefficients::a53 * timeStep, RK45Coefficients::a54 * timeStep, N);
+		break;
+	case 5:
+		lincomb<std_complex><<<blocks, threads>>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.k5, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a61 * timeStep, RK45Coefficients::a62 * timeStep, RK45Coefficients::a63 * timeStep, RK45Coefficients::a64 * timeStep, RK45Coefficients::a65 * timeStep, N);
+		break;
+	default:
+		throw std::invalid_argument("Invalid step number in calculateTempY");
+		break;
+	}
+}
+
+template<size_t N>
+inline double RK45_std_complex<N>::calculateScaledError(double atol, double rtol)
+{
+	return 0.0;
 }

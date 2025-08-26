@@ -52,5 +52,8 @@
       <Filter>Functions</Filter>
     </ClInclude>
     <ClInclude Include="RK45.cuh" />
+    <ClInclude Include="LinearAlgebra.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

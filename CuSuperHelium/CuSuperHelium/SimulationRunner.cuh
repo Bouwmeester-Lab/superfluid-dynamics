@@ -12,6 +12,7 @@
 #include "matplotlibcpp.h"
 #include "VideoMaking.h"
 #include <highfive/H5File.hpp>
+#include "RK45.cuh"
 
 namespace plt = matplotlibcpp;
 
@@ -34,6 +35,71 @@ struct ParticleData {
     std_complex* Potential; // Array of particle potentials
 };
 
+template <int N>
+struct KineticEnergyFunctor {
+private:
+    BoundaryProblem<N>& boundaryProblem;
+public:
+    KineticEnergyFunctor(BoundaryProblem<N>& boundaryProblem) : boundaryProblem(boundaryProblem)
+    {
+
+    }
+
+    double operator()() 
+    {
+        return boundaryProblem.energyContainer.kineticEnergy->getEnergy();
+    }
+};
+
+template <int N>
+struct PotentialEnergyFunctor {
+private:
+    BoundaryProblem<N>& boundaryProblem;
+public:
+    PotentialEnergyFunctor(BoundaryProblem<N>& boundaryProblem) : boundaryProblem(boundaryProblem)
+    {
+
+    }
+
+    double operator()()
+    {
+        return boundaryProblem.energyContainer.potentialEnergy->getEnergy();
+    }
+};
+
+template <int N>
+struct VolumeFluxFunctor {
+private:
+    BoundaryIntegralCalculator<N>& integralCalculator;
+public:
+    VolumeFluxFunctor(BoundaryIntegralCalculator<N>& integralCalculator) : integralCalculator(integralCalculator)
+    {
+
+    }
+
+    double operator()()
+    {
+        return integralCalculator.volumeFlux.getEnergy();
+    }
+};
+
+struct TotalEnergyFunctor 
+{
+private:
+    std::shared_ptr<ValueLogger> kineticLogger;
+    std::shared_ptr<ValueLogger> potentialLogger;
+public:
+    TotalEnergyFunctor(std::shared_ptr<ValueLogger> kineticLogger, std::shared_ptr<ValueLogger> potentialLogger) : kineticLogger(kineticLogger), potentialLogger(potentialLogger)
+    {
+
+    }
+
+    double operator()() 
+    {
+        return kineticLogger->getLastLoggedValue() + potentialLogger->getLastLoggedValue();
+    }
+};
+
 template <int numParticles>
 int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
@@ -50,11 +116,22 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
     BoundaryIntegralCalculator<numParticles> boundaryIntegrator(properties, boundaryProblem);
 
-    ValueLogger kineticEnergyLogger(loggingSteps);
-    ValueLogger potentialEnergyLogger(loggingSteps);
-    ValueLogger surfaceEnergyLogger(loggingSteps);
-    ValueLogger totalEnergyLogger(loggingSteps);
-    ValueLogger volumeFluxLogger(loggingSteps);
+    // energy, constant functors
+    KineticEnergyFunctor<numParticles> kineticEnergy(boundaryProblem);
+    PotentialEnergyFunctor<numParticles> potentialEnergy(boundaryProblem);
+    VolumeFluxFunctor<numParticles> volumeFluxFunctor(boundaryIntegrator);
+
+
+    std::shared_ptr<ValueLogger> kineticEnergyLogger = std::make_shared<ValueCallableLogger<KineticEnergyFunctor<numParticles>>>(kineticEnergy, loggingSteps);
+    std::shared_ptr<ValueLogger> potentialEnergyLogger = std::make_shared<ValueCallableLogger<PotentialEnergyFunctor<numParticles>>>(potentialEnergy, loggingSteps);
+    std::shared_ptr<ValueLogger> volumeFluxLogger = std::make_shared<ValueCallableLogger<VolumeFluxFunctor<numParticles>>>(volumeFluxFunctor, loggingSteps);
+    
+    
+    TotalEnergyFunctor totalEnergyFunctor(kineticEnergyLogger, potentialEnergyLogger);
+    
+    std::shared_ptr<ValueLogger> totalEnergyLogger = std::make_shared<ValueCallableLogger<TotalEnergyFunctor>>(totalEnergyFunctor, loggingSteps);
+
+
 
 
 
@@ -64,30 +141,31 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     stateLogger.setSize(numSteps / loggingSteps);
     stateLogger.setStep(loggingSteps);
 
-    AutonomousRungeKuttaStepper<std_complex, 2 * numParticles> rungeKunta(boundaryIntegrator, stateLogger, dt);
+    RK45_std_complex<2 * numParticles> rungeKunta(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
 
     rungeKunta.initialize(boundaryIntegrator.getY0());
-    rungeKunta.setTimeStep(dt);
+    //rungeKunta.setTimeStep(dt);
+    rungeKunta.runEvolution(numSteps, dt * numSteps);
 
-    for (int i = 0; i < numSteps; ++i) {
+    /*for (int i = 0; i < numSteps; ++i) {
         rungeKunta.runStep(i);
 
         if (kineticEnergyLogger.shouldLog(i)) {
-            kineticEnergyLogger.logValue(boundaryProblem.energyContainer.kineticEnergy->getEnergy());
+            kineticEnergyLogger.logValue();
         }
         if (potentialEnergyLogger.shouldLog(i)) {
-            potentialEnergyLogger.logValue(boundaryProblem.energyContainer.potentialEnergy->getEnergy());
+            potentialEnergyLogger.logValue();
         }
         if (volumeFluxLogger.shouldLog(i)) {
-            volumeFluxLogger.logValue(boundaryIntegrator.volumeFlux.getEnergy());
+            volumeFluxLogger.logValue();
         }
         if (totalEnergyLogger.shouldLog(i)) {
-            totalEnergyLogger.logValue(kineticEnergyLogger.getLastLoggedValue() + potentialEnergyLogger.getLastLoggedValue());
+            totalEnergyLogger.logValue();
         }
         if (i % loggingSteps == 0) {
             loggedSteps[i / loggingSteps] = i;
         }
-    }
+    }*/
 
     std::vector<std::vector<std_complex>>& timeStepData = stateLogger.getAllData();
 
@@ -126,19 +204,19 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
         //dataset.write(reinterpret_cast<std::vector<std::vector<std::complex<double>>&>(timeStepData));
 		// Create datasets for energy logs
-        HighFive::DataSpace energySpace({ kineticEnergyLogger.getLoggedValuesCount() });
+        HighFive::DataSpace energySpace({ kineticEnergyLogger->getLoggedValuesCount() });
         HighFive::DataSet kineticEnergyDataset = file.createDataSet<double>("KineticEnergy", energySpace);
-        kineticEnergyDataset.write(kineticEnergyLogger.getLoggedValues());
+        kineticEnergyDataset.write(kineticEnergyLogger->getLoggedValues());
 
         
         HighFive::DataSet potentialEnergyDataset = file.createDataSet<double>("PotentialEnergy", energySpace);
-        potentialEnergyDataset.write(potentialEnergyLogger.getLoggedValues());
+        potentialEnergyDataset.write(potentialEnergyLogger->getLoggedValues());
 
         HighFive::DataSet totalEnergyDataset = file.createDataSet<double>("TotalEnergy", energySpace);
-        totalEnergyDataset.write(totalEnergyLogger.getLoggedValues());
+        totalEnergyDataset.write(totalEnergyLogger->getLoggedValues());
 
         HighFive::DataSet volumeFluxDataset = file.createDataSet<double>("VolumeFlux", energySpace);
-		volumeFluxDataset.write(volumeFluxLogger.getLoggedValues());
+		volumeFluxDataset.write(volumeFluxLogger->getLoggedValues());
     }
     
 
@@ -171,16 +249,16 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
         plt::figure();
         plt::title("Kinetic, Potential and Total Energy");
-        plt::plot(loggedSteps, kineticEnergyLogger.getLoggedValues(), { {"label", "Kinetic Energy"} });
-        plt::plot(loggedSteps, potentialEnergyLogger.getLoggedValues(), { {"label", "Potential Energy"} });
-        plt::plot(loggedSteps, totalEnergyLogger.getLoggedValues(), { {"label", "Total Energy"} });
+        plt::plot(loggedSteps, kineticEnergyLogger->getLoggedValues(), { {"label", "Kinetic Energy"} });
+        plt::plot(loggedSteps, potentialEnergyLogger->getLoggedValues(), { {"label", "Potential Energy"} });
+        plt::plot(loggedSteps, totalEnergyLogger->getLoggedValues(), { {"label", "Total Energy"} });
 
         //plt::xlabel("Time Steps");
         //plt::ylabel("Energy");
 
         plt::figure();
         plt::title("Volume Flux");
-        plt::plot(loggedSteps, volumeFluxLogger.getLoggedValues(), { {"label", "Volume Flux"} });
+        plt::plot(loggedSteps, volumeFluxLogger->getLoggedValues(), { {"label", "Volume Flux"} });
         plt::xlabel("Time Steps");
         plt::ylabel("Volume Flux");
         plt::legend();

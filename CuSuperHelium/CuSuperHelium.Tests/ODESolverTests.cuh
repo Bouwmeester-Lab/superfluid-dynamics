@@ -272,7 +272,7 @@ TEST(ODE_Solvers, RK45)
 	stateLogger.setStep(loggingSteps);
 
 
-	RK45_std_complex<N> stepper(problem, stateLogger, dt);
+	RK45_std_complex<N> stepper(problem, stateLogger, {}, dt);
 	stepper.initialize(devInitialState, true);
 	stepper.setTolerance(1e-8, 1e-8);
 

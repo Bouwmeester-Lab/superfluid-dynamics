@@ -7,7 +7,9 @@ class ValueLogger
 public:
 	ValueLogger(int stepInterval);
 	~ValueLogger();
+	
 	void logValue(double value);
+	virtual void logValue() = 0;
 	bool shouldLog(const int currentStep) const 
 	{ 
 		return currentStep % stepInterval == 0; 
@@ -45,3 +47,17 @@ void ValueLogger::logValue(double value)
 {
 	loggedValues.push_back(value);
 }
+
+template <typename T>
+class ValueCallableLogger : public ValueLogger
+{
+private:
+	T& functor;
+public:
+	ValueCallableLogger(T& functor, int intervelStep) : ValueLogger::ValueLogger(intervelStep), functor(functor)
+	{
+	}
+	virtual void logValue() override {
+		ValueLogger::logValue(functor());
+	}
+};

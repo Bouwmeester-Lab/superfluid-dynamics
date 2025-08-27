@@ -14,6 +14,8 @@
 #include "LinearAlgebra.cuh"
 #include "RK45_Kernels.cuh"
 #include <stdexcept>
+#include <initializer_list>
+#include "ValueLogger.h"
 /// <summary>
 /// Defines the workspace memory needed for the RK45 method in the GPU.
 /// </summary>
@@ -91,7 +93,7 @@ template <typename T, size_t N>
 class RK45Base
 {
 public:
-	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep = 1e-2, double h_max = 1e10, double _h_min = 1e-16);
+	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers,  double tstep = 1e-2, double h_max = 1e10, double _h_min = 1e-16);
 	~RK45Base();
 
 	[[nodiscard]] RK45StepResult runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
@@ -133,6 +135,7 @@ protected:
 	cudaStream_t stream = cudaStreamPerThread; // default stream
 	AutonomousProblem<T, N>& problem;
 	DataLogger<T, N>& logger;
+	std::vector<std::shared_ptr<ValueLogger>> valueLoggers;
 
 	double atol = 1e-6;
 	double rtol = 1e-3;
@@ -153,7 +156,7 @@ protected:
 
 };
 template <typename T, size_t N>
-RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
+RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), valueLoggers(_valueLoggers), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
 {
 }
 template <typename T, size_t N>
@@ -166,6 +169,7 @@ RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t 
 {
 	size_t rejectedTimes = 0;
 	double maxStepSize = -1;
+	
 	for (size_t i = 0; i < maxSteps; ++i) {
 		// before running check for completion
 		if (currentTime >= endTime) 
@@ -191,6 +195,16 @@ RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t 
 			}
 			if (rejectedTimes > maxRejectedSteps) {
 				throw std::runtime_error("The equation might be stiff. Max number of rejected steps reached.");
+			}
+		}
+		// the step has been accepted
+		// check if any of the value loggers require logging:
+#pragma unroll
+		for (auto& logger : valueLoggers) 
+		{
+			if (logger->shouldLog(i)) 
+			{
+				logger->logValue();
 			}
 		}
 	}

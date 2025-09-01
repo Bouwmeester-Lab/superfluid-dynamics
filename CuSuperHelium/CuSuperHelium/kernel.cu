@@ -45,7 +45,7 @@ double X(double j, double h, double omega, double t) {
 }
 
 double Y(double j, double h, double omega, double t) {
-    return h * PeriodicFunctions::gaussianNarrow::gaussianNarrow_periodic(j);  // std::cos((j - omega * t));
+    return h * PeriodicFunctions::gaussian::gaussian_periodic(j);  // std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
@@ -59,10 +59,10 @@ int main()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
     
-    int frames = 500;
+    int frames = 30;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 12e-3; // 15 ms
+	double finalTime = 15e-3; // 15 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
@@ -79,28 +79,28 @@ int main()
 	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 1024;//512;
+    const int N = 32;//512;
     
-	const double stepSize = 0.015;
+	const double stepSize = 50;
     const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 
     printf("Simulating %i steps representing %.2e s", steps, steps * stepSize * _t0);
     
 
-    std::array<std_complex, N> Z0;
+    std::array<std_complex, 2*N> Z0;
 	std::vector<double> X0(N, 0);
     std::vector<double> Y0(N, 0);
     
-	std::array<std_complex, N> PhiArr;
+	
 
     std::vector<double> Phireal(N, 0);
     double j;
 	for (int i = 0; i < N; i++) {
 		j = 2.0 * PI_d * i / (1.0 * N);
 		Z0[i] = std_complex(X(j, h, omega, t0), Y(j, h, omega, t0));
-        PhiArr[i] = std_complex(Phi(j, h, omega, t0, problemProperties.rho), 0.0);
-		Phireal[i] = PhiArr[i].real();
+        Z0[N +i] = std_complex(Phi(j, h, omega, t0, problemProperties.rho), 0.0);
+		Phireal[i] = Z0[N + i].real();
 
 		X0[i] = Z0[i].real();
 		Y0[i] = Z0[i].imag();
@@ -113,7 +113,7 @@ int main()
 
     ParticleData particleData;
 	particleData.Z = Z0.data();
-	particleData.Potential = PhiArr.data();
+	particleData.Potential =Z0.data() + N;
 
     
      return runSimulationHelium<N>(steps, stepSize, problemProperties, particleData, loggingSteps, true, true, _t0);

@@ -37,7 +37,7 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
 /// <param name="diag">The precalculated diagonal using the expression for Mkk</param>
 /// <param name="n">The size of the matrix (nxn)</param>
 /// <returns></returns>
-__global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double rho, int n)
+__global__ void createMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double rho, int n)
 {
     int j = blockIdx.y * blockDim.y + threadIdx.y; // row
     int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -56,7 +56,7 @@ __global__ void createMKernel(double* A, std_complex* Z, std_complex* Zp, std_co
     }
 }
 
-__global__ void createFiniteDepthMKernel(double* A, std_complex* Z, std_complex* Zp, std_complex* Zpp, double h, int n)
+__global__ void createFiniteDepthMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int n)
 {
     int j = blockIdx.y * blockDim.y + threadIdx.y; // row
     int k = blockIdx.x * blockDim.x + threadIdx.x; // col

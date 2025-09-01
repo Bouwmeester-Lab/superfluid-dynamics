@@ -68,7 +68,7 @@ public:
 	/// </summary>
 	/// <param name="in">Must be of size N*batchSize</param>
 	/// <param name="out">Must be of size N*batchSize</param>
-	void exec(std_complex* in, std_complex* out, const bool doubleDev = false, double scaling = 1.0, bool filter = false);
+	void exec(const std_complex* in, std_complex* out, const bool doubleDev = false, double scaling = 1.0, bool filter = false);
 	FftDerivative() {};
 	~FftDerivative();
 };
@@ -105,7 +105,7 @@ public:
 	/// <param name="ZPhi">A single dev array containg Z and Phi back to back.</param>
 	/// <param name="ZPhiPrime">A single dev array used as output to contain the derivative of Z and Phi back to back</param>
 	/// <param name="Zpp">A single dev array of size N used as the output for the double derivative of Z</param>
-	void exec(std_complex* Z, std_complex* Phi, std_complex* ZPrime, std_complex* PhiPrime, std_complex* Zpp);
+	void exec(const std_complex* Z, const std_complex* Phi, std_complex* ZPrime, std_complex* PhiPrime, std_complex* Zpp);
 };
 
 double filterIndexTanh(int m, int N);
@@ -172,14 +172,14 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 }
 
 template<int N, int batchSize>
-void FftDerivative<N, batchSize>::exec(std_complex* in, std_complex* out, const bool doubleDev, double scaling, bool filter)
+void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, const bool doubleDev, double scaling, bool filter)
 {
 	if (coeffs == nullptr)
 	{
 		throw std::runtime_error("The FFT class wasn't initialized!");
 	}
 
-	auto result = cufftExecZ2Z(plan, reinterpret_cast<cufftDoubleComplex*>(in), coeffs, CUFFT_FORWARD);
+	auto result = cufftExecZ2Z(plan, reinterpret_cast<cufftDoubleComplex*>(const_cast<std_complex*>(in)), coeffs, CUFFT_FORWARD);
 
 	if (result != CUFFT_SUCCESS) {
 		printf("failed fft forward");
@@ -285,7 +285,7 @@ inline ZPhiDerivative<N>::~ZPhiDerivative()
 }
 
 template<int N>
-inline void ZPhiDerivative<N>::exec(std_complex* Z, std_complex* Phi, std_complex* ZPrime, std_complex* PhiPrime, std_complex* Zpp)
+inline void ZPhiDerivative<N>::exec(const std_complex* Z, const std_complex* Phi, std_complex* ZPrime, std_complex* PhiPrime, std_complex* Zpp)
 {
 	const int threads = 256;
 	const int blocks2N = (2*N + threads - 1) / threads;

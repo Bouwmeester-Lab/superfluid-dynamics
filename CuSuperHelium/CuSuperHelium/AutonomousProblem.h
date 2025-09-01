@@ -10,7 +10,7 @@ template<typename T, int N>
 class AutonomousProblem
 {
 public:
-	virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
+	// virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
 	AutonomousProblem()
 	{
 	}

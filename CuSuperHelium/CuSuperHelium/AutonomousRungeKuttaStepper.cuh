@@ -256,7 +256,7 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 	plt::legend();
 #endif
 	if(logger.shouldCopy(_step))
-		logger.setReadyToCopy(devY0);
+		logger.setReadyToCopy(devY0, cudaStreamPerThread, CastFrom<std_complex>(timeStep), true);
 	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
 	initialize(devY0); // reinitialize the stepper with the initial state
 }

@@ -22,13 +22,13 @@ public:
 	{
 		this->steps = steps;
 	}
-	void setReadyToCopy(T* devPointer, cudaStream_t stream = cudaStreamPerThread, double time = -1) 
+	void setReadyToCopy(T* devPointer, cudaStream_t stream = cudaStreamPerThread, double time = -1, bool logTimes = false) 
 	{
 		cudaEventRecord(readyToCopy, stream);
 		copyScheduled = true;
 
 		cudaStreamWaitEvent(copyStream, readyToCopy, 0);
-		if (time >= 0.0) {
+		if (logTimes) {
 			times[currentIndex] = time;
 		}
 		cudaMemcpyAsync(data.at(currentIndex++).data(), devPointer, N * sizeof(T), cudaMemcpyDeviceToHost, copyStream);

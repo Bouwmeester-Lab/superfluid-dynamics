@@ -135,18 +135,20 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
 
 
-    boundaryIntegrator.initialize_device(data.Z, data.Potential);
+    // boundaryIntegrator.initialize_device(data.Z, data.Potential);
 
     DataLogger<std_complex, 2 * numParticles> stateLogger;
     stateLogger.setSize(numSteps / loggingSteps);
     stateLogger.setStep(loggingSteps);
 
     RK45_std_complex<2 * numParticles> rungeKunta(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
-
-    rungeKunta.initialize(boundaryIntegrator.getY0());
+    rungeKunta.setTolerance(1e-20, 1e-20);
+    rungeKunta.initialize(data.Z, false);
     //rungeKunta.setTimeStep(dt);
-    rungeKunta.runEvolution(numSteps, dt * numSteps);
-
+    auto result = rungeKunta.runEvolution(numSteps, dt * numSteps);
+    if (result == RK45Result::StiffnessDetected) {
+        throw std::runtime_error("Stiff problem detected");
+    }
     /*for (int i = 0; i < numSteps; ++i) {
         rungeKunta.runStep(i);
 
@@ -168,6 +170,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     }*/
 
     std::vector<std::vector<std_complex>>& timeStepData = stateLogger.getAllData();
+    std::vector<double>& times = stateLogger.getTimes();
 
     if (saveH5) {
 	    size_t vector_size = timeStepData[0].size();
@@ -182,7 +185,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 		file.createAttribute<double>("depth", properties.depth);
 		/*file.createAttribute<double>("y_min", properties.y_min);
 		file.createAttribute<double>("y_max", properties.y_max);*/
-		file.createAttribute<double>("dt", dt);
+		file.createAttribute<double>("dt0", dt);
 		file.createAttribute<double>("initial_amplitude", properties.initial_amplitude);
 		file.createAttribute<int>("numParticles", numParticles);
 		file.createAttribute<int>("numSteps", numSteps);
@@ -201,6 +204,11 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
             dataset.write(row_tmp);
 	    }
+
+        // writes the time information. This is a vector of doubles representing the time of each step. This is essential to have with RK45 since it's variable step!
+        HighFive::DataSpace timeSpace({ times.size() });
+        HighFive::DataSet timeDataSet = file.createDataSet<double>("times", timeSpace);
+        timeDataSet.write(times);
 
         //dataset.write(reinterpret_cast<std::vector<std::vector<std::complex<double>>&>(timeStepData));
 		// Create datasets for energy logs
@@ -222,6 +230,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
     if (plot)
     {
+        
         std::vector<std::string> paths;
         std::vector<std::string> pathsPotential;
         createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
@@ -249,17 +258,17 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
         plt::figure();
         plt::title("Kinetic, Potential and Total Energy");
-        plt::plot(loggedSteps, kineticEnergyLogger->getLoggedValues(), { {"label", "Kinetic Energy"} });
-        plt::plot(loggedSteps, potentialEnergyLogger->getLoggedValues(), { {"label", "Potential Energy"} });
-        plt::plot(loggedSteps, totalEnergyLogger->getLoggedValues(), { {"label", "Total Energy"} });
+        plt::plot(times, kineticEnergyLogger->getLoggedValues(), { {"label", "Kinetic Energy"} });
+        plt::plot(times, potentialEnergyLogger->getLoggedValues(), { {"label", "Potential Energy"} });
+        plt::plot(times, totalEnergyLogger->getLoggedValues(), { {"label", "Total Energy"} });
 
         //plt::xlabel("Time Steps");
         //plt::ylabel("Energy");
 
         plt::figure();
         plt::title("Volume Flux");
-        plt::plot(loggedSteps, volumeFluxLogger->getLoggedValues(), { {"label", "Volume Flux"} });
-        plt::xlabel("Time Steps");
+        plt::plot(times, volumeFluxLogger->getLoggedValues(), { {"label", "Volume Flux"} });
+        plt::xlabel("Time (a.u.)");
         plt::ylabel("Volume Flux");
         plt::legend();
         if (show)

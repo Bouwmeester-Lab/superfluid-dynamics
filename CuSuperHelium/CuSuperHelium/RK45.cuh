@@ -85,7 +85,7 @@ enum class RK45StepResult
 
 enum class RK45Result {
 	ReachedEndTime,
-
+	StiffnessDetected
 };
 
 
@@ -194,7 +194,8 @@ RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t 
 				rejectedTimes++;
 			}
 			if (rejectedTimes > maxRejectedSteps) {
-				throw std::runtime_error("The equation might be stiff. Max number of rejected steps reached.");
+				return RK45Result::StiffnessDetected;
+				//throw std::runtime_error("The equation might be stiff. Max number of rejected steps reached.");
 			}
 		}
 		// the step has been accepted
@@ -248,7 +249,7 @@ RK45StepResult RK45Base<T, N>::runStep(int i)
 		// if the step is accepted then the currentTime can be updated
 		currentTime += h;
 		if (logger.shouldCopy(i))
-			logger.setReadyToCopy(workspace.yAcceptedStep, this->stream, currentTime);
+			logger.setReadyToCopy(workspace.yAcceptedStep, this->stream, currentTime, true);
 		return RK45StepResult::StepAccepted;
 	}
 	else {

@@ -39,10 +39,10 @@ public:
 	/// <param name="Zpp"></param>
 	/// <param name="rho"></param>
 	/// <param name="n"></param>
-	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) = 0;
-	virtual void CalculateVelocities(std_complex* Z,
-		std_complex* Zp,
-		std_complex* Zpp,
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) = 0;
+	virtual void CalculateVelocities(const std_complex* Z,
+		const std_complex* Zp,
+		const std_complex* Zpp,
 		std_complex* a,
 		std_complex* aprime,
 		std_complex* V1,
@@ -67,13 +67,13 @@ public:
 		// Constructor for the water boundary problem, initializing the velocity calculator with the problem properties
 	}
 
-	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) override
 	{
 		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.rho, n);
 	}
-	virtual void CalculateVelocities(std_complex* Z,
-		std_complex* Zp,
-		std_complex* Zpp,
+	virtual void CalculateVelocities(const std_complex* Z,
+		const std_complex* Zp,
+		const std_complex* Zpp,
 		std_complex* a,
 		std_complex* aprime,
 		std_complex* V1,
@@ -101,14 +101,14 @@ public:
 	{
 		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
 	}
-	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) override
 	{
 		createFiniteDepthMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
 	}
 
-	virtual void CalculateVelocities(std_complex* Z,
-		std_complex* Zp,
-		std_complex* Zpp,
+	virtual void CalculateVelocities(const std_complex* Z,
+		const std_complex* Zp,
+		const std_complex* Zpp,
 		std_complex* a,
 		std_complex* aprime,
 		std_complex* V1,
@@ -136,13 +136,13 @@ public:
 	{
 		// Constructor for the helium infinite depth boundary problem, initializing the velocity calculator with the problem properties
 	}
-	virtual void CreateMMatrix(double* M, std_complex* Z, std_complex* Zp, std_complex* Zpp, ProblemProperties& properties, int n) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) override
 	{
 		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
 	}
-	virtual void CalculateVelocities(std_complex* Z,
-		std_complex* Zp,
-		std_complex* Zpp,
+	virtual void CalculateVelocities(const std_complex* Z,
+		const std_complex* Zp,
+		const std_complex* Zpp,
 		std_complex* a,
 		std_complex* aprime,
 		std_complex* V1,
@@ -171,14 +171,8 @@ public:
 
 	VolumeFlux<N> volumeFlux; ///< Volume flux calculator for the water boundary integral problem
 
-	/// <summary>
-	/// Initializes the time step manager by copying the host data to the device memory for the initial conditions. Use this only once when setting up the problem from the host side.
-	/// </summary>
-	/// <param name="Z0"></param>
-	/// <param name="Phi0"></param>
-	void initialize_device(std_complex* Z0, std_complex* Phi0);
-	void setZPhi(std_complex* devZ) { this->devZ = devZ; }
-	void runTimeStep(std_complex* rhs);
+	
+	void runTimeStep(const std_complex* initialState, std_complex* rhs);
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override;
 
@@ -188,19 +182,19 @@ public:
 		
 	} ///< Set the CUDA stream for asynchronous operations
 
-	std_complex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
+	// std_complex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
 	std_complex* devVelocitiesUpper; ///< Device pointer to the velocities array (upper fluid)
-	std_complex* devRhsPhi; ///< Device pointer to the right-hand side of the phi equation (derivative of Phi/dt)
+	// std_complex* devRhsPhi; ///< Device pointer to the right-hand side of the phi equation (derivative of Phi/dt)
 
 	double* devPhiPrime; ///< Device pointer to the PhiPrime array (derivative of Phi)
 
-	std_complex* getDevZ() { return devZ; } ///< Getter for the device pointer to the Z array
-	std_complex* getDevPhi() { return devPhi; } ///< Getter for the device pointer to the Phi array
+	// std_complex* getDevZ() { return devZ; } ///< Getter for the device pointer to the Z array
+	// std_complex* getDevPhi() { return devPhi; } ///< Getter for the device pointer to the Phi array
 
-	virtual std_complex* getY0() override { return devZ; } ///< Getter for the initial state (Z array)
+	//virtual std_complex* getY0() override { return devZ; } ///< Getter for the initial state (Z array)
 private:
-	cuda::std::complex<double>* devZ; ///< Device pointer to the Z array
-	cuda::std::complex<double>* devPhi; ///< Device pointer to the Phi array
+	//cuda::std::complex<double>* devZ; ///< Device pointer to the Z array
+	//cuda::std::complex<double>* devPhi; ///< Device pointer to the Phi array
 	BoundaryProblem<N>& boundaryProblem; ///< Reference to the boundary problem for creating the M matrix and calculating velocities
 
 	std_complex* devZp; ///< Device pointer to the ZPhiPrime array
@@ -229,9 +223,6 @@ private:
 
 	const dim3 matrix_threads;// (16, 16);     // 256 threads per block in 2D
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
-
-
-	void calculatePhiRhs(); ///< Helper function to calculate the right-hand side of the phi equation
 };
 
 template<int N>
@@ -259,8 +250,8 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 template<int N>
 BoundaryIntegralCalculator<N>::~BoundaryIntegralCalculator()
 {
-	cudaFree(devZ);
-	cudaFree(devPhi);
+	// cudaFree(devZ);
+	// cudaFree(devPhi);
 	cudaFree(devZp);
 	cudaFree(devPhiPrimeComplex);
 	cudaFree(devPhiPrime);
@@ -269,28 +260,20 @@ BoundaryIntegralCalculator<N>::~BoundaryIntegralCalculator()
 	cudaFree(devaprime);
 	cudaFree(devV1);
 	cudaFree(devV2);
-	cudaFree(devVelocitiesLower);
+	// cudaFree(devVelocitiesLower);
 	cudaFree(devVelocitiesUpper);
-	cudaFree(devRhsPhi);
+	// cudaFree(devRhsPhi);
 }
 
 template<int N>
-inline void BoundaryIntegralCalculator<N>::initialize_device(std_complex* Z0, std_complex* Phi0)
+inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initialState, std_complex* rhs)
 {
-	cudaMalloc(&devZ, 2 * N * sizeof(std_complex)); // we allocate 2*N for Z and Phi, in order to have them in the same memory space
-	devPhi = devZ + N; // Set the device pointer for Phi (second half of devZ) // but we use different pointers for Z and Phi to avoid confusion
-
-	// Copy initial conditions to device memory
-	cudaMemcpy(devZ, Z0, N * sizeof(std_complex), cudaMemcpyHostToDevice);
-	cudaMemcpy(devPhi, Phi0, N * sizeof(std_complex), cudaMemcpyHostToDevice);
-}
-
-template<int N>
-inline void BoundaryIntegralCalculator<N>::runTimeStep(std_complex* rhs)
-{
-	// set the right-hand pointers using the rhs pointer
-	devVelocitiesLower = rhs; // Device pointer for the velocities of the lower fluid
-	devRhsPhi = rhs + N; // Device pointer for the right-hand side of the phi equation
+	// set the right-hand pointers using the rhs pointer, this creates the variables in here to avoid global variables
+	std_complex* const devVelocitiesLower = rhs; // Device pointer for the velocities of the lower fluid
+	std_complex* const devRhsPhi = rhs + N; // Device pointer for the right-hand side of the phi equation
+	// set the state variables using the initialState pointer, this creates the variables in here to avoid global variables
+	const std_complex* devZ = initialState; // Device pointer for the Z array
+	const std_complex* devPhi = initialState + N; // Device pointer for the Phi array
 
 	// Here you would implement the logic to run a time step of the simulation.
 	// This would typically involve:
@@ -438,13 +421,8 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(std_complex* rhs)
 template<int N>
 void BoundaryIntegralCalculator<N>::run(std_complex* initialState, std_complex* rhs)
 {
-	this->setZPhi(initialState); // Set the initial state for ZPhi
-	this->runTimeStep(rhs); // Run the time step calculation
+	
+	this->runTimeStep(initialState, rhs); // Run the time step calculation
 }
 
-template<int N>
-void BoundaryIntegralCalculator<N>::calculatePhiRhs()
-{
-	compute_rhs_phi_expression<<<blocks, threads>>>(devZ, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties.rho, N); // Calculate the right-hand side of the phi equation
-}
 #endif // TIMESTEP_MANAGER_H

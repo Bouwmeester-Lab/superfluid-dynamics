@@ -35,7 +35,7 @@ __global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_comp
 __global__ void calculateDiagonalVectorMultiplication(std_complex* diag, std_complex* vec, std_complex* out, int N);
 
 
-__global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower)
+__global__ void createVelocityMatrices(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower)
 {
 	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
 	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -65,7 +65,7 @@ __global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_comp
 	}
 }
 
-__global__ void createHeliumVelocityMatrices(std_complex* Z, std_complex* Zp, std_complex* Zpp, double h, int N, std_complex* out1, std_complex* out2, bool lower)
+__global__ void createHeliumVelocityMatrices(const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int N, std_complex* const out1, std_complex* const out2, bool lower)
 {
 	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
 	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -121,9 +121,9 @@ private:
 public:
 	VelocityCalculator();
 	~VelocityCalculator();
-	void calculateVelocities(std_complex* Z,
-		std_complex* Zp,
-		std_complex* Zpp,
+	void calculateVelocities(const std_complex* Z,
+		const std_complex* Zp,
+		const std_complex* Zpp,
 		std_complex* a,
 		std_complex* aprime,
 		std_complex* V1,
@@ -147,9 +147,9 @@ VelocityCalculator<N>::~VelocityCalculator()
 }
 
 template<int N>
-void VelocityCalculator<N>::calculateVelocities(std_complex* Z,
-	std_complex* Zp,
-	std_complex* Zpp,
+void VelocityCalculator<N>::calculateVelocities(const std_complex* Z,
+	const std_complex* Zp,
+	const std_complex* Zpp,
 	std_complex* a,
 	std_complex* aprime,
 	std_complex* V1,

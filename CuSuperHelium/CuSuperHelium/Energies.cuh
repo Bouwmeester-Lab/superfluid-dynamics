@@ -57,7 +57,7 @@ public:
 	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
 	
 
-	void CalculateEnergy(std_complex* devPhi, std_complex* devZ, std_complex* devZp, std_complex* velocitiesLower);
+	void CalculateEnergy(const std_complex* devPhi, const std_complex* devZ, const std_complex* devZp, const std_complex* velocitiesLower);
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * 0.25 / PI_d;
@@ -73,7 +73,7 @@ class GravitationalEnergy : public EnergyBase<N>
 {
 public:
 	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
-	void CalculateEnergy(std_complex* devZ, std_complex* devZp);
+	void CalculateEnergy(const std_complex* devZ, const std_complex* devZp);
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * 0.25 * (1.0 + this->properties.rho) / PI_d;
@@ -89,7 +89,7 @@ class VanDerWaalsEnergy : public EnergyBase<N>
 {
 public:
 	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
-	void CalculateEnergy(std_complex* devZ);
+	void CalculateEnergy(const std_complex* devZ);
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * cuda::std::pow(this->properties.depth, 2) / 6.0;
@@ -105,7 +105,7 @@ class SurfaceEnergy : public EnergyBase<N>
 {
 public:
 	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
-	void CalculateEnergy(std_complex* devZp);
+	void CalculateEnergy(const std_complex* devZp);
 	virtual double scaleEnergy(double energy) const override
 	{
 		return (energy - 2.0 * PI_d) * this->properties.kappa / (2.0 * PI_d);
@@ -121,7 +121,7 @@ class VolumeFlux : public EnergyBase<N>
 {
 public:
 	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
-	void CalculateEnergy(std_complex* devZp, std_complex* velocities);
+	void CalculateEnergy(const std_complex* devZp, const std_complex* velocities);
 	virtual double scaleEnergy(double energy) const override
 	{
 		return energy * 0.5 / PI_d;
@@ -225,7 +225,7 @@ double EnergyBase<N>::getEnergy() const
 }
 
 template<int N>
-void KineticEnergy<N>::CalculateEnergy(std_complex* devPhi, std_complex* devZ, std_complex* devZp, std_complex* velocitiesLower)
+void KineticEnergy<N>::CalculateEnergy(const std_complex* devPhi, const std_complex* devZ, const std_complex* devZp, const std_complex* velocitiesLower)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 
@@ -247,7 +247,7 @@ void KineticEnergy<N>::CalculateEnergy(std_complex* devPhi, std_complex* devZ, s
 
 
 template<int N>
-void GravitationalEnergy<N>::CalculateEnergy(std_complex* devZ, std_complex* devZp)
+void GravitationalEnergy<N>::CalculateEnergy(const std_complex* devZ, const std_complex* devZp)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the GravitationalEnergyCombination functor
@@ -262,7 +262,7 @@ void GravitationalEnergy<N>::CalculateEnergy(std_complex* devZ, std_complex* dev
 }
 
 template<int N>
-void VanDerWaalsEnergy<N>::CalculateEnergy(std_complex* devZ)
+void VanDerWaalsEnergy<N>::CalculateEnergy(const std_complex* devZ)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the GravitationalEnergyCombination functor
@@ -277,7 +277,7 @@ void VanDerWaalsEnergy<N>::CalculateEnergy(std_complex* devZ)
 }
 
 template<int N>
-void SurfaceEnergy<N>::CalculateEnergy(std_complex* devZp)
+void SurfaceEnergy<N>::CalculateEnergy(const std_complex* devZp)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the SurfaceEnergyCombination functor
@@ -292,7 +292,7 @@ void SurfaceEnergy<N>::CalculateEnergy(std_complex* devZp)
 }
 
 template<int N>
-void VolumeFlux<N>::CalculateEnergy(std_complex* devZp, std_complex* velocities)
+void VolumeFlux<N>::CalculateEnergy(const std_complex* devZp, const std_complex* velocities)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the VolumeFluxCombination functor

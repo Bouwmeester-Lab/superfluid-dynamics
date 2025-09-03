@@ -68,7 +68,7 @@ public:
 	/// </summary>
 	/// <param name="in">Must be of size N*batchSize</param>
 	/// <param name="out">Must be of size N*batchSize</param>
-	void exec(const std_complex* in, std_complex* out, const bool doubleDev = false, double scaling = 1.0, bool filter = false);
+	void exec(const std_complex* in, std_complex* out, const bool doubleDev = false, double scaling = 1.0, bool filter = true);
 	FftDerivative() {};
 	~FftDerivative();
 };

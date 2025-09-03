@@ -13,9 +13,10 @@ public:
 	void setSize(size_t size, bool allocateTimes = true)
 	{
 		this->size = size;
-		data.resize(size, std::vector<T>(N));
+		data.clear();
+		data.reserve(size); // , std::vector<T>(N));
 		if (allocateTimes) {
-			times.resize(size, 0.0);
+			times.reserve(size); // , 0.0);
 		}
 	}
 	void setStep(size_t steps)
@@ -29,8 +30,9 @@ public:
 
 		cudaStreamWaitEvent(copyStream, readyToCopy, 0);
 		if (logTimes) {
-			times[currentIndex] = time;
+			times.push_back(time);
 		}
+		data.emplace_back(N); // Add a new vector to hold the data
 		cudaMemcpyAsync(data.at(currentIndex++).data(), devPointer, N * sizeof(T), cudaMemcpyDeviceToHost, copyStream);
 		
 		cudaEventRecord(copyDone, copyStream);
@@ -51,7 +53,7 @@ public:
 
 	bool shouldCopy(const size_t step) const
 	{
-		return step % steps == 0 && currentIndex < size;
+		return step % steps == 0;// && currentIndex < size;
 	}
 
 	std::vector<T> getData(const size_t index) const

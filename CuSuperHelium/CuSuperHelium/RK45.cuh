@@ -16,6 +16,15 @@
 #include <stdexcept>
 #include <initializer_list>
 #include "ValueLogger.h"
+
+struct RK45_Options {
+	double atol = 1e-6; // absolute tolerance
+	double rtol = 1e-3; // relative tolerance
+	double h_min = 1e-16; // minimum time step
+	double h_max = 1e10; // maximum time step
+	double initial_timestep = 1e-2; // initial time step
+};
+
 /// <summary>
 /// Defines the workspace memory needed for the RK45 method in the GPU.
 /// </summary>
@@ -98,7 +107,16 @@ public:
 
 	[[nodiscard]] RK45StepResult runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
 	RK45Result runEvolution(size_t maxSteps, double endTime, size_t maxRejected = 500);
-
+	void setMinTimeStep(double h_min) 
+	{ 
+		// if (h_min >= h_max) throw std::invalid_argument("Minimum time step must be smaller than maximum time step.");
+		this->h_min = h_min;
+	}
+	void setMaxTimeStep(double h_max)
+	{
+		// if (h_max <= h_min) throw std::invalid_argument("Maximum time step must be larger than minimum time step.");
+		this->h_max = h_max;
+	}
 	void setTolerance(double atol, double rtol) 
 	{ 
 		this->atol = atol;
@@ -151,8 +169,8 @@ protected:
 	} tempValues;
 
 	// bounds for timestep
-	const double h_min = 1e-16;
-	const double h_max;
+	double h_min = 1e-16;
+	double h_max;
 
 };
 template <typename T, size_t N>
@@ -169,8 +187,9 @@ RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t 
 {
 	size_t rejectedTimes = 0;
 	double maxStepSize = -1;
-	
-	for (size_t i = 0; i < maxSteps; ++i) {
+	RK45StepResult state;
+	size_t i;
+	for (i = 0; i < maxSteps; ++i) {
 		// before running check for completion
 		if (currentTime >= endTime) 
 		{
@@ -185,7 +204,7 @@ RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t 
 		
 		rejectedTimes = 0;
 		for (;;) {
-			auto state = runStep(i);
+			state = runStep(i);
 			if (state == RK45StepResult::StepAccepted) {
 				
 				break;

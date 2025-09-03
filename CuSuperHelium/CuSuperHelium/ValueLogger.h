@@ -5,10 +5,15 @@
 class ValueLogger
 {
 public:
-	ValueLogger(int stepInterval);
+	ValueLogger(int stepInterval, size_t size = 0);
 	~ValueLogger();
 	
 	void logValue(double value);
+	void setSize(size_t size)
+	{
+		this->size = size;
+		loggedValues.reserve(size);
+	}
 	virtual void logValue() = 0;
 	bool shouldLog(const int currentStep) const 
 	{ 
@@ -33,10 +38,13 @@ public:
 private:
 	int stepInterval = 1000; // Log every 1000 steps
 	std::vector<double> loggedValues; // Store logged values for later use
+	size_t size = 0;
 };
 
-ValueLogger::ValueLogger(int stepInterval) : stepInterval(stepInterval)
+ValueLogger::ValueLogger(int stepInterval, size_t size) : stepInterval(stepInterval), size(size)
 {
+	loggedValues.clear();
+	loggedValues.reserve(size);
 }
 
 ValueLogger::~ValueLogger()
@@ -54,7 +62,7 @@ class ValueCallableLogger : public ValueLogger
 private:
 	T& functor;
 public:
-	ValueCallableLogger(T& functor, int intervelStep) : ValueLogger::ValueLogger(intervelStep), functor(functor)
+	ValueCallableLogger(T& functor, int intervelStep, size_t size = 0) : ValueLogger::ValueLogger(intervelStep, size), functor(functor)
 	{
 	}
 	virtual void logValue() override {

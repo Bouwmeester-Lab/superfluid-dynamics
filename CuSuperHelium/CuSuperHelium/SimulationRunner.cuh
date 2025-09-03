@@ -101,17 +101,17 @@ public:
 };
 
 template <int numParticles>
-int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
+int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
     if (cudaStatus != cudaSuccess) {
         return cudaStatus;
     }
-
+    double dt = rk45Options.initial_timestep;
 
     const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
-    std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
+   // std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
 
     /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
     BoundaryIntegralCalculator<numParticles> boundaryIntegrator(properties, boundaryProblem);
@@ -122,14 +122,14 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     VolumeFluxFunctor<numParticles> volumeFluxFunctor(boundaryIntegrator);
 
 
-    std::shared_ptr<ValueLogger> kineticEnergyLogger = std::make_shared<ValueCallableLogger<KineticEnergyFunctor<numParticles>>>(kineticEnergy, loggingSteps);
-    std::shared_ptr<ValueLogger> potentialEnergyLogger = std::make_shared<ValueCallableLogger<PotentialEnergyFunctor<numParticles>>>(potentialEnergy, loggingSteps);
-    std::shared_ptr<ValueLogger> volumeFluxLogger = std::make_shared<ValueCallableLogger<VolumeFluxFunctor<numParticles>>>(volumeFluxFunctor, loggingSteps);
+    std::shared_ptr<ValueLogger> kineticEnergyLogger = std::make_shared<ValueCallableLogger<KineticEnergyFunctor<numParticles>>>(kineticEnergy, loggingSteps, numSteps / loggingSteps + 1);
+    std::shared_ptr<ValueLogger> potentialEnergyLogger = std::make_shared<ValueCallableLogger<PotentialEnergyFunctor<numParticles>>>(potentialEnergy, loggingSteps, numSteps / loggingSteps + 1);
+    std::shared_ptr<ValueLogger> volumeFluxLogger = std::make_shared<ValueCallableLogger<VolumeFluxFunctor<numParticles>>>(volumeFluxFunctor, loggingSteps, numSteps / loggingSteps + 1);
     
     
     TotalEnergyFunctor totalEnergyFunctor(kineticEnergyLogger, potentialEnergyLogger);
     
-    std::shared_ptr<ValueLogger> totalEnergyLogger = std::make_shared<ValueCallableLogger<TotalEnergyFunctor>>(totalEnergyFunctor, loggingSteps);
+    std::shared_ptr<ValueLogger> totalEnergyLogger = std::make_shared<ValueCallableLogger<TotalEnergyFunctor>>(totalEnergyFunctor, loggingSteps, numSteps / loggingSteps + 1);
 
 
 
@@ -138,13 +138,19 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     // boundaryIntegrator.initialize_device(data.Z, data.Potential);
 
     DataLogger<std_complex, 2 * numParticles> stateLogger;
-    stateLogger.setSize(numSteps / loggingSteps);
+    stateLogger.setSize(numSteps / loggingSteps + 1);
     stateLogger.setStep(loggingSteps);
 
     RK45_std_complex<2 * numParticles> rungeKunta(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
-    rungeKunta.setTolerance(1e-20, 1e-20);
+    rungeKunta.setTolerance(rk45Options.atol, rk45Options.rtol);
     rungeKunta.initialize(data.Z, false);
+    rungeKunta.setMaxTimeStep(rk45Options.h_max);
+	rungeKunta.setMinTimeStep(rk45Options.h_min);
     //rungeKunta.setTimeStep(dt);
+  //  for (;;) {
+		//// inifinite loop to test if we still get the growing memory consumption with RK45
+  //  }
+
     auto result = rungeKunta.runEvolution(numSteps, dt * numSteps);
     if (result == RK45Result::StiffnessDetected) {
         throw std::runtime_error("Stiff problem detected");
@@ -233,8 +239,8 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
         
         std::vector<std::string> paths;
         std::vector<std::string> pathsPotential;
-        createFrames<numParticles>(timeStepData, dt * t0, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
-		createPotentialFrames<numParticles>(timeStepData, dt * t0, loggingSteps, pathsPotential, 640, 480);
+        createFrames<numParticles>(timeStepData, times, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
+		createPotentialFrames<numParticles>(timeStepData, times, loggingSteps, pathsPotential, 640, 480);
         createVideo("temp/frames/video.avi", 640, 480, paths, fps);
         createVideo("temp/frames/video_pot.avi", 640, 480, pathsPotential, fps);
         //plt::figure();
@@ -278,22 +284,22 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 }
 
 template<int numParticles>
-int runSimulationHelium(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationHelium(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, loggingPeriod, plot, show, t0, fps);
 }
 
 template <int numParticles>
-int runSimulationWater(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationWater(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     WaterBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, loggingPeriod, plot, show, t0, fps);
 }
 
 template <int numParticles>
-int runSimulationHeliumInfiniteDepth(const int numSteps, double dt, ProblemProperties& properties, ParticleData data, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationHeliumInfiniteDepth(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumInfiniteDepthBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, dt, properties, data, loggingPeriod, plot, show, t0, fps);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, loggingPeriod, plot, show, t0, fps);
 }

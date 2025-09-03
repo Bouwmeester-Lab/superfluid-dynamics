@@ -30,7 +30,7 @@ void createVideo(const std::string name, int width, int height, std::vector<std:
 	writer.release();
 }
 template <size_t N>
-void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int periodLogging, std::vector<std::string>& paths, int width = 640, int height = 480, double ylim1 = -0.1, double ylim2 = 0.1) 
+void createFrames(std::vector<std::vector<std_complex>>& data, std::vector<double>& times, int periodLogging, std::vector<std::string>& paths, int width = 640, int height = 480, double ylim1 = -0.1, double ylim2 = 0.1)
 {
 	
 	paths.clear();
@@ -45,16 +45,16 @@ void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int pe
 		std::vector<double> x(N, 0);
 		std::vector<double> y(N, 0);
 		
-		for(int i = 0; i < N; ++i) 
+		for(int j = 0; j < N; ++j) 
 		{
-			x[i] = (frame[i].real());
-			y[i] = (frame[i].imag());
+			x[j] = (frame[j].real());
+			y[j] = (frame[j].imag());
 		}
 		plt::clf();  // Clear the current figure
 
 		plt::plot(x, y, { {"label", "Interface"} });
 		plt::ylim(ylim1, ylim2);
-		plt::title( std::format("Interface at t={:.10e}" , i * periodLogging * dt));
+		plt::title( std::format("Interface at t={:.10e}" , times[i]));
 
 		paths.push_back(std::format("temp/frames/frame_{}.png", i));
 
@@ -66,7 +66,7 @@ void createFrames(std::vector<std::vector<std_complex>>& data, double dt, int pe
 }
 
 template <size_t N>
-void createPotentialFrames(std::vector<std::vector<std_complex>>& data, double dt, int periodLogging, std::vector<std::string>& paths, int width = 640, int height = 480, double ylim1 = -0.1, double ylim2 = 0.1) 
+void createPotentialFrames(std::vector<std::vector<std_complex>>& data, std::vector<double>& times, int periodLogging, std::vector<std::string>& paths, int width = 640, int height = 480, double ylim1 = -0.1, double ylim2 = 0.1) 
 {
 	paths.clear();
 	int i = 0;
@@ -80,16 +80,16 @@ void createPotentialFrames(std::vector<std::vector<std_complex>>& data, double d
 		std::vector<double> x(N, 0);
 		std::vector<double> y(N, 0);
 
-		for (int i = 0; i < N; ++i)
+		for (int j = 0; j < N; ++j)
 		{
-			x[i] = (frame[i].real());
-			y[i] = (frame[i+N].real());
+			x[j] = (frame[j].real());
+			y[j] = (frame[j+N].real());
 		}
 		plt::clf();  // Clear the current figure
 
 		plt::plot(x, y, { {"label", "Potential"} });
 		//plt::ylim(ylim1, ylim2);
-		plt::title(std::format("Potential at t={:.10e}", i * periodLogging * dt));
+		plt::title(std::format("Potential at t={:.10e}", times[i]));
 
 		paths.push_back(std::format("temp/frames/frame_pot_{}.png", i));
 

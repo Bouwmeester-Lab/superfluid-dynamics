@@ -79,9 +79,9 @@ int main()
 	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 32;//512;
+    const int N = 128;//512;
     
-	const double stepSize = 50;
+	const double stepSize = 1;
     const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 
@@ -93,6 +93,12 @@ int main()
     std::vector<double> Y0(N, 0);
     
 	
+	RK45_Options rk45_options;
+	rk45_options.atol  = 1e-18;
+	rk45_options.rtol = 1e-20;
+    rk45_options.h_max = 2;
+	//rk45_options.h_min = 1e-20 / _t0; // smallest timestep
+    rk45_options.initial_timestep = stepSize;
 
     std::vector<double> Phireal(N, 0);
     double j;
@@ -106,15 +112,15 @@ int main()
 		Y0[i] = Z0[i].imag();
 	}
 
-	plt::figure();
+	/*plt::figure();
     plt::plot(X0, Phireal);
 	plt::plot(X0, Y0);
-    plt::show();
+    plt::show();*/
 
     ParticleData particleData;
 	particleData.Z = Z0.data();
 	particleData.Potential =Z0.data() + N;
 
     
-     return runSimulationHelium<N>(steps, stepSize, problemProperties, particleData, loggingSteps, true, true, _t0);
+     return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, loggingSteps, true, true, _t0);
 }

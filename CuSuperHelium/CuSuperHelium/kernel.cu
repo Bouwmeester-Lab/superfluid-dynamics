@@ -62,11 +62,11 @@ int main()
     int frames = 30;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 15e-3; // 15 ms
+	double finalTime = 1e-3; // 15 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
-	double L0 = 500e-6/(2.0*PI_d); // 6mm
+	double L0 = 10e-6/(2.0*PI_d); // 6mm
 
     double _t0 = std::sqrt(L0 / g);
 
@@ -94,8 +94,8 @@ int main()
     
 	
 	RK45_Options rk45_options;
-	rk45_options.atol  = 1e-18;
-	rk45_options.rtol = 1e-20;
+	rk45_options.atol  = 1e-10;
+	rk45_options.rtol = 1e-10;
     rk45_options.h_max = 2;
 	//rk45_options.h_min = 1e-20 / _t0; // smallest timestep
     rk45_options.initial_timestep = stepSize;

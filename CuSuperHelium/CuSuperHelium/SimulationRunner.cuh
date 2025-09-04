@@ -100,6 +100,16 @@ public:
     }
 };
 
+int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<std::complex<double>>& phi) 
+{
+    
+    HighFive::File file(path, HighFive::File::ReadOnly);
+
+    auto dataset = file.getDataSet("data");
+
+    
+}
+
 template <int numParticles>
 int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 

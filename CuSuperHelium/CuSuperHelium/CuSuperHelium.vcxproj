@@ -121,6 +121,7 @@
     <ClInclude Include="RK45.cuh" />
     <ClInclude Include="RK45_Kernels.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
+    <ClInclude Include="SimulationOptions.h" />
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="SolitonPeak.h" />
     <ClInclude Include="ValueLogger.h" />

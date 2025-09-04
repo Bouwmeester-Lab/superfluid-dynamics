@@ -95,7 +95,7 @@ __global__ void rk45_error_and_y5(
 		sc = fmax(sc, 1e-300);
 
 		double z = mag(e) / sc;
-		local_sumsq += (1.0/N) * z * z;
+		local_sumsq += z * z;
 	}
 
 	double block_sum = block_reduce_sum<BLOCK_SIZE, cg::plus<double>>(local_sumsq);

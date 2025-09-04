@@ -107,7 +107,7 @@ int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, 
 
     auto dataset = file.getDataSet("data");
 
-    
+    return 0;
 }
 
 template <int numParticles>

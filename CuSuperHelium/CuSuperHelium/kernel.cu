@@ -49,7 +49,7 @@ double Y(double j, double h, double omega, double t) {
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
-    return 0.0*h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
+    return h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
 }
 
 int main() 
@@ -59,10 +59,10 @@ int main()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
     
-    int frames = 30;
+    int frames = 500;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 1e-3; // 15 ms
+	double finalTime = 5e-4; // 15 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
@@ -71,7 +71,7 @@ int main()
     double _t0 = std::sqrt(L0 / g);
 
     problemProperties.depth = H0 / L0;
-    double h = 0.1 * problemProperties.depth;
+    double h = 0.001 * problemProperties.depth;
 
 	problemProperties.initial_amplitude = h;
 	problemProperties.y_min = -h - 0.0001 * problemProperties.depth; // -0.5 * H0
@@ -81,7 +81,7 @@ int main()
 
     const int N = 512;//512;
     
-	const double stepSize = 1;
+	const double stepSize = 0.1;
     const int steps = (finalTime / _t0) / stepSize;
 	const int loggingSteps = steps / frames;
 
@@ -94,9 +94,9 @@ int main()
     
 	
 	RK45_Options rk45_options;
-	rk45_options.atol  = 1e-10;
+	rk45_options.atol  = 1e-14;
 	rk45_options.rtol = 1e-10;
-    rk45_options.h_max = 2;
+    rk45_options.h_max = 1;
 	//rk45_options.h_min = 1e-20 / _t0; // smallest timestep
     rk45_options.initial_timestep = stepSize;
 

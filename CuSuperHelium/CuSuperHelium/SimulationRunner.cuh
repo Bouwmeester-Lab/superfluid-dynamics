@@ -207,12 +207,12 @@ int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const s
 		Phi[i] = checkZ[i + N].real();
 		PhiImag[i] = checkZ[i + N].imag(); // should be 0
     }
-	plt::figure();
+	/*plt::figure();
 	plt::plot(X, Y);
 	plt::plot(X, Phi);
 	plt::plot(X, PhiImag);
 	plt::title("Initial Condition");
-	plt::show();
+	plt::show();*/
     return 0;
 }
 
@@ -318,6 +318,12 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 		file.createAttribute<int>("numSteps", numSteps);
 		file.createAttribute<int>("loggingSteps", loggingSteps);
 
+		// create user provided attributes
+        for (const auto& [key, value] : simOptions.attributes) 
+        {
+			file.createAttribute<double>(key, value);
+        }
+
         std::vector<std::array<double, 2>> row_tmp(vector_size);
         //row_tmp.reserve(2 * vector_size);
 
@@ -355,16 +361,19 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     }
     
 
-    if (plot)
-    {
-        
+    
+    if (simOptions.createVideo && !simOptions.outputFilename.empty()) {
         std::vector<std::string> paths;
         std::vector<std::string> pathsPotential;
         createFrames<numParticles>(timeStepData, times, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
-		createPotentialFrames<numParticles>(timeStepData, times, loggingSteps, pathsPotential, 640, 480);
-        createVideo("temp/frames/video.avi", 640, 480, paths, fps);
-        createVideo("temp/frames/video_pot.avi", 640, 480, pathsPotential, fps);
-        //plt::figure();
+        createPotentialFrames<numParticles>(timeStepData, times, loggingSteps, pathsPotential, 640, 480);
+        createVideo(std::format("temp/frames/{}.avi", simOptions.videoFilename), 640, 480, paths, fps);
+        createVideo(std::format("temp/frames/{}_pot.avi", simOptions.videoFilename), 640, 480, pathsPotential, fps);
+    }
+
+    if (plot)
+    {
+        plt::figure();
         auto title = "Interface And Potential";
         plt::title(title);
 
@@ -378,8 +387,6 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
             }
             plt::plot(x_step, y_step, { {"label", "Interface at t=" + std::to_string(i * loggingSteps * dt)} });
         }
-
-
 
         plt::legend();
 

@@ -60,12 +60,14 @@ int dispersionTest(double wavelength)
     problemProperties.U = 0;
 
     SimulationOptions simOptions;
-    simOptions.outputFilename = std::format("dispersion_test_{:.5f}.h5", wavelength);
+    simOptions.outputFilename = std::format("dispersion_test_{:.5e}.h5", wavelength);
+	simOptions.videoFilename = std::format("dispersion_test_{:.5e}", wavelength);
+    simOptions.createVideo = true;
 
     int frames = 1000;
     double omega = 1;
     double t0 = 0;
-    double finalTime = 1e-3; // 1 ms
+    double finalTime = 0.1e-3; // 1 ms
 
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
@@ -74,7 +76,11 @@ int dispersionTest(double wavelength)
     double _t0 = std::sqrt(L0 / g);
 
     problemProperties.depth = H0 / L0;
-    double h = 0.1 * problemProperties.depth;
+    double h = 0.001 * problemProperties.depth;
+
+	simOptions.attributes["wavelength"] = wavelength;
+	simOptions.attributes["H0"] = H0;
+	simOptions.attributes["g"] = g;
 
     problemProperties.initial_amplitude = h;
     problemProperties.y_min = -h - 0.0001 * problemProperties.depth; // -0.5 * H0
@@ -92,28 +98,32 @@ int dispersionTest(double wavelength)
 
 
     std::vector<std::complex<double>> Z0(N);
-    std::vector<double> Phi(N);
+    std::vector<double> PhiVect(N);
 
     std::vector<double> X0(N, 0);
     std::vector<double> Y0(N, 0);
 
 
     RK45_Options rk45_options;
-    rk45_options.atol = 1e-5;
-    rk45_options.rtol = 1e-5;
-    rk45_options.h_max = 1e-6 / _t0;
-    rk45_options.h_min = 0.0001; // smallest timestep
+    rk45_options.atol = 1e-14;
+    rk45_options.rtol = 1e-10;
+    rk45_options.h_max = 3;
+    rk45_options.h_min = 1e-10; // smallest timestep
     rk45_options.initial_timestep = stepSize;
 
-    std::vector<double> Phireal(N, 0);
     // load data from Python H5 fileC:\Users\emore\Documents\repos\superfluid-calculations\simulations\data\sine_wave_128.h5
-    auto file_init = "C:\\Users\\emore\\Documents\\repos\\superfluid-calculations\\simulations\\data\\sine_wave_128.h5";
-    loadStateFile(file_init, Z0, Phi, N, h);
+    // auto file_init = "C:\\Users\\emore\\Documents\\repos\\superfluid-calculations\\simulations\\data\\sine_wave_128.h5";
+    // loadStateFile(file_init, Z0, Phi, N, h);
 
     // plot the data to verify that we have loaded the correct file
+    double j;
     for (size_t n = 0; n < N; n++) {
-        X0[n] = Z0[n].real();
-        Y0[n] = Z0[n].imag();
+        j = 2.0 * PI_d * n / (1.0 * N);
+        X0[n] = X(j, h, omega, t0);
+        Y0[n] = Y(j, h, omega, t0);
+        PhiVect[n] = Phi(j, h, omega, t0, problemProperties.rho);
+
+		Z0[n] = std::complex<double>(X0[n], Y0[n]);
     }
 
     plt::figure();
@@ -121,14 +131,14 @@ int dispersionTest(double wavelength)
     plt::xlabel("x (0-2pi)");
     plt::ylabel("y (a.u.)");
     plt::plot(X0, Y0);
-	plt::plot(X0, Phireal);
+	plt::plot(X0, PhiVect);
 
-    plt::show();
+    //plt::show();
 
-    ParticleData particleData(Z0, Phi);
+    ParticleData particleData(Z0, PhiVect);
 
 
-    return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, true, true, _t0);
+    return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
 }
 
 int modeSum() {

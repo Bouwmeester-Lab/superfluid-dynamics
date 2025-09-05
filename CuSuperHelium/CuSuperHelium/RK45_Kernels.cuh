@@ -100,7 +100,7 @@ __global__ void rk45_error_and_y5(
 	}
 
 	double block_sum = block_reduce_sum<BLOCK_SIZE, cg::plus<double>>(local_sumsq);
-	printf("%i: block_sum: %.5f global: %.5e \n", id, block_sum, *sumsq);
+	//printf("%i: block_sum: %.5f global: %.5e \n", id, block_sum, *sumsq);
 	if (block.thread_rank() == 0) {
 		if (sumsq) atomicAdd(sumsq, block_sum);
 	}

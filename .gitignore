@@ -400,3 +400,5 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 /CuSuperHelium/CuSuperHelium/temp/frames
+CuSuperHelium/CuSuperHelium/temp/*.h5
+CuSuperHelium/CuSuperHelium/temp/dispersion_test_0.00001.h5

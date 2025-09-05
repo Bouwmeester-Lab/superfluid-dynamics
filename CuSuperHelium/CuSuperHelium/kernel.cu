@@ -64,12 +64,12 @@ int dispersionTest(double wavelength)
 	simOptions.videoFilename = std::format("dispersion_test_{:.5e}", wavelength);
     simOptions.createVideo = true;
 
-    int frames = 1000;
+    int frames = 250;
     double omega = 1;
     double t0 = 0;
-    double finalTime = 0.1e-3; // 1 ms
+    double finalTime = 3e-2; // 1 ms
 
-    double H0 = 15e-9; // 15 nm
+    double H0 = 15e-7; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
     double L0 = wavelength / (2.0 * PI_d); // 6mm
 
@@ -90,7 +90,7 @@ int dispersionTest(double wavelength)
 
     const int N = 128;//512;
 
-    const double stepSize = 0.2;
+    const double stepSize = 0.04;
     const int steps = (finalTime / _t0) / stepSize;
     const int loggingSteps = steps / frames;
 
@@ -107,7 +107,7 @@ int dispersionTest(double wavelength)
     RK45_Options rk45_options;
     rk45_options.atol = 1e-14;
     rk45_options.rtol = 1e-10;
-    rk45_options.h_max = 3;
+    rk45_options.h_max = 5;
     rk45_options.h_min = 1e-10; // smallest timestep
     rk45_options.initial_timestep = stepSize;
 
@@ -126,12 +126,12 @@ int dispersionTest(double wavelength)
 		Z0[n] = std::complex<double>(X0[n], Y0[n]);
     }
 
-    plt::figure();
+    /*plt::figure();
     plt::title("Initial Condition");
     plt::xlabel("x (0-2pi)");
     plt::ylabel("y (a.u.)");
     plt::plot(X0, Y0);
-	plt::plot(X0, PhiVect);
+	plt::plot(X0, PhiVect);*/
 
     //plt::show();
 
@@ -220,9 +220,9 @@ int modeSum() {
 
 int main() 
 {
-    double step = 0.1e-6;
+    double step = 1e-6;
     double start = 10e-6;
-    double steps = 50;
+    double steps = 100;
     for(int i = 0; i < steps; i++) {
         double wavelength = start + i * step;
         printf("Running dispersion test for wavelength %.10e\n", wavelength);

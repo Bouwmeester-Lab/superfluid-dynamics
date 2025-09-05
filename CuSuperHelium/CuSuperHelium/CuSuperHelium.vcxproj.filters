@@ -61,5 +61,8 @@
     <ClInclude Include="RK45_Kernels.cuh">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="SimulationOptions.h">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

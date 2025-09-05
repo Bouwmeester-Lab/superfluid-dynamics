@@ -13,6 +13,7 @@
 #include "VideoMaking.h"
 #include <highfive/H5File.hpp>
 #include "RK45.cuh"
+#include "SimulationOptions.h"
 
 namespace plt = matplotlibcpp;
 
@@ -31,8 +32,14 @@ cudaError_t setDevice()
 }
 
 struct ParticleData {
-    std_complex* Z; // Array of particle positions
-    std_complex* Potential; // Array of particle potentials
+    std::vector<std::complex<double>>& Z; // vector of particle positions
+    std::vector<double>& Potential; // vector of particle potentials
+	ParticleData(std::vector<std::complex<double>>& positions, std::vector<double>& potential) : Z(positions), Potential(potential) {}
+};
+
+struct DeviceParticleData 
+{
+	std_complex* devZ; // device pointer to particle positions and potentials
 };
 
 template <int N>
@@ -100,24 +107,128 @@ public:
     }
 };
 
-int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<std::complex<double>>& phi) 
+/// <summary>
+/// Loads the data in an H5 file containing two datasets with 2 columns each (x, y) pairs representing complex numbers.
+/// The first dataset must be "interface" representing the interface shape.
+/// The second dataset must be "potential" representing the potential (only the first column is used).
+/// </summary>
+/// <param name="path"></param>
+/// <param name="Z"></param>
+/// <param name="phi"></param>
+/// <returns></returns>
+int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, const double scaleY = 1.0) 
 {
     
     HighFive::File file(path, HighFive::File::ReadOnly);
 
-    auto dataset = file.getDataSet("data");
+    auto dataset = file.getDataSet("interface");
+    auto potential = file.getDataSet("potential");
 
+    // check dimentsions and make sure its N x 2
+    auto dims = dataset.getSpace().getDimensions();
+    if (dims.size() != 2 || dims[1] != 2 || dims[0] != N) {
+        throw std::runtime_error(std::format("Interface must have shape ({}, 2)", N));
+    }
+
+    // check dimensions for potential
+    auto potDims = dataset.getSpace().getDimensions();
+    if (dims.size() == 0) {
+        throw std::runtime_error("potential dataset is empty.");
+    }
+    std::vector<std::array<double, 2>> dataInterface;
+	//std::vector<double> dataPotential;
+
+    phi.clear();
+	potential.read(phi);
+
+	// read the interface data
+    dataset.read(dataInterface);
+
+	// convert to complex numbers
+    Z.clear();
+    Z.resize(dataInterface.size());
+    for (size_t i = 0; i < dataInterface.size(); ++i) {
+        Z[i] = std::complex<double>(dataInterface[i][0], scaleY * dataInterface[i][1]);
+    }
+	return 0;
+}
+
+int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const size_t N) 
+{
+    cudaError_t cudaStatus;
+    // Allocate GPU buffers for three vectors (two input, one output)    .
+	cudaStatus = cudaMalloc(&deviceData.devZ, 2 * N * sizeof(std_complex)); // we need space for both positions and potentials
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMalloc failed!");
+        return cudaStatus;
+    }
+    // Copy input vectors from host memory to GPU buffers.
+	std::vector<std_complex> ZHost(N);
+    for (size_t i = 0; i < N; ++i)
+    {
+		ZHost[i] = std_complex(data.Z[i].real(), data.Z[i].imag());
+    }
+
+    cudaStatus = cudaMemcpy(deviceData.devZ,  ZHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+        return cudaStatus;
+    }
+
+	// copy the potentials
+	std::vector<std_complex> potentialComplex(N);
+    for (size_t i = 0; i < N; ++i) 
+    {
+		potentialComplex[i] = std_complex(data.Potential[i], 0.0);
+    }
+	// copy to device
+	cudaStatus = cudaMemcpy(deviceData.devZ + N, potentialComplex.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+        return cudaStatus;
+    }
+	cudaDeviceSynchronize();
+	std::vector<std_complex> checkZ(2*N);
+	cudaStatus = cudaMemcpy(checkZ.data(), deviceData.devZ, 2 * N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+        return cudaStatus;
+	}
+
+	std::vector<double> X(N);
+	std::vector<double> Y(N);
+	std::vector<double> Phi(N);
+	std::vector<double> PhiImag(N);
+
+    for (size_t i = 0; i < N; ++i)
+    {
+		X[i] = checkZ[i].real();
+		Y[i] = checkZ[i].imag();
+		Phi[i] = checkZ[i + N].real();
+		PhiImag[i] = checkZ[i + N].imag(); // should be 0
+    }
+	plt::figure();
+	plt::plot(X, Y);
+	plt::plot(X, Phi);
+	plt::plot(X, PhiImag);
+	plt::title("Initial Condition");
+	plt::show();
     return 0;
 }
 
 template <int numParticles>
-int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
+int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
     if (cudaStatus != cudaSuccess) {
         return cudaStatus;
     }
+    // create the data in the device.
+	DeviceParticleData deviceData;
+    loadDataToDevice(data, deviceData, numParticles);
+
+
     double dt = rk45Options.initial_timestep;
 
     const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
@@ -151,17 +262,17 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     stateLogger.setSize(numSteps / loggingSteps + 1);
     stateLogger.setStep(loggingSteps);
 
-    RK45_std_complex<2 * numParticles> rungeKunta(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
-    rungeKunta.setTolerance(rk45Options.atol, rk45Options.rtol);
-    rungeKunta.initialize(data.Z, false);
-    rungeKunta.setMaxTimeStep(rk45Options.h_max);
-	rungeKunta.setMinTimeStep(rk45Options.h_min);
+    RK45_std_complex<2 * numParticles> rungeKutta(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
+    rungeKutta.setTolerance(rk45Options.atol, rk45Options.rtol);
+    rungeKutta.initialize(deviceData.devZ, true);
+    rungeKutta.setMaxTimeStep(rk45Options.h_max);
+	rungeKutta.setMinTimeStep(rk45Options.h_min);
     //rungeKunta.setTimeStep(dt);
   //  for (;;) {
 		//// inifinite loop to test if we still get the growing memory consumption with RK45
   //  }
 
-    auto result = rungeKunta.runEvolution(numSteps, dt * numSteps);
+    auto result = rungeKutta.runEvolution(numSteps, dt * numSteps);
     if (result == RK45Result::StiffnessDetected) {
         throw std::runtime_error("Stiff problem detected");
     }
@@ -191,7 +302,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     if (saveH5) {
 	    size_t vector_size = timeStepData[0].size();
         //    // Create HDF5 file
-        HighFive::File file("temp/data.h5", HighFive::File::Overwrite);
+        HighFive::File file( "temp/" + simOptions.outputFilename, HighFive::File::Overwrite);
         //HighFive::DataSpace dataspace = HighFive::DataSpace({ (size_t)loggingSteps,  vector_size });
 
 		// add properties to the file
@@ -294,22 +405,22 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 }
 
 template<int numParticles>
-int runSimulationHelium(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationHelium(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, loggingPeriod, plot, show, t0, fps);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }
 
 template <int numParticles>
-int runSimulationWater(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationWater(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     WaterBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, loggingPeriod, plot, show, t0, fps);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }
 
 template <int numParticles>
-int runSimulationHeliumInfiniteDepth(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationHeliumInfiniteDepth(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumInfiniteDepthBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, loggingPeriod, plot, show, t0, fps);
+    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }

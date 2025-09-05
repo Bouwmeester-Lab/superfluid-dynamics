@@ -59,7 +59,7 @@ int main()
 	problemProperties.kappa = 0;
     problemProperties.U = 0;
     
-    int frames = 500;
+    int frames = 800;
     double omega = 1;
     double t0 = 0;
 	double finalTime = 5e-4; // 15 ms

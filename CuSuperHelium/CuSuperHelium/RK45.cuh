@@ -385,5 +385,5 @@ inline void RK45_std_complex<N>::calculateScaledError(double atol, double rtol, 
 	// copy the scaled error back to host
 	cudaMemcpyAsync(&this->tempValues.scaledError, this->workspace.scaledError, sizeof(double), cudaMemcpyDeviceToHost, this->stream);
 	cudaStreamSynchronize(this->stream);
-	this->tempValues.scaledError = sqrt(this->tempValues.scaledError);
+	this->tempValues.scaledError =  sqrt((1.0 / N) * this->tempValues.scaledError);
 }

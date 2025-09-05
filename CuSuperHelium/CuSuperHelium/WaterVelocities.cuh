@@ -21,7 +21,7 @@
 /// <param name="out1">V1 matrix</param>
 /// <param name="out2">Diagonal entries of V2</param>
 /// <param name="lower"></param>
-__global__ void createVelocityMatrices(std_complex* Z, std_complex* Zp, std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower = true);
+__global__ void createVelocityMatrices(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower = true);
 /// <summary>
 /// Calculates the veloctities in the water model from the V1 and V2 matrices calculated by createVelocityMatrices.
 /// </summary>

@@ -45,11 +45,11 @@ double X(double j, double h, double omega, double t) {
 }
 
 double Y(double j, double h, double omega, double t) {
-    return h * PeriodicFunctions::gaussian::gaussian_periodic(j);  // std::cos((j - omega * t));
+    return h * std::cos(j);// PeriodicFunctions::gaussian::gaussian_periodic(j);  // std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
-    return 0.0*h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
+    return h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
 }
 
 int dispersionTest(double wavelength)
@@ -151,7 +151,7 @@ int modeSum() {
     double _t0 = std::sqrt(L0 / g);
 
     problemProperties.depth = H0 / L0;
-    double h = 0.1 * problemProperties.depth;
+    double h = 0.001 * problemProperties.depth;
 
     problemProperties.initial_amplitude = h;
     problemProperties.y_min = -h - 0.0001 * problemProperties.depth; // -0.5 * H0
@@ -159,9 +159,11 @@ int modeSum() {
     printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
     printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 128;//512;
 
-    const double stepSize = 1;
+    const int N = 512;//512;
+    
+	  const double stepSize = 0.1;
+
     const int steps = (finalTime / _t0) / stepSize;
     const int loggingSteps = steps / frames;
 
@@ -174,12 +176,12 @@ int modeSum() {
     std::vector<double> X0(N, 0);
     std::vector<double> Y0(N, 0);
 
-
     RK45_Options rk45_options;
     rk45_options.atol = 1e-15;
     rk45_options.rtol = 1e-10;
     rk45_options.h_max = 2;
-    rk45_options.h_min = 1e-8 / _t0; // smallest timestep
+    //rk45_options.h_min = 1e-8 / _t0; // smallest timestep
+
     rk45_options.initial_timestep = stepSize;
 
     std::vector<double> Phireal(N, 0);

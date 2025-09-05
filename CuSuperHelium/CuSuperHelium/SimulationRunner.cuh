@@ -213,7 +213,6 @@ int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const s
 	plt::plot(X, PhiImag);
 	plt::title("Initial Condition");
 	plt::show();
-
     return 0;
 }
 

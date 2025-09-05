@@ -52,75 +52,170 @@ double Phi(double j, double h, double omega, double t, double rho) {
     return h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
 }
 
-int main() 
+int dispersionTest(double wavelength)
 {
-	ProblemProperties problemProperties;
+    ProblemProperties problemProperties;
     problemProperties.rho = 0;
-	problemProperties.kappa = 0;
+    problemProperties.kappa = 0;
     problemProperties.U = 0;
-    
-    int frames = 800;
+
+    SimulationOptions simOptions;
+    simOptions.outputFilename = std::format("dispersion_test_{:.5f}.h5", wavelength);
+
+    int frames = 1000;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 5e-4; // 15 ms
-    
+    double finalTime = 1e-3; // 1 ms
+
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
-	double L0 = 10e-6/(2.0*PI_d); // 6mm
+    double L0 = wavelength / (2.0 * PI_d); // 6mm
+
+    double _t0 = std::sqrt(L0 / g);
+
+    problemProperties.depth = H0 / L0;
+    double h = 0.1 * problemProperties.depth;
+
+    problemProperties.initial_amplitude = h;
+    problemProperties.y_min = -h - 0.0001 * problemProperties.depth; // -0.5 * H0
+    problemProperties.y_max = h + 0.005 * problemProperties.depth; // 0.5 * H0
+    printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
+    printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
+
+    const int N = 128;//512;
+
+    const double stepSize = 0.2;
+    const int steps = (finalTime / _t0) / stepSize;
+    const int loggingSteps = steps / frames;
+
+    printf("Simulating %i steps representing %.2e s", steps, steps * stepSize * _t0);
+
+
+    std::vector<std::complex<double>> Z0(N);
+    std::vector<double> Phi(N);
+
+    std::vector<double> X0(N, 0);
+    std::vector<double> Y0(N, 0);
+
+
+    RK45_Options rk45_options;
+    rk45_options.atol = 1e-5;
+    rk45_options.rtol = 1e-5;
+    rk45_options.h_max = 1e-6 / _t0;
+    rk45_options.h_min = 0.0001; // smallest timestep
+    rk45_options.initial_timestep = stepSize;
+
+    std::vector<double> Phireal(N, 0);
+    // load data from Python H5 fileC:\Users\emore\Documents\repos\superfluid-calculations\simulations\data\sine_wave_128.h5
+    auto file_init = "C:\\Users\\emore\\Documents\\repos\\superfluid-calculations\\simulations\\data\\sine_wave_128.h5";
+    loadStateFile(file_init, Z0, Phi, N, h);
+
+    // plot the data to verify that we have loaded the correct file
+    for (size_t n = 0; n < N; n++) {
+        X0[n] = Z0[n].real();
+        Y0[n] = Z0[n].imag();
+    }
+
+    plt::figure();
+    plt::title("Initial Condition");
+    plt::xlabel("x (0-2pi)");
+    plt::ylabel("y (a.u.)");
+    plt::plot(X0, Y0);
+	plt::plot(X0, Phireal);
+
+    plt::show();
+
+    ParticleData particleData(Z0, Phi);
+
+
+    return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, true, true, _t0);
+}
+
+int modeSum() {
+    ProblemProperties problemProperties;
+    problemProperties.rho = 0;
+    problemProperties.kappa = 0;
+    problemProperties.U = 0;
+
+    SimulationOptions simOptions;
+
+    int frames = 30;
+    double omega = 1;
+    double t0 = 0;
+    double finalTime = 15e-3; // 15 ms
+
+    double H0 = 15e-9; // 15 nm
+    double g = 3 * 2.6e-24 / std::pow(H0, 4); //
+    double L0 = 500e-6 / (2.0 * PI_d); // 6mm
 
     double _t0 = std::sqrt(L0 / g);
 
     problemProperties.depth = H0 / L0;
     double h = 0.001 * problemProperties.depth;
 
-	problemProperties.initial_amplitude = h;
-	problemProperties.y_min = -h - 0.0001 * problemProperties.depth; // -0.5 * H0
-	problemProperties.y_max = h +  0.005 * problemProperties.depth; // 0.5 * H0
-	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
-	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
+    problemProperties.initial_amplitude = h;
+    problemProperties.y_min = -h - 0.0001 * problemProperties.depth; // -0.5 * H0
+    problemProperties.y_max = h + 0.005 * problemProperties.depth; // 0.5 * H0
+    printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
+    printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
+
 
     const int N = 512;//512;
     
-	const double stepSize = 0.1;
+	  const double stepSize = 0.1;
+
     const int steps = (finalTime / _t0) / stepSize;
-	const int loggingSteps = steps / frames;
+    const int loggingSteps = steps / frames;
 
     printf("Simulating %i steps representing %.2e s", steps, steps * stepSize * _t0);
-    
 
-    std::array<std_complex, 2*N> Z0;
-	std::vector<double> X0(N, 0);
+
+    std::vector<std::complex<double>> Z0(N);
+    std::vector<double> Phi(N);
+
+    std::vector<double> X0(N, 0);
     std::vector<double> Y0(N, 0);
-    
-	
-	RK45_Options rk45_options;
-	rk45_options.atol  = 1e-14;
-	rk45_options.rtol = 1e-10;
-    rk45_options.h_max = 1;
-	//rk45_options.h_min = 1e-20 / _t0; // smallest timestep
+
+    RK45_Options rk45_options;
+    rk45_options.atol = 1e-15;
+    rk45_options.rtol = 1e-10;
+    rk45_options.h_max = 2;
+    //rk45_options.h_min = 1e-8 / _t0; // smallest timestep
+
     rk45_options.initial_timestep = stepSize;
 
     std::vector<double> Phireal(N, 0);
-    double j;
-	for (int i = 0; i < N; i++) {
-		j = 2.0 * PI_d * i / (1.0 * N);
-		Z0[i] = std_complex(X(j, h, omega, t0), Y(j, h, omega, t0));
-        Z0[N +i] = std_complex(Phi(j, h, omega, t0, problemProperties.rho), 0.0);
-		Phireal[i] = Z0[N + i].real();
+    // load data from Python H5 file
+    auto file_init = "C:\\Users\\emore\\Documents\\repos\\superfluid-calculations\\simulations\\data\\mode_sum.h5";
+    loadStateFile(file_init, Z0, Phi, N, h);
 
-		X0[i] = Z0[i].real();
-		Y0[i] = Z0[i].imag();
+    // plot the data to verify that we have loaded the correct file
+    for (size_t n = 0; n < N; n++) {
+        X0[n] = Z0[n].real();
+        Y0[n] = Z0[n].imag();
+    }
+
+    plt::figure();
+    plt::title("Initial Condition");
+    plt::xlabel("x (0-2pi)");
+    plt::ylabel("y (a.u.)");
+    plt::plot(X0, Y0);
+    plt::show();
+
+    ParticleData particleData(Z0, Phi);
+
+
+    return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, true, true, _t0);
+}
+
+int main() 
+{
+    double step = 0.1e-6;
+    double start = 10e-6;
+    double steps = 50;
+    for(int i = 0; i < steps; i++) {
+        double wavelength = start + i * step;
+        printf("Running dispersion test for wavelength %.10e\n", wavelength);
+        dispersionTest(wavelength);
 	}
-
-	/*plt::figure();
-    plt::plot(X0, Phireal);
-	plt::plot(X0, Y0);
-    plt::show();*/
-
-    ParticleData particleData;
-	particleData.Z = Z0.data();
-	particleData.Potential =Z0.data() + N;
-
-    
-     return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, loggingSteps, true, true, _t0);
 }

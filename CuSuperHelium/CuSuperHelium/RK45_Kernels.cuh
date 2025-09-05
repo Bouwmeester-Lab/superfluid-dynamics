@@ -72,6 +72,7 @@ __global__ void rk45_error_and_y5(
 {
 	auto block = cg::this_thread_block();
 	double local_sumsq = 0.0;
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
 
 	for (unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 		i < N; i += blockDim.x * gridDim.x)
@@ -89,7 +90,7 @@ __global__ void rk45_error_and_y5(
 
 		double sc = atol + rtol * fmax(mag(y[i]), mag(y5));
 		//printf("%i: k1[i] %.5e k2[i] %.5e, k3 %.5e k4 %.5e k5 %.5e k6 %.5e \n", i, k1[i], k2[i], k3[i], k4[i], k5[i], k6[i]);
-		//printf("%i: N: %d, e %.5e sc %.5e abs y5 %.5e\n",  i, N, mag(e), sc, mag(y5));
+		//printf("%i: N: %d, e %.5e sc %.5e abs y5 %.5e z %.5e\n",  i, N, mag(e), sc, mag(y5), z);
 		// guard against sc=0 if both are exactly zero
 		// this is the scale for the relative error
 		sc = fmax(sc, 1e-300);
@@ -99,7 +100,7 @@ __global__ void rk45_error_and_y5(
 	}
 
 	double block_sum = block_reduce_sum<BLOCK_SIZE, cg::plus<double>>(local_sumsq);
-
+	printf("%i: block_sum: %.5f global: %.5e \n", id, block_sum, *sumsq);
 	if (block.thread_rank() == 0) {
 		if (sumsq) atomicAdd(sumsq, block_sum);
 	}

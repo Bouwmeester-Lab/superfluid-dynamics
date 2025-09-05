@@ -231,7 +231,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
     double dt = rk45Options.initial_timestep;
 
-    const int loggingSteps = loggingPeriod < 0 ? numSteps / 20 : loggingPeriod;
+    const int loggingSteps = loggingPeriod <= 0 ? numSteps / 100 : loggingPeriod;
    // std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
 
     /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/

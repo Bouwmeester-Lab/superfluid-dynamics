@@ -3,9 +3,9 @@
 
 struct DevicePointers
 {
-	std_complex* Z;
-	std_complex* Zp;
-	std_complex* Zpp;
-	std_complex* Phi;
-	std_complex* LowerVelocities;
+	const std_complex* Z;
+	const std_complex* Zp;
+	const std_complex* Zpp;
+	const std_complex* Phi;
+	const std_complex* LowerVelocities;
 };

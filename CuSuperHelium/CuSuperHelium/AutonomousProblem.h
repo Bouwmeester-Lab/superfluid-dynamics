@@ -10,20 +10,19 @@ template<typename T, int N>
 class AutonomousProblem
 {
 public:
-	T* devTimeEvolutionRhs; ///< Device pointer to the right-hand side of the time evolution problem
-	virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
+	// virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
 	AutonomousProblem()
 	{
-		cudaMalloc(&devTimeEvolutionRhs, N * sizeof(T)); // Allocate device memory for the right-hand side of the time evolution problem
 	}
 	virtual ~AutonomousProblem()
 	{
-		cudaFree(devTimeEvolutionRhs); // Free the device memory for the right-hand side of the time evolution problem
 	}
 
 	/// <summary>
 	/// Function to run the time evolution problem, at the end the device pointer devTimeEvolutionRhs should be filled with the right-hand side of the problem
 	/// </summary>
 	/// <param name="initialState"></param>
-	virtual void run(T* initialState) = 0;
+	/// <param name="rhs">The rhs vector where to place the result</param>
+	virtual void run(T* initialState, T* rhs) = 0;
+	virtual void setStream(cudaStream_t stream) = 0;
 };

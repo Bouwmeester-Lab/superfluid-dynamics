@@ -28,6 +28,23 @@ T CastTo(double d) {
     }
 }
 
+template <typename T>
+double CastFrom(T d) 
+{
+    if constexpr (std::same_as<T, std_complex>) {
+        return ((std_complex)d).real();
+    }
+    else if constexpr (std::same_as<T, cuDoubleComplex>) {
+        return cuCreal(d);
+    }
+    else if constexpr (std::constructible_from<double, T>) {
+        return (double)d;
+	}
+    else {
+        static_assert(true, "Case not supported");
+    }
+}
+
  /**
   * Complex float overloaded addition operator (cuFloatComplex + cuFloatComplex).
   * @param a cuFloatComplex data type.

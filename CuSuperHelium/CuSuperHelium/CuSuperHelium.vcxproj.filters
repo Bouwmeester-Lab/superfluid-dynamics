@@ -51,5 +51,15 @@
     <ClInclude Include="SolitonPeak.h">
       <Filter>Functions</Filter>
     </ClInclude>
+    <ClInclude Include="RK45.cuh" />
+    <ClInclude Include="LinearAlgebra.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Reductions.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="RK45_Kernels.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -111,11 +111,15 @@
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
+    <ClInclude Include="LinearAlgebra.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
+    <ClInclude Include="Reductions.cuh" />
+    <ClInclude Include="RK45.cuh" />
+    <ClInclude Include="RK45_Kernels.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="SolitonPeak.h" />

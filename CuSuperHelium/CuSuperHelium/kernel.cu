@@ -45,11 +45,11 @@ double X(double j, double h, double omega, double t) {
 }
 
 double Y(double j, double h, double omega, double t) {
-    return h * PeriodicFunctions::gaussian::gaussian_periodic(j);// *std::sin(j);  // std::cos((j - omega * t));
+    return h * std::cos(j);// PeriodicFunctions::gaussian::gaussian_periodic(j);  // std::cos((j - omega * t));
 }
 
 double Phi(double j, double h, double omega, double t, double rho) {
-    return 0.0*h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
+    return h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
 }
 
 int main() 
@@ -62,16 +62,16 @@ int main()
     int frames = 800;
     double omega = 1;
     double t0 = 0;
-	double finalTime = 10e-3; // 15 ms
+	double finalTime = 5e-4; // 15 ms
     
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
-	double L0 = 500e-6/(2.0*PI_d); // 6mm
+	double L0 = 10e-6/(2.0*PI_d); // 6mm
 
     double _t0 = std::sqrt(L0 / g);
 
     problemProperties.depth = H0 / L0;
-    double h = 0.1 * problemProperties.depth;
+    double h = 0.001 * problemProperties.depth;
 
 	problemProperties.initial_amplitude = h;
 	problemProperties.y_min = -h - 0.0001 * problemProperties.depth; // -0.5 * H0
@@ -79,42 +79,48 @@ int main()
 	printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
 	printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 512*4;//512;
+    const int N = 512;//512;
     
-	const double stepSize = 0.012*4;
-    const int steps = abs( (finalTime / _t0) / stepSize);
-	const int loggingSteps = abs( steps / frames);
+	const double stepSize = 0.1;
+    const int steps = (finalTime / _t0) / stepSize;
+	const int loggingSteps = steps / frames;
 
     printf("Simulating %i steps representing %.2e s", steps, steps * stepSize * _t0);
     
 
-    std::array<std_complex, N> Z0;
+    std::array<std_complex, 2*N> Z0;
 	std::vector<double> X0(N, 0);
     std::vector<double> Y0(N, 0);
     
-	std::array<std_complex, N> PhiArr;
+	
+	RK45_Options rk45_options;
+	rk45_options.atol  = 1e-14;
+	rk45_options.rtol = 1e-10;
+    rk45_options.h_max = 1;
+	//rk45_options.h_min = 1e-20 / _t0; // smallest timestep
+    rk45_options.initial_timestep = stepSize;
 
     std::vector<double> Phireal(N, 0);
     double j;
 	for (int i = 0; i < N; i++) {
 		j = 2.0 * PI_d * i / (1.0 * N);
 		Z0[i] = std_complex(X(j, h, omega, t0), Y(j, h, omega, t0));
-        PhiArr[i] = std_complex(Phi(j, h, omega, t0, problemProperties.rho), 0.0);
-		Phireal[i] = PhiArr[i].real();
+        Z0[N +i] = std_complex(Phi(j, h, omega, t0, problemProperties.rho), 0.0);
+		Phireal[i] = Z0[N + i].real();
 
 		X0[i] = Z0[i].real();
 		Y0[i] = Z0[i].imag();
 	}
 
-	plt::figure();
+	/*plt::figure();
     plt::plot(X0, Phireal);
 	plt::plot(X0, Y0);
-    plt::show();
+    plt::show();*/
 
     ParticleData particleData;
 	particleData.Z = Z0.data();
-	particleData.Potential = PhiArr.data();
+	particleData.Potential =Z0.data() + N;
 
     
-     return runSimulationHelium<N>(steps, stepSize, problemProperties, particleData, loggingSteps, true, true, _t0);
+     return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, loggingSteps, true, true, _t0);
 }

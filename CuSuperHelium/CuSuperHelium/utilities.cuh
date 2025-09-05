@@ -349,6 +349,20 @@ void checkCuda(cudaError_t result) {
     }
 }
 
+inline void checkCuda(cudaError_t result,
+    const char* func,
+    const char* file,
+    int line)
+{
+    if (result != cudaSuccess) {
+        std::cerr << "CUDA Error at " << file << ":" << line
+            << " (" << func << "): "
+            << cudaGetErrorString(result) << std::endl;
+        throw std::runtime_error(cudaGetErrorString(result));
+    }
+}
+#define CHECK_CUDA(val) checkCuda((val), #val, __FILE__, __LINE__)
+
 void checkCusolver(cusolverStatus_t status) {
     if (status != CUSOLVER_STATUS_SUCCESS) {
         std::cerr << "cuSolver Error" << std::endl;

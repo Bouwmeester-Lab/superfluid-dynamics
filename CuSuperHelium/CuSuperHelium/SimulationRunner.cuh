@@ -216,8 +216,29 @@ int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const s
     return 0;
 }
 
+/// <summary>
+/// Sets the device data for the simulation. This function assumes that the device hasn't already been set using setDevice().
+/// </summary>
+template<int numParticles>
+int setDeviceData(ParticleData data, DeviceParticleData& deviceData)
+{
+    cudaError_t cudaStatus;
+    cudaStatus = setDevice();
+    if (cudaStatus != cudaSuccess) {
+        return cudaStatus;
+    }
+    loadDataToDevice(data, deviceData, numParticles);
+}
+
 template <int numParticles>
-int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
+RK45_std_complex<2 * numParticles> createRK45Solver() 
+{
+
+}
+
+template <int numParticles, typename TSolver, typename TOptions>
+requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
+int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, TOptions solverOptions, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
@@ -229,7 +250,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     loadDataToDevice(data, deviceData, numParticles);
 
 
-    double dt = rk45Options.initial_timestep;
+    double dt = solverOptions.initial_timestep;
 
     const int loggingSteps = loggingPeriod <= 0 ? numSteps / 100 : loggingPeriod;
    // std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
@@ -262,18 +283,16 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
     stateLogger.setSize(numSteps / loggingSteps + 1);
     stateLogger.setStep(loggingSteps);
 
-    RK45_std_complex<2 * numParticles> rungeKutta(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
-    rungeKutta.setTolerance(rk45Options.atol, rk45Options.rtol);
-    rungeKutta.initialize(deviceData.devZ, true);
-    rungeKutta.setMaxTimeStep(rk45Options.h_max);
-	rungeKutta.setMinTimeStep(rk45Options.h_min);
+    TSolver solver(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
+	solver.setOptions(solverOptions);
+    solver.initialize(deviceData.devZ, true);
     //rungeKunta.setTimeStep(dt);
   //  for (;;) {
 		//// inifinite loop to test if we still get the growing memory consumption with RK45
   //  }
-
-    auto result = rungeKutta.runEvolution(numSteps, dt * numSteps);
-    if (result == RK45Result::StiffnessDetected) {
+    
+    auto result = solver.runEvolution(0.0, dt * numSteps);
+    if (result == OdeSolverResult::StiffnessDetected) {
         throw std::runtime_error("Stiff problem detected");
     }
     /*for (int i = 0; i < numSteps; ++i) {
@@ -411,11 +430,12 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 	return 0;
 }
 
-template<int numParticles>
-int runSimulationHelium(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+template<int numParticles, typename TSolver, typename TOptions>
+requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
+int runSimulationHelium(const int numSteps, ProblemProperties& properties, ParticleData data, TOptions rk45Options, SimulationOptions simOptions,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
+    return runSimulation<numParticles, TSolver, TOptions>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }
 
 template <int numParticles>

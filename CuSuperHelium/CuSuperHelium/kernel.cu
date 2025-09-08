@@ -52,6 +52,13 @@ double Phi(double j, double h, double omega, double t, double rho) {
     return h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
 }
 
+
+
+void createRk45Solver() 
+{
+    
+}
+
 int dispersionTest(double wavelength)
 {
     ProblemProperties problemProperties;
@@ -104,11 +111,11 @@ int dispersionTest(double wavelength)
     std::vector<double> Y0(N, 0);
 
 
-    RK45_Options rk45_options;
-    rk45_options.atol = 1e-14;
-    rk45_options.rtol = 1e-10;
-    rk45_options.h_max = 5;
-    rk45_options.h_min = 1e-10; // smallest timestep
+    RK4Options rk45_options;
+    //rk45_options.atol = 1e-14;
+    //rk45_options.rtol = 1e-10;
+    //rk45_options.h_max = 5;
+    //rk45_options.h_min = 1e-10; // smallest timestep
     rk45_options.initial_timestep = stepSize;
 
     // load data from Python H5 fileC:\Users\emore\Documents\repos\superfluid-calculations\simulations\data\sine_wave_128.h5
@@ -136,9 +143,10 @@ int dispersionTest(double wavelength)
     //plt::show();
 
     ParticleData particleData(Z0, PhiVect);
+	DeviceParticleData deviceData;
 
-
-    return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
+    HeliumBoundaryProblem<N> boundaryProblem(problemProperties);
+    return runSimulation<N, AutonomousRungeKuttaStepper<std_complex, 2*N>, RK4Options>(boundaryProblem, steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
 }
 
 int modeSum() {
@@ -215,7 +223,7 @@ int modeSum() {
     ParticleData particleData(Z0, Phi);
 
 
-    return runSimulationHelium<N>(steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, true, true, _t0);
+    return runSimulationHelium<N, RK45_std_complex<2 * N>, RK45_Options>(steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, true, true, _t0);
 }
 
 int main() 

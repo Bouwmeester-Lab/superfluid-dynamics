@@ -113,6 +113,7 @@
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
+    <ClInclude Include="OdeSolver.h" />
     <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />

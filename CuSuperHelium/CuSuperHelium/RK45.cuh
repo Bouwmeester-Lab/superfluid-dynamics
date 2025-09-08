@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <initializer_list>
 #include "ValueLogger.h"
+#include "OdeSolver.h"
 
 struct RK45_Options {
 	double atol = 1e-6; // absolute tolerance
@@ -92,21 +93,20 @@ enum class RK45StepResult
 	StepRejected
 };
 
-enum class RK45Result {
-	ReachedEndTime,
-	StiffnessDetected
-};
+
 
 
 template <typename T, size_t N>
-class RK45Base
+class RK45Base : public OdeSolver
 {
 public:
 	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers,  double tstep = 1e-2, double h_max = 1e10, double _h_min = 1e-16);
 	~RK45Base();
 
 	[[nodiscard]] RK45StepResult runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
-	RK45Result runEvolution(size_t maxSteps, double endTime, size_t maxRejected = 500);
+	OdeSolverResult runEvolution(double endTime);
+	virtual OdeSolverResult runEvolution(double startTime, double endTime);
+
 	void setMinTimeStep(double h_min) 
 	{ 
 		// if (h_min >= h_max) throw std::invalid_argument("Minimum time step must be smaller than maximum time step.");
@@ -133,6 +133,16 @@ public:
 	}
 	double getCurrentTime() const {
 		return currentTime;
+	}
+	void setMaxRejectedSteps(size_t maxRejected) {
+		this->maxRejectedSteps = maxRejected;
+	}
+
+	void setOptions(const RK45_Options& options) {
+		setTolerance(options.atol, options.rtol);
+		setMinTimeStep(options.h_min);
+		setMaxTimeStep(options.h_max);
+		currentTimeStep = options.initial_timestep;
 	}
 protected:
 	RK45WorkspaceGpu<T, N> workspace;
@@ -171,7 +181,7 @@ protected:
 	// bounds for timestep
 	double h_min = 1e-16;
 	double h_max;
-
+	size_t maxRejectedSteps = 500;
 };
 template <typename T, size_t N>
 RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), valueLoggers(_valueLoggers), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
@@ -183,17 +193,17 @@ RK45Base<T, N>::~RK45Base()
 }
 
 template <typename T, size_t N>
-RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t maxRejectedSteps)
+OdeSolverResult RK45Base<T, N>::runEvolution(double endTime)
 {
 	size_t rejectedTimes = 0;
 	double maxStepSize = -1;
 	RK45StepResult state;
 	size_t i;
-	for (i = 0; i < maxSteps; ++i) {
+	for (;;++i) {
 		// before running check for completion
 		if (currentTime >= endTime) 
 		{
-			return RK45Result::ReachedEndTime;
+			return OdeSolverResult::ReachedEndTime;
 		}
 		// ensure that the time step is not larger than needed to reach the end time! We do not want to over shoot.
 		maxStepSize = endTime - currentTime;
@@ -213,7 +223,7 @@ RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t 
 				rejectedTimes++;
 			}
 			if (rejectedTimes > maxRejectedSteps) {
-				return RK45Result::StiffnessDetected;
+				return OdeSolverResult::StiffnessDetected;
 				//throw std::runtime_error("The equation might be stiff. Max number of rejected steps reached.");
 			}
 		}
@@ -228,6 +238,13 @@ RK45Result RK45Base<T, N>::runEvolution(size_t maxSteps, double endTime, size_t 
 			}
 		}
 	}
+}
+
+template<typename T, size_t N>
+OdeSolverResult RK45Base<T, N>::runEvolution(double startTime, double endTime)
+{
+	currentTime = startTime; // set the current time to the start time
+	return runEvolution(endTime);
 }
 
 template <typename T, size_t N>

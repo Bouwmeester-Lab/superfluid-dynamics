@@ -64,5 +64,8 @@
     <ClInclude Include="SimulationOptions.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="OdeSolver.h">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

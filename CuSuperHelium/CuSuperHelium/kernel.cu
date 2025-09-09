@@ -59,7 +59,7 @@ void createRk45Solver()
     
 }
 
-int dispersionTest(double wavelength)
+int dispersionTest(double wavelength, double startWaveLength)
 {
     ProblemProperties problemProperties;
     problemProperties.rho = 0;
@@ -74,9 +74,9 @@ int dispersionTest(double wavelength)
     int frames = 250;
     double omega = 1;
     double t0 = 0;
-    double finalTime = 3e-2; // 1 ms
+    double finalTime = 4e-6 + (wavelength - startWaveLength)/startWaveLength * 1e-6;
 
-    double H0 = 15e-7; // 15 nm
+    double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
     double L0 = wavelength / (2.0 * PI_d); // 6mm
 
@@ -97,7 +97,7 @@ int dispersionTest(double wavelength)
 
     const int N = 128;//512;
 
-    const double stepSize = 0.04;
+    const double stepSize = 0.08;
     const int steps = (finalTime / _t0) / stepSize;
     const int loggingSteps = steps / frames;
 
@@ -228,12 +228,12 @@ int modeSum() {
 
 int main() 
 {
-    double step = 1e-6;
-    double start = 10e-6;
+    double step = 5e-7;
+    double start = 1e-7;
     double steps = 100;
     for(int i = 0; i < steps; i++) {
         double wavelength = start + i * step;
         printf("Running dispersion test for wavelength %.10e\n", wavelength);
-        dispersionTest(wavelength);
+        dispersionTest(wavelength, start);
 	}
 }

@@ -59,11 +59,10 @@ void createRk45Solver()
     
 }
 
-int dispersionTest(double wavelength, double startWaveLength)
+int dispersionTest(double wavelength, double startWaveLength, ProblemProperties problemProperties)
 {
-    ProblemProperties problemProperties;
+    
     problemProperties.rho = 0;
-    problemProperties.kappa = 0;
     problemProperties.U = 0;
 
     SimulationOptions simOptions;
@@ -74,13 +73,15 @@ int dispersionTest(double wavelength, double startWaveLength)
     int frames = 250;
     double omega = 1;
     double t0 = 0;
-    double finalTime = 4e-6 + (wavelength - startWaveLength)/startWaveLength * 1e-6;
+    double finalTime = 5e-6 + (wavelength - startWaveLength)/startWaveLength * 1e-6;
 
     double H0 = 15e-9; // 15 nm
     double g = 3 * 2.6e-24 / std::pow(H0, 4); //
     double L0 = wavelength / (2.0 * PI_d); // 6mm
 
     double _t0 = std::sqrt(L0 / g);
+
+    problemProperties.kappa = 0.02;// problemProperties.kappa* (_t0 * _t0) / (150.0 * std::pow(L0, 3.0)); // non-dimensionalize kappa divide by 150 kg/m3 the density of helium to fully adimensionalize
 
     problemProperties.depth = H0 / L0;
     double h = 0.001 * problemProperties.depth;
@@ -95,9 +96,9 @@ int dispersionTest(double wavelength, double startWaveLength)
     printf("Simulating with depth (h_0) %.10e, h %.10e, omega %f, t0 %.10e, L0 %.10e\n", problemProperties.depth, h, omega, _t0, L0);
     printf("g %.10e, H0 %.10e, L0 %.10e\n", g, H0, L0);
 
-    const int N = 128;//512;
+    const int N = 256;//512;
 
-    const double stepSize = 0.08;
+    const double stepSize = 0.008;
     const int steps = (finalTime / _t0) / stepSize;
     const int loggingSteps = steps / frames;
 
@@ -228,12 +229,15 @@ int modeSum() {
 
 int main() 
 {
-    double step = 5e-7;
-    double start = 1e-7;
-    double steps = 100;
+    double step = 5e-6;
+    double start = 1e-6;
+    double steps = 50;
+    ProblemProperties problemProperties;
+    problemProperties.rho = 0;
+	problemProperties.kappa = 3.5e-4 ; // in kg/s^2
     for(int i = 0; i < steps; i++) {
         double wavelength = start + i * step;
         printf("Running dispersion test for wavelength %.10e\n", wavelength);
-        dispersionTest(wavelength, start);
+        dispersionTest(wavelength, start, problemProperties);
 	}
 }

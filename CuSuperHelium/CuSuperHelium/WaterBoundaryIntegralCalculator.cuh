@@ -17,6 +17,18 @@
 #include "Energies.cuh"
 
 #include "matplotlibcpp.h"
+
+struct ProblemPointers 
+{
+public:
+	const std_complex* Z; ///< Device pointer to the Z array (complex representation of the boundary)
+	const std_complex* Zp; ///< Device pointer to the Zp array (derivative of Z)
+	const std_complex* Zpp; ///< Device pointer to the Zpp array (second derivative of Z)
+	const std_complex* Phi; ///< Device pointer to the Phi array (potential function on the boundary)
+	const std_complex* VelocitiesUpper; ///< Device pointer to the velocities array (calculated velocities on the boundary)
+	const std_complex* VelocitiesLower; ///< Device pointer to the velocities array (calculated velocities on the boundary)
+};
+
 namespace plt = matplotlibcpp;
 template<int N>
 class BoundaryProblem {
@@ -50,7 +62,7 @@ public:
 		std_complex* velocities,
 		ProblemProperties& properties,
 		bool lower) = 0;
-	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) = 0;
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) = 0;
 	virtual void CalculateEnergy(const DevicePointers& devPointers) 
 	{
 		energyContainer.CalculateEnergy(devPointers); ///< Calculate the energies based on the device pointers containing the state variables
@@ -86,9 +98,9 @@ public:
 		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) override
 	{
-		compute_rhs_phi_expression << <this->blocks, this->threads >> > (Z, V1, V2, result, properties.rho, N);
+		compute_rhs_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, problemPointers.VelocitiesUpper, result, properties.rho, N);
 	}
 };
 
@@ -121,9 +133,12 @@ public:
 		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp,properties.depth,  N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) override
 	{
-		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (Z, V1, result, properties.depth, N);
+		if(properties.kappa != 0.0)
+			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, N);
+		else
+			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, N);
 	}
 };
 
@@ -155,9 +170,9 @@ public:
 		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, ProblemProperties& properties, int N) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) override
 	{
-		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (Z, V1, result, properties.depth,N);
+		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth,N);
 	}
 };
 
@@ -274,7 +289,7 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 	// set the state variables using the initialState pointer, this creates the variables in here to avoid global variables
 	const std_complex* devZ = initialState; // Device pointer for the Z array
 	const std_complex* devPhi = initialState + N; // Device pointer for the Phi array
-
+	const ProblemPointers problemPointers{ devZ, devZp, devZpp, devPhi, devVelocitiesUpper, devVelocitiesLower };
 	// Here you would implement the logic to run a time step of the simulation.
 	// This would typically involve:
 	// 1. Calculating ZPhiPrime and Zpp from devZPhi.
@@ -408,7 +423,7 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 	// 7. the RHS of the X, Y are the velocities above.
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	/*calculatePhiRhs();*/
-	boundaryProblem.CalculateRhsPhi(devZ, devVelocitiesLower, devVelocitiesUpper, devRhsPhi, problemProperties, N); // Calculate the right-hand side of the phi equation
+	boundaryProblem.CalculateRhsPhi(problemPointers, devRhsPhi, problemProperties, N); // Calculate the right-hand side of the phi equation
 
 	// calculate the evolution constants like the energy:
 	//kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state

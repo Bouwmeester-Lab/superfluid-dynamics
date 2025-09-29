@@ -47,7 +47,7 @@ class ComplexFftDerivative : public FftDerivativeBase<cufftDoubleComplex, N>
 };
 
 template <int N, int batchSize>
-class FftDerivative 
+class FftDerivative final
 {
 	cufftHandle plan;
 	/// <summary>
@@ -79,7 +79,7 @@ public:
 /// <typeparam name="N"></typeparam>
 /// <typeparam name="batchSize"></typeparam>
 template <int N>
-class ZPhiDerivative 
+class ZPhiDerivative final
 {
 private:
 	FftDerivative<N, 1> fftDerivative;

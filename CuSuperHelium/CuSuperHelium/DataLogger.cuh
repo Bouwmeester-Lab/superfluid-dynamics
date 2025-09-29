@@ -8,7 +8,7 @@ class DataLogger
 {
 public:
 	DataLogger();
-	~DataLogger();
+	virtual ~DataLogger();
 
 	void setSize(size_t size, bool allocateTimes = true)
 	{
@@ -18,6 +18,7 @@ public:
 		if (allocateTimes) {
 			times.reserve(size); // , 0.0);
 		}
+		fixedSize = true;
 	}
 	void setStep(size_t steps)
 	{
@@ -25,6 +26,8 @@ public:
 	}
 	void setReadyToCopy(T* devPointer, cudaStream_t stream = cudaStreamPerThread, double time = -1, bool logTimes = false) 
 	{
+		// return;
+
 		cudaEventRecord(readyToCopy, stream);
 		copyScheduled = true;
 
@@ -32,7 +35,10 @@ public:
 		if (logTimes) {
 			times.push_back(time);
 		}
-		data.emplace_back(N); // Add a new vector to hold the data
+		//if (currentIndex == data.capacity()) {
+			data.emplace_back(N); // Add a new vector to hold the data if the size we reached capacity
+		//}
+		
 		cudaMemcpyAsync(data.at(currentIndex++).data(), devPointer, N * sizeof(T), cudaMemcpyDeviceToHost, copyStream);
 		
 		cudaEventRecord(copyDone, copyStream);
@@ -64,12 +70,16 @@ public:
 		return data.at(index);
 	}
 
-	std::vector<std::vector<T>>& getAllData()
+	/// <summary>
+	/// Gets a COPY of all current data.
+	/// </summary>
+	/// <returns></returns>
+	std::vector<std::vector<T>> getAllData()
 	{
 		return data;
 	}
 
-	std::vector<double>& getTimes() {
+	std::vector<double> getTimes() {
 		return times;
 	}
 
@@ -77,7 +87,7 @@ private:
 	cudaEvent_t readyToCopy, copyDone;
 	cudaStream_t copyStream;
 	size_t size;
-
+	bool fixedSize = false;
 	std::vector<std::vector<T>> data;
 	std::vector<double> times;
 
@@ -100,4 +110,7 @@ DataLogger<T, N>::~DataLogger()
 	cudaEventDestroy(readyToCopy);
 	cudaEventDestroy(copyDone);
 	cudaStreamDestroy(copyStream);
+	//for(auto& vec : data) {
+	//	vec.clear();
+	//}
 }

@@ -42,6 +42,7 @@ public:
 
 	BoundaryProblem(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface) : matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16), energyContainer(kinetic, potential, surface)
 	{}
+	virtual ~BoundaryProblem() {}
 	/// <summary>
 	/// reates the M matrix for the boundary integral problem.
 	/// </summary>
@@ -63,9 +64,9 @@ public:
 		ProblemProperties& properties,
 		bool lower) = 0;
 	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) = 0;
-	virtual void CalculateEnergy(const DevicePointers& devPointers) 
+	virtual void CalculateEnergy(const DevicePointers& devPointers, cudaStream_t stream)
 	{
-		energyContainer.CalculateEnergy(devPointers); ///< Calculate the energies based on the device pointers containing the state variables
+		energyContainer.CalculateEnergy(devPointers, stream); ///< Calculate the energies based on the device pointers containing the state variables
 	};
 };
 
@@ -178,7 +179,7 @@ public:
 
 
 template<int N>
-class BoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2*N>
+class BoundaryIntegralCalculator final : public AutonomousProblem<std_complex, 2*N>
 {
 public:
 	BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem);
@@ -194,7 +195,7 @@ public:
 	// TODO: implement the setStream function to allow for asynchronous operations
 	virtual void setStream(cudaStream_t stream) override
 	{
-		
+		opsStream = stream;
 	} ///< Set the CUDA stream for asynchronous operations
 
 	// std_complex* devVelocitiesLower; ///< Device pointer to the velocities array (lower fluid)
@@ -225,6 +226,7 @@ private:
 	std_complex* devV1; ///< Device pointer to the V1 matrix
 	std_complex* devV2; ///< Device pointer to the V2 diagonal vector
 
+	cudaStream_t opsStream = cudaStreamPerThread; /// < CUDA stream for computations.
 	
 	
 
@@ -267,16 +269,18 @@ BoundaryIntegralCalculator<N>::~BoundaryIntegralCalculator()
 {
 	// cudaFree(devZ);
 	// cudaFree(devPhi);
-	cudaFree(devZp);
-	cudaFree(devPhiPrimeComplex);
-	cudaFree(devPhiPrime);
-	cudaFree(devZpp);
-	cudaFree(deva);
-	cudaFree(devaprime);
-	cudaFree(devV1);
-	cudaFree(devV2);
+	cudaFreeAsync(devZp, opsStream);
+	cudaFreeAsync(devPhiPrimeComplex, opsStream);
+	cudaFreeAsync(devPhiPrime, opsStream);
+	cudaFreeAsync(devZpp, opsStream);
+	cudaFreeAsync(devM, opsStream);
+	cudaFreeAsync(deva, opsStream);
+	cudaFreeAsync(devaComplex, opsStream);
+	cudaFreeAsync(devaprime, opsStream);
+	cudaFreeAsync(devV1, opsStream);
+	cudaFreeAsync(devV2, opsStream);
 	// cudaFree(devVelocitiesLower);
-	cudaFree(devVelocitiesUpper);
+	cudaFreeAsync(devVelocitiesUpper, opsStream);
 	// cudaFree(devRhsPhi);
 }
 
@@ -429,9 +433,9 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 	//kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
 	//gravitationalEnergy.CalculateEnergy(devZ);// , devZp); // Calculate the gravitational energy based on the current state
 	//surfaceEnergy.CalculateEnergy(devZp); // Calculate the surface energy based on the current state
-	boundaryProblem.CalculateEnergy({ devZ, devZp, devZpp, devPhi, devVelocitiesLower }); // Calculate the energies based on the device pointers containing the state variables
+	boundaryProblem.CalculateEnergy({ devZ, devZp, devZpp, devPhi, devVelocitiesLower }, opsStream); // Calculate the energies based on the device pointers containing the state variables
 
-	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower); // Calculate the volume flux based on the current state
+	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower, opsStream); // Calculate the volume flux based on the current state
 }
 template<int N>
 void BoundaryIntegralCalculator<N>::run(std_complex* initialState, std_complex* rhs)

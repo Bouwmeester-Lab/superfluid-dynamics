@@ -129,7 +129,7 @@ int main()
 
     double startWaveNumber = 1e2;
     double endWaveNumber = 70000;
-    size_t steps = 40;
+    size_t steps = 20;
 
     double stepSize = (endWaveNumber - startWaveNumber) / (steps - 1);
     double waveNumber = startWaveNumber; // 1.2629161883e-07
@@ -138,7 +138,7 @@ int main()
         double wavelength = 2.0 * PI_d / waveNumber;
         double time = wavelength / c3 * periods;
         printf("Running dispersion test for wavelength %.10e\n", wavelength);
-        dispersionTest<256>(wavelength, time, problemProperties, 40000);
+        dispersionTest<256>(wavelength, time, problemProperties, 10000);
         // next wave number
         waveNumber += stepSize;
     }

@@ -31,16 +31,10 @@ cudaError_t setDevice()
     return cudaStatus;
 }
 
-struct ParticleData {
-    std::vector<std::complex<double>>& Z; // vector of particle positions
-    std::vector<double>& Potential; // vector of particle potentials
-	ParticleData(std::vector<std::complex<double>>& positions, std::vector<double>& potential) : Z(positions), Potential(potential) {}
-};
 
-struct DeviceParticleData 
-{
-	std_complex* devZ; // device pointer to particle positions and potentials
-};
+
+
+
 
 template <int N>
 struct KineticEnergyFunctor {
@@ -377,6 +371,7 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
         HighFive::DataSet volumeFluxDataset = file.createDataSet<double>("VolumeFlux", energySpace);
 		volumeFluxDataset.write(volumeFluxLogger->getLoggedValues());
+		file.flush();
     }
     
 
@@ -427,6 +422,8 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
         if (show)
             plt::show();
     }
+    plt::close();
+    plt::cla();
 	return 0;
 }
 

@@ -95,10 +95,9 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
-        // Calculate the right-hand side of the phi equation
-        double Z_imag = Z[i].imag();
-        double V1_abs2 = V1[i].real() * V1[i].real() + V1[i].imag() * V1[i].imag();
-		result[i] = h / 3.0 * (1.0 / cuda::std::pow(1.0 + Z_imag / h, 3) - 1) + 0.5 * V1_abs2; // we can try to add the surface tension term
+        double vdw = 20.447761896665416 * h / 3.0;
+        //printf("coeff before van der waals term: %.10e\n", vdw);
+		result[i] = vdw * cuda::std::pow(1.0 + Z[i].imag() / h, -3.0) - vdw + 0.5 * V1[i].real() * V1[i].real() + 0.5* V1[i].imag() * V1[i].imag(); // we can try to add the surface tension term
     }
 }
 
@@ -116,7 +115,7 @@ __global__ void compute_rhs_helium_phi_expression_with_surface_tension(const std
         double V1_abs2 = V1[i].real() * V1[i].real() + V1[i].imag() * V1[i].imag();
 		//double curvature_term = ;
 		//printf("Curvature term at index %d: %f, Xp %f, Yp %f\n", i, curvature_term, Zp[i].real(), Zp[i].imag());
-		result[i] = h / 3.0 * (1.0 / cuda::std::pow(1.0 + Z_imag / h, 3) - 1) + 0.5 * V1_abs2 + kappa * inverse_radius_of_curvature(Zp[i], Zpp[i]);
+		result[i] = 20.447761896665416 * h / 3.0 * (1.0 / cuda::std::pow(1.0 + Z_imag / h, 3) - 1) + 0.5 * V1_abs2 + kappa * inverse_radius_of_curvature(Zp[i], Zpp[i]);
     }
 }
 

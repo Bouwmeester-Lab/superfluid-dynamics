@@ -83,6 +83,8 @@
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <AdditionalOptions>-std=c++20 %(AdditionalOptions)</AdditionalOptions>
       <CodeGeneration>compute_86,sm_86</CodeGeneration>
+      <Optimization>Od</Optimization>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

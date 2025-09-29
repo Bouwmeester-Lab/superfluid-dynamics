@@ -11,7 +11,7 @@
 /// </summary>
 /// <typeparam name="N">Size of the matrix</typeparam>
 template <int N>
-class MatrixSolver
+class MatrixSolver final
 {
 public:
     /// <summary>
@@ -57,7 +57,7 @@ MatrixSolver<N>::MatrixSolver()
     // Query working space size for LU factorization  
     checkCusolver(cusolverDnDgetrf_bufferSize(handle, N, N, nullptr, N, &work_size));  
 	// Allocate device memory for workspace
-	cudaMalloc(&devWork, work_size * sizeof(double));
+    checkCuda(cudaMalloc(&devWork, work_size * sizeof(double)));
 }
 
 /// <summary>

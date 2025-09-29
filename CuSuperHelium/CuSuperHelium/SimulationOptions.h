@@ -11,6 +11,7 @@ struct SimulationOptions
 	std::string videoFilename = "output";
 	std::map<std::string, double> attributes;
 	bool createVideo = false;
+	bool saveHDF5 = true;
 };
 
 struct ParticleData {

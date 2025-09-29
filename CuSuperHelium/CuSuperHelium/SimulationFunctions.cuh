@@ -41,6 +41,7 @@ int dispersionTest<N>(double wavelength, double simulationTime, ProblemPropertie
     simOptions.outputFilename = std::format("dispersion_test_{:.5e}.h5", wavelength);
     simOptions.videoFilename = std::format("dispersion_test_{:.5e}", wavelength);
     simOptions.createVideo = false;
+    simOptions.saveHDF5 = true;
 
     int frames = 4 * 1024;
     double omega = 1;
@@ -121,5 +122,7 @@ int dispersionTest<N>(double wavelength, double simulationTime, ProblemPropertie
     DeviceParticleData deviceData;
 
     HeliumBoundaryProblem<N> boundaryProblem(problemProperties);
-    return runSimulation<N, AutonomousRungeKuttaStepper<std_complex, 2 * N>, RK4Options>(boundaryProblem, steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
+    auto res =  runSimulation<N, AutonomousRungeKuttaStepper<std_complex, 2 * N>, RK4Options>(boundaryProblem, steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
+    _CrtDumpMemoryLeaks();
+	return res;
 }

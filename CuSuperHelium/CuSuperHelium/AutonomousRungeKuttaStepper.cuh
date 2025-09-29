@@ -26,7 +26,7 @@ class AutonomousRungeKuttaStepperBase : public OdeSolver
 {
 public:
 	AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers, double tstep = 1e-2);
-	~AutonomousRungeKuttaStepperBase();
+	virtual ~AutonomousRungeKuttaStepperBase();
 	
 	void setTimeStep(double tstep) 
 	{ 
@@ -45,7 +45,7 @@ public:
 protected:
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
-
+	bool allocatedY0 = false; ///< Flag to indicate if devY0 was allocated by the stepper
 	DataLogger<T, N>& logger; ///< Logger for data collection
 
 	T* k1;
@@ -91,6 +91,17 @@ AutonomousRungeKuttaStepperBase<T, N>::AutonomousRungeKuttaStepperBase(Autonomou
 template <typename T,int N>
 AutonomousRungeKuttaStepperBase<T, N>::~AutonomousRungeKuttaStepperBase()
 {
+	if(allocatedY0)
+		cudaFree(devY0);
+	cudaFree(k1);
+	cudaFree(k2);
+	cudaFree(k3);
+	cudaFree(k4);
+
+	cudaFree(devY1);
+	cudaFree(devY2);
+	cudaFree(devY3);
+	cublasDestroy(handle);
 }
 
 template <typename T, int N>
@@ -291,6 +302,7 @@ void AutonomousRungeKuttaStepperBase<T, N>::initialize(T* devY0, bool onDevice)
 		cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY3
 	}
 	else {
+		allocatedY0 = true;
 		cudaMalloc(&this->devY0, N * sizeof(T)); // allocate memory for devZphi1
 		cudaMemcpy(this->devY0, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY1
 		cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY1
@@ -398,13 +410,13 @@ OdeSolverResult AutonomousRungeKuttaStepperBase<T, N>::runEvolution(double start
 		runStep(step);
 		currentTime += CastFrom<T>(timeStep);
 #pragma unroll
-		for (auto& logger : valueLoggers)
+		/*for (auto& logger : valueLoggers)
 		{
 			if (logger->shouldLog(step))
 			{
 				logger->logValue();
 			}
-		}
+		}*/
 	}
 	if (currentTime >= endTime)
 		return OdeSolverResult::ReachedEndTime;

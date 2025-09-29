@@ -6,7 +6,7 @@ class ValueLogger
 {
 public:
 	ValueLogger(int stepInterval, size_t size = 0);
-	~ValueLogger();
+	virtual ~ValueLogger();
 	
 	void logValue(double value);
 	void setSize(size_t size)
@@ -49,6 +49,7 @@ ValueLogger::ValueLogger(int stepInterval, size_t size) : stepInterval(stepInter
 
 ValueLogger::~ValueLogger()
 {
+	loggedValues.clear();
 }
 
 void ValueLogger::logValue(double value)
@@ -59,7 +60,7 @@ void ValueLogger::logValue(double value)
 }
 
 template <typename T>
-class ValueCallableLogger : public ValueLogger
+class ValueCallableLogger final : public ValueLogger
 {
 private:
 	T& functor;
@@ -69,5 +70,8 @@ public:
 	}
 	virtual void logValue() override {
 		ValueLogger::logValue(functor());
+	}
+	~ValueCallableLogger() {
+		ValueLogger::~ValueLogger();
 	}
 };

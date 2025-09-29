@@ -210,6 +210,17 @@ int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const s
     return 0;
 }
 
+int freeDeviceData(DeviceParticleData& deviceData) 
+{
+    cudaError_t cudaStatus;
+    cudaStatus = cudaFree(deviceData.devZ);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaFree failed!");
+        return cudaStatus;
+    }
+    return 0;
+}
+
 /// <summary>
 /// Sets the device data for the simulation. This function assumes that the device hasn't already been set using setDevice().
 /// </summary>
@@ -308,11 +319,17 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
             loggedSteps[i / loggingSteps] = i;
         }
     }*/
+    
+    
 
-    std::vector<std::vector<std_complex>>& timeStepData = stateLogger.getAllData();
-    std::vector<double>& times = stateLogger.getTimes();
+    if (simOptions.saveHDF5) {
+        std::vector<std::vector<std_complex>> timeStepData = stateLogger.getAllData();
+        std::vector<double> times = stateLogger.getTimes();
 
-    if (saveH5) {
+        if(timeStepData.size() == 0) 
+        {
+			return -1; // nothing to save!
+		}
 	    size_t vector_size = timeStepData[0].size();
         //    // Create HDF5 file
         HighFive::File file( "temp/" + simOptions.outputFilename, HighFive::File::Overwrite);
@@ -377,6 +394,9 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
     
     if (simOptions.createVideo && !simOptions.outputFilename.empty()) {
+        std::vector<std::vector<std_complex>> timeStepData = stateLogger.getAllData();
+        std::vector<double> times = stateLogger.getTimes();
+
         std::vector<std::string> paths;
         std::vector<std::string> pathsPotential;
         createFrames<numParticles>(timeStepData, times, loggingSteps, paths, 640, 480, properties.y_min, properties.y_max);
@@ -387,6 +407,9 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 
     if (plot)
     {
+        std::vector<std::vector<std_complex>> timeStepData = stateLogger.getAllData();
+        std::vector<double> times = stateLogger.getTimes();
+
         plt::figure();
         auto title = "Interface And Potential";
         plt::title(title);
@@ -422,8 +445,13 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
         if (show)
             plt::show();
     }
-    plt::close();
-    plt::cla();
+    if (plot || simOptions.createVideo) {
+        plt::close();
+        plt::cla();
+    }
+	// free device memory
+    freeDeviceData(deviceData);
+    
 	return 0;
 }
 

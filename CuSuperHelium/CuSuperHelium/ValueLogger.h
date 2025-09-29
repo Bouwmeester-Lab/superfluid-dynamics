@@ -53,6 +53,8 @@ ValueLogger::~ValueLogger()
 
 void ValueLogger::logValue(double value)
 {
+	if(std::isnan(value) || std::isinf(value))
+		throw std::runtime_error("ValueLogger::logValue: Attempting to log NaN or Inf value.");
 	loggedValues.push_back(value);
 }
 

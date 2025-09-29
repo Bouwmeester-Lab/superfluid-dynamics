@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CuSuperHelium", "CuSuperHel
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CuSuperHelium.Tests", "CuSuperHelium.Tests\CuSuperHelium.Tests.vcxproj", "{EA8EAE49-5FD7-4279-9F0C-323D387ADF8D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CuSuperHelium.App", "CuSuperHelium.App\CuSuperHelium.App.vcxproj", "{3C3CBE41-FD34-4F2D-842A-3A595D3FA926}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,8 +23,15 @@ Global
 		{EA8EAE49-5FD7-4279-9F0C-323D387ADF8D}.Debug|x64.Build.0 = Debug|x64
 		{EA8EAE49-5FD7-4279-9F0C-323D387ADF8D}.Release|x64.ActiveCfg = Release|x64
 		{EA8EAE49-5FD7-4279-9F0C-323D387ADF8D}.Release|x64.Build.0 = Release|x64
+		{3C3CBE41-FD34-4F2D-842A-3A595D3FA926}.Debug|x64.ActiveCfg = Debug|x64
+		{3C3CBE41-FD34-4F2D-842A-3A595D3FA926}.Debug|x64.Build.0 = Debug|x64
+		{3C3CBE41-FD34-4F2D-842A-3A595D3FA926}.Release|x64.ActiveCfg = Release|x64
+		{3C3CBE41-FD34-4F2D-842A-3A595D3FA926}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C855306B-6072-4B4D-A320-C2BFC12FF850}
 	EndGlobalSection
 EndGlobal

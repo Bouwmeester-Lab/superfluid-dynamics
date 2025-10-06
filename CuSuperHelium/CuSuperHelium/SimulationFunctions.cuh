@@ -123,6 +123,6 @@ int dispersionTest<N>(double wavelength, double simulationTime, ProblemPropertie
 
     HeliumBoundaryProblem<N> boundaryProblem(problemProperties);
     auto res =  runSimulation<N, AutonomousRungeKuttaStepper<std_complex, 2 * N>, RK4Options>(boundaryProblem, steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
-    _CrtDumpMemoryLeaks();
+    // _CrtDumpMemoryLeaks();
 	return res;
 }

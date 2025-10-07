@@ -191,6 +191,65 @@ int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, 
 	return 0;
 }
 
+int loadDataToDevice(const double* x, const double* y, const double* phi, DeviceParticleData& deviceData, const size_t N, cudaStream_t stream = cudaStreamPerThread)
+{
+    cudaError_t cudaStatus;
+    // Allocate GPU buffers for three vectors (two input, one output)    .
+    cudaStatus = cudaMallocAsync(&deviceData.devZ, 2 * N * sizeof(std_complex), stream); // we need space for both positions and potentials
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMalloc failed!");
+        return cudaStatus;
+    }
+    // Copy input vectors from host memory to GPU buffers.
+    std::vector<std_complex> ZHost(N);
+	std::vector<std_complex> PhiHost(N);
+    for (size_t i = 0; i < N; ++i)
+    {
+        ZHost[i] = std_complex(x[i], y[i]);
+		PhiHost[i] = std_complex(phi[i], 0.0);
+    }
+
+    cudaStatus = cudaMemcpyAsync(deviceData.devZ, ZHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+        return cudaStatus;
+    }
+
+    // copy to device
+    cudaStatus = cudaMemcpyAsync(deviceData.devZ + N, PhiHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+        return cudaStatus;
+    }
+    //cudaDeviceSynchronize();
+    //std::vector<std_complex> checkZ(2 * N);
+    //cudaStatus = cudaMemcpy(checkZ.data(), deviceData.devZ, 2 * N * sizeof(std_complex), cudaMemcpyDeviceToHost);
+    //if (cudaStatus != cudaSuccess) {
+    //    fprintf(stderr, "cudaMemcpy failed!");
+    //    return cudaStatus;
+    //}
+
+    //std::vector<double> X(N);
+    //std::vector<double> Y(N);
+    //std::vector<double> Phi(N);
+    //std::vector<double> PhiImag(N);
+
+    //for (size_t i = 0; i < N; ++i)
+    //{
+    //    X[i] = checkZ[i].real();
+    //    Y[i] = checkZ[i].imag();
+    //    Phi[i] = checkZ[i + N].real();
+    //    PhiImag[i] = checkZ[i + N].imag(); // should be 0
+    //}
+    /*plt::figure();
+    plt::plot(X, Y);
+    plt::plot(X, Phi);
+    plt::plot(X, PhiImag);
+    plt::title("Initial Condition");
+    plt::show();*/
+    return 0;
+}
+
 int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const size_t N) 
 {
     cudaError_t cudaStatus;

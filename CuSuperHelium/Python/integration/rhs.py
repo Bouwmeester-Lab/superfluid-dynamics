@@ -2,6 +2,8 @@ import ctypes, os, sys
 from ctypes import c_double, c_size_t, c_char_p, c_char, POINTER, create_string_buffer, c_int
 import scipy.special as sp
 import numpy as np
+from numpy.typing import NDArray
+from numpy.ctypeslib import ndpointer
 import matplotlib.pyplot as plt
 import h5py
 import os
@@ -29,14 +31,28 @@ def load_dll(path: str) -> CDLL:
 
 def calculate_rhs256(input_file : str, output_file : str, L : float, rho : float, kappa : float, depth : float) -> int:
     lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateRHS256.argtypes = (c_char_p, c_char_p, c_double, c_double, c_double, c_double)
-    lib.calculateRHS256.restype = c_int
+    lib.calculateRHS256FromFile.argtypes = (c_char_p, c_char_p, c_double, c_double, c_double, c_double)
+    lib.calculateRHS256FromFile.restype = c_int
 
     input_file_b = input_file.encode()
     output_file_b = output_file.encode()
 
-    return lib.calculateRHS256(input_file_b, output_file_b, L, rho, kappa, depth)
+    return lib.calculateRHS256FromFile(input_file_b, output_file_b, L, rho, kappa, depth)
 
+def calculate_rhs256_from_vectors(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib.calculateRHS256FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
+    lib.calculateRHS256FromVectors.restype = c_int
+
+    n = x.shape[0]
+    if y.shape[0] != n or phi.shape[0] != n:
+        raise ValueError("Input arrays must have the same length")
+
+    vx = np.empty_like(x)
+    vy = np.empty_like(x)
+    dphi = np.empty_like(x)
+
+    return lib.calculateRHS256FromVectors(x, y, phi, vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
 
 alpha_hammaker = 2.6e-24
 def mode(t, r, r0, R, omega, zeta, A, phase_space=0, phase_time=0):
@@ -81,31 +97,34 @@ Z = np.vstack((x, ampl)).T
 print(Z.shape)
 sum = np.zeros_like(x)
 for i in range(1, 5000):
-    sum += np.sin(i * (x- np.pi))/np.sin(x - np.pi)
+    sum += np.sin(i * (x- np.pi))
 pot = (sum) * initial_amplitude
-with h5py.File(os.path.join(path, filename), 'w') as f:
-    dset = f.create_dataset("interface", data=Z, shape=(256, 2), dtype=np.float64)
-    potential = f.create_dataset("potential", data=pot, shape=(256,), dtype=np.float64)
+
+
+# with h5py.File(os.path.join(path, filename), 'w') as f:
+#     dset = f.create_dataset("interface", data=Z, shape=(256, 2), dtype=np.float64)
+#     potential = f.create_dataset("potential", data=pot, shape=(256,), dtype=np.float64)
 
 def normalize(v):
     return v / np.max(np.abs(v))
 
-if calculate_rhs256(os.path.join(path, filename), os.path.join(path, "data.h5"), 1e-6, 145, 0, depth) != 0:
+res, vx, vy, dphi = calculate_rhs256_from_vectors(x, ampl, pot, 1e-6, 145, 0, depth)
+if res != 0:
     raise Exception("Error in calculation")
 
-with h5py.File(os.path.join(path, "data.h5"), 'r') as f:
-    velocities = f["interface"][:]
-    potential = f["potential"][:]
-print(velocities.shape)
+# with h5py.File(os.path.join(path, "data.h5"), 'r') as f:
+#     velocities = f["interface"][:]
+#     potential = f["potential"][:]
+print(vx.shape)
 plt.figure()
 plt.plot(x, normalize(pot), label="initial potential - normalized")
-plt.plot(x, normalize(velocities[:, 0]), label="vx - normalized")
-plt.plot(x, normalize(velocities[:, 1]), label="vy - normalized")
+plt.plot(x, normalize(vx), label="vx - normalized")
+plt.plot(x, normalize(vy), label="vy - normalized")
 
 plt.legend()
 plt.figure()
 plt.plot(x, normalize(ampl), label="initial interface - normalized")
-plt.plot(x, normalize(potential), label="change in potential (dPhi/dt = rhs Phi) - normalized")
+plt.plot(x, normalize(dphi), label="change in potential (dPhi/dt = rhs Phi) - normalized")
 
 plt.legend()
 

@@ -78,5 +78,8 @@
     <ClInclude Include="SimulationFunctions.cuh">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="ExportTypes.cuh">
+      <Filter>Export</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

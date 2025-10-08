@@ -189,6 +189,11 @@ public:
 
 	
 	void runTimeStep(const std_complex* initialState, std_complex* rhs);
+	void calculateVorticities(const std_complex* initialState);
+	double* getDevA() ///< Getter for the device pointer to the vorticities array
+	{
+		return deva;
+	}
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override;
 
@@ -294,23 +299,8 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 	const std_complex* devZ = initialState; // Device pointer for the Z array
 	const std_complex* devPhi = initialState + N; // Device pointer for the Phi array
 	const ProblemPointers problemPointers{ devZ, devZp, devZpp, devPhi, devVelocitiesUpper, devVelocitiesLower };
-	// Here you would implement the logic to run a time step of the simulation.
-	// This would typically involve:
-	// 1. Calculating ZPhiPrime and Zpp from devZPhi.
-	// 2. Create the M matrix using devZPhi, devZPhiPrime, and devZpp.
-	// 3. Solve Ma = phi' to obtain the vorticities (a).
-	// 4. Calculate the derivatives of a.
-	// 5. Creating the V1 and V2 matrices using devZPhi, devZPhiPrime, and devZpp, a'
-	// 6. Calculating the velocities for both lower and upper fluids.
-	// 7. Updating the RHS of state variables (e.g., deva, devaprime) based on the calculated velocities.
 
-	zPhiDerivative.exec(devZ, devPhi, devZp, devPhiPrimeComplex, devZpp); // Calculate derivatives of Z and Phi
-
-	boundaryProblem.CreateMMatrix(devM, devZ, devZp, devZpp, problemProperties,  N); // Create the M matrix
-	
-	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
-	
-	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
+	calculateVorticities(initialState); // Calculate the vorticities based on the current state
 #ifdef DEBUG_DERIVATIVES_2
 	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 
@@ -437,6 +427,33 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 
 	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower, opsStream); // Calculate the volume flux based on the current state
 }
+
+template<int N>
+void BoundaryIntegralCalculator<N>::calculateVorticities(const std_complex* initialState)
+{
+	// set the state variables using the initialState pointer, this creates the variables in here to avoid global variables
+	const std_complex* devZ = initialState; // Device pointer for the Z array
+	const std_complex* devPhi = initialState + N; // Device pointer for the Phi array
+	// Here you would implement the logic to run a time step of the simulation.
+	// This would typically involve:
+	// 1. Calculating ZPhiPrime and Zpp from devZPhi.
+	// 2. Create the M matrix using devZPhi, devZPhiPrime, and devZpp.
+	// 3. Solve Ma = phi' to obtain the vorticities (a).
+	// 4. Calculate the derivatives of a.
+	// 5. Creating the V1 and V2 matrices using devZPhi, devZPhiPrime, and devZpp, a'
+	// 6. Calculating the velocities for both lower and upper fluids.
+	// 7. Updating the RHS of state variables (e.g., deva, devaprime) based on the calculated velocities.
+
+	zPhiDerivative.exec(devZ, devPhi, devZp, devPhiPrimeComplex, devZpp); // Calculate derivatives of Z and Phi
+
+	boundaryProblem.CreateMMatrix(devM, devZ, devZp, devZpp, problemProperties, N); // Create the M matrix
+
+	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
+
+	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
+}
+
+
 template<int N>
 void BoundaryIntegralCalculator<N>::run(std_complex* initialState, std_complex* rhs)
 {

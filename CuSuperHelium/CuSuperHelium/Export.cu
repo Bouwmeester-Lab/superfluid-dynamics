@@ -158,6 +158,61 @@ int calculateRHS256FromVectors(const double* x, const double* y, const double* p
 	return 0;
 }
 
+int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, double L, double rho, double kappa, double depth)
+{
+	try {
+		ProblemProperties properties;
+		properties.rho = rho;
+		properties.kappa = kappa;
+		properties.depth = depth;
+
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, L);
+
+		HeliumBoundaryProblem<256> heliumProblem(properties);
+		BoundaryIntegralCalculator<256> calculator(properties, heliumProblem);
+
+		//std::vector<std::complex<double>> Z;
+		//std::vector<double> Phi;
+
+		///*loadStateFile(std::string(inputFile), Z, Phi, 256, 2.0 * PI_d / L);*/
+
+		//auto [min_it, max_it] = std::minmax_element(
+		//	Z.begin(), Z.end(),
+		//	[](const auto& a, const auto& b) {
+		//		return a.imag() < b.imag();
+		//	}
+		//);
+
+		//properties.initial_amplitude = (max_it->imag() - min_it->imag()) / 2.0;
+
+		
+		DeviceParticleData deviceData;
+
+		// set device
+		checkCuda(setDevice());
+		// copy data to device
+		loadDataToDevice(Z, phi, deviceData, 256);
+
+		// calculate RHS
+		calculator.calculateVorticities(deviceData.devZ);
+
+		//std::vector<std::complex<double>> rhsPos(256);
+		//std::vector<double> phiRhs(256);
+
+		checkCuda(cudaMemcpy(a, calculator.getDevA(), sizeof(double) * 256, cudaMemcpyDeviceToHost));
+
+		// free device memory
+		freeDeviceData(deviceData);
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+
+	return 0;
+}
+
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)
 {
 	double L0 = L / (2.0 * PI_d); // characteristic length

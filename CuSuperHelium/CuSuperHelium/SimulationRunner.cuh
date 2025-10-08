@@ -14,6 +14,7 @@
 #include <highfive/H5File.hpp>
 #include "RK45.cuh"
 #include "SimulationOptions.h"
+#include "ExportTypes.cuh"
 
 namespace plt = matplotlibcpp;
 
@@ -250,6 +251,18 @@ int loadDataToDevice(const double* x, const double* y, const double* phi, Device
     return 0;
 }
 
+int loadDataToDevice(const c_double* Z, const c_double* phi, DeviceParticleData& deviceData, size_t N, cudaStream_t stream = cudaStreamPerThread)
+{
+    cudaError_t cudaStatus;
+    // Allocate GPU buffers for three vectors (two input, one output)    .
+    checkCuda(cudaMallocAsync(&deviceData.devZ, 2 * N * sizeof(std_complex), stream)); // we need space for both positions and potentials
+    checkCuda(cudaMemcpyAsync(deviceData.devZ, Z, N * sizeof(std_complex), cudaMemcpyHostToDevice, stream));
+
+    checkCuda(cudaMemcpyAsync(deviceData.devZ + N, phi, N * sizeof(std_complex), cudaMemcpyHostToDevice, stream));
+
+	return 0;
+}
+
 int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const size_t N) 
 {
     cudaError_t cudaStatus;
@@ -292,18 +305,18 @@ int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const s
         return cudaStatus;
 	}
 
-	std::vector<double> X(N);
-	std::vector<double> Y(N);
-	std::vector<double> Phi(N);
-	std::vector<double> PhiImag(N);
+	//std::vector<double> X(N);
+	//std::vector<double> Y(N);
+	//std::vector<double> Phi(N);
+	//std::vector<double> PhiImag(N);
 
-    for (size_t i = 0; i < N; ++i)
-    {
-		X[i] = checkZ[i].real();
-		Y[i] = checkZ[i].imag();
-		Phi[i] = checkZ[i + N].real();
-		PhiImag[i] = checkZ[i + N].imag(); // should be 0
-    }
+ //   for (size_t i = 0; i < N; ++i)
+ //   {
+	//	X[i] = checkZ[i].real();
+	//	Y[i] = checkZ[i].imag();
+	//	Phi[i] = checkZ[i + N].real();
+	//	PhiImag[i] = checkZ[i + N].imag(); // should be 0
+ //   }
 	/*plt::figure();
 	plt::plot(X, Y);
 	plt::plot(X, Phi);

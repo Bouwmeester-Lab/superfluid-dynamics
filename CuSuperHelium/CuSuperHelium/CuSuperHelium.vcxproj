@@ -112,6 +112,7 @@
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export.cuh" />
+    <ClInclude Include="ExportTypes.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="OdeSolver.h" />

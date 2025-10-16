@@ -79,38 +79,44 @@ void checkCusolver(cusolverStatus_t status);
 __global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
     cufftDoubleComplex* result,
-    const int n
+    const int n,
+	const int batchSize = 1
 ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	if (tid >= n * batchSize) return; // out of bounds
+
+	int  i = tid % n; // index within the vector
+	//printf("i: %d, tid: %d\n", i, tid);
+	//printf("i: %d coeff: (%f, %f)\n", i, a[tid].x, a[tid].y);
     double x, y;
-    if (i <= n / 2) 
+    if (i < n / 2) 
     {
-        x = a[i].x; // it's important to do this copy since if you don't you will be using the new value in the expression instead of the old one.
-		y = a[i].y;
-        result[i].x = - i * y / static_cast<double>(n);
-		result[i].y = i * x / static_cast<double>(n);
+        x = a[tid].x; // it's important to do this copy since if you don't you will be using the new value in the expression instead of the old one.
+		y = a[tid].y;
+        result[tid].x = - i * y / static_cast<double>(n);
+		result[tid].y = i * x / static_cast<double>(n);
     }
-  //  else if (i == n / 2) 
-  //  {
-  //      x = a[i].x;
-  //      result[i].x = - i * a[i].y / static_cast<double>(n);
-  //      result[i].y = i * x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
-  //      // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
-		//// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
-  //  }
+    else if (i == n / 2) 
+    {
+        x = a[tid].x;
+        result[tid].x = 0;// -i * a[i].y / static_cast<double>(n);
+        result[tid].y = 0;// -PI_d * i * x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
+		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
+    }
     else if (i == n /2 +1) 
     {
-        x = a[i].x;
-		y = a[i].y;
+        x = a[tid].x;
+		y = a[tid].y;
         // this is the Nyquist frequency, we want to set it to zero since we don't want to have any imaginary part in the result
-        result[i].x = 0;
-        result[i].y = 0;// PI_d* x / n; // this is the same as setting the imaginary part to zero
+        result[tid].x = 0;
+        result[tid].y = 0;// PI_d* x / n; // this is the same as setting the imaginary part to zero
 	}
     else if (i < n) {
-        x = a[i].x;
-        y = a[i].y;
-		result[i].x = (n - i) * y / static_cast<double>(n);
-		result[i].y = (i- n) * x / static_cast<double>(n); // https://math.mit.edu/~stevenj/fft-deriv.pdf
+        x = a[tid].x;
+        y = a[tid].y;
+		result[tid].x = -(i - n) * y / static_cast<double>(n); // - because you multiply by i (imaginary i) => z = x+iy => iz = ix - y
+		result[tid].y = (i - n) * x / static_cast<double>(n); // https://math.mit.edu/~stevenj/fft-deriv.pdf
     }
 }
 
@@ -142,23 +148,27 @@ __device__ __host__ inline double filterTanh(int k, int N, double eps, double d)
 /// <param name="result"></param>
 /// <param name="n"></param>
 /// <returns></returns>
-__global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufftDoubleComplex* result, const int n) 
+__global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufftDoubleComplex* result, const int n, const int batchSize = 1) 
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	if (tid >= n * batchSize) return; // out of bounds
+
+	int i = tid % n; // index within the vector
     if (i < n / 2) 
     {
-        result[i].x = - i * i * coeffsFft[i].x / n;
-		result[i].y = - i * i * coeffsFft[i].y / n;
+        result[tid].x = - i * i * coeffsFft[tid].x / (n);
+		result[tid].y = - i * i * coeffsFft[tid].y / (n);
     }
     else if (i == n / 2) 
     {
-        result[i].x = -i * i * coeffsFft[i].x / n; // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
-		result[i].y = -i * i * coeffsFft[i].y / n;// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
+        result[tid].x = - i * i * coeffsFft[tid].x / (n); // real part, this is the same idea as in the first derivative. We want the second derivative of exp(i*pi*j) to be -pi^2 * exp(i*pi*j), this will happen only if this coefficient is this value
+		result[tid].y = -i * i * coeffsFft[tid].y / (n);// setting this to zero seems fine? although I wonder if it's better to leave the same value as the theoretical value: N/2 * N/2 * coeffsFft[i].y / N ?
     }
     else if(i < n)
     {
-		result[i].x = -(i - n) * (i - n) * coeffsFft[i].x / n; //https://math.mit.edu/~stevenj/fft-deriv.pdf
-		result[i].y = -(i - n) * (i - n) * coeffsFft[i].y / n;
+		result[tid].x = -(i - n) * (i - n) * coeffsFft[tid].x / (n); //https://math.mit.edu/~stevenj/fft-deriv.pdf
+		result[tid].y = -(i - n) * (i - n) * coeffsFft[tid].y / (n);
 	}
 }
 
@@ -182,7 +192,33 @@ __global__ void vector_subtract_complex_real(const std_complex* a, const double*
         out[i] = a[i] - b[i];
     }
 }
+/// <summary>
+/// Performs batched subtraction of a real single vector (size N) from a complex vector on the GPU (NxbatchSize), storing the result in an output array.
+/// </summary>
+/// <param name="a">Pointer to the input array of complex numbers (batched vectors).</param>
+/// <param name="b">Pointer to the input array of real numbers (single vector).</param>
+/// <param name="out">Pointer to the output array where the results are stored.</param>
+/// <param name="n">The length of each vector.</param>
+/// <param name="batchSize">The number of vectors in the batch.</param>
+/// <returns>This is a CUDA kernel function and does not return a value. The results are written to the output array 'out'.</returns>
+__global__ void batched_vector_subtract_singletime_complex_real(const std_complex* a, const double* b, std_complex* out, int n, size_t batchSize) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	if (tid >= n * batchSize) return; // out of bounds
+	int i = tid % n; // index within the vector
 
+    if (i < n) {
+        out[tid] = a[tid] - b[i];
+    }
+}
+/// <summary>
+/// Adds a real scalar value to the real part of each element in a complex vector using CUDA parallelization.
+/// </summary>
+/// <param name="a">Pointer to the input array of complex numbers.</param>
+/// <param name="b">The real scalar value to add to the real part of each complex number.</param>
+/// <param name="out">Pointer to the output array where the results are stored.</param>
+/// <param name="n">The number of elements to process.</param>
+/// <param name="start">The starting index in the arrays for processing.</param>
+/// <returns>This function does not return a value; results are written to the output array.</returns>
 __global__ void vector_scalar_add_complex_real(const std_complex* a, const double b, std_complex* out, int n, int start)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;

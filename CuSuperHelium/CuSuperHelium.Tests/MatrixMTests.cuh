@@ -366,7 +366,7 @@ TEST(Kernels, ZPhiDerivatives)
 	double j = 0;
 	double x = 0;
 	double y = 0;
-	double t = 0.1;
+	double t = 0.0;
 	double h = 0.5;
 	double omega = 10;
 
@@ -395,6 +395,7 @@ TEST(Kernels, ZPhiDerivatives)
 	std::vector<double> XppCalculatedValues(N, 0);
 	std::vector<double> YppCalculatedValues(N, 0);
 
+	std::vector<double> PhiValues(N, 0);
 	std::vector<double> PhiPrimeValues(N, 0);
 	std::vector<double> PhiPrimeCalculatedValues(N, 0);
 
@@ -407,10 +408,11 @@ TEST(Kernels, ZPhiDerivatives)
 		XppValues[i] = Zpp[i].real();
 		YppValues[i] = Zpp[i].imag();
 
+		PhiValues[i] = ArrPhi[i].real();
 		PhiPrimeValues[i] = PhiPrime[i].real();
 	}
 
-	ZPhiDerivative<N> zPhiDerivative(properties);
+	ZPhiDerivative<N, 1> zPhiDerivative(properties);
 	
 	std_complex* devZ;
 	std_complex* devZp;
@@ -482,6 +484,7 @@ TEST(Kernels, ZPhiDerivatives)
 	plt::ylabel("Value");
 
 	plt::figure();
+	plt::plot(PhiValues, { {"label", "Initial Phi"} });
 	plt::plot(PhiPrimeValues, { {"label", "Expected Phi Prime"} });
 	plt::plot(PhiPrimeCalculatedValues, { {"label", "Calculated Phi Prime"} });
 

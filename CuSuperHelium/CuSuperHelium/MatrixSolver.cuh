@@ -164,11 +164,9 @@ inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double
 		checkCublas(cublasDgetrsBatched(blas, CUBLAS_OP_N, N, 1, devMarray, N, devPivotArray, devbarray, N, hostInfoArray.data(), batchSize));
         //std::cout << "Solved batch of size " << batchSize << std::endl;
 		// check info array again
-        for (int i = 0; i < batchSize; ++i) {
-            if(hostInfoArray[i] != 0) {
-                throw std::runtime_error("Solve failed in batch " + std::to_string(i) + " with info = " + std::to_string(hostInfoArray[i]));
-			}
-        }
+        if(hostInfoArray[0] != 0) {
+            throw std::runtime_error("Solve failed in batched getrs on batch = " + std::to_string(hostInfoArray[0]));
+	    }
     }
     
 }

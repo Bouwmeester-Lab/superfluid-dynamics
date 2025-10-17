@@ -160,7 +160,7 @@ int calculateRHS256FromVectors(const double* x, const double* y, const double* p
 
 
 
-template<size_t N>
+template<size_t N, size_t batchSize>
 int calculateVorticitiesNFromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth) 
 {
 	try {
@@ -172,8 +172,8 @@ int calculateVorticitiesNFromVectors(const double* x, const double* y, const dou
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, L);
 
-		HeliumBoundaryProblem<N, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
+		HeliumBoundaryProblem<N, batchSize> heliumProblem(properties);
+		BoundaryIntegralCalculator<N, batchSize> calculator(properties, heliumProblem);
 
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
@@ -197,31 +197,31 @@ int calculateVorticitiesNFromVectors(const double* x, const double* y, const dou
 		// set device
 		checkCuda(setDevice());
 		// copy data to device
-		loadDataToDevice(x, y, phi, deviceData, N);
+		loadDataToDevice(x, y, phi, deviceData, N, batchSize);
 		// allocate memory for RHS
-		checkCuda(cudaMalloc(&devRhs, 2 * sizeof(std_complex) * N));
+		checkCuda(cudaMalloc(&devRhs, 2 * sizeof(std_complex) * N * batchSize));
 
 		// calculate RHS
 		calculator.run(deviceData.devZ, devRhs);
 
 		// copy result back to host
-		std::vector<std::complex<double>> rhs(2 * N);
+		std::vector<std::complex<double>> rhs(2 * N * batchSize);
 
 		//std::vector<std::complex<double>> rhsPos(256);
 		//std::vector<double> phiRhs(256);
 
-		checkCuda(cudaMemcpy(rhs.data(), devRhs, 2 * sizeof(std_complex) * N, cudaMemcpyDeviceToHost));
+		checkCuda(cudaMemcpy(rhs.data(), devRhs, 2 * sizeof(std_complex) * N * batchSize, cudaMemcpyDeviceToHost));
 
 		// free device memory
 		checkCuda(cudaFree(devRhs));
 		freeDeviceData(deviceData);
 
 		// prepare data into two vectors, one for position RHS and one for potential RHS
-		for (int i = 0; i < N; i++)
+		for (int i = 0; i < batchSize * N; i++)
 		{
 			vx[i] = rhs[i].real();
 			vy[i] = rhs[i].imag();
-			rhsPhi[i] = rhs[i + N].real(); // imaginary part should be zero
+			rhsPhi[i] = rhs[i + batchSize * N].real(); // imaginary part should be zero
 		}
 	}
 	catch (const std::exception& e) {
@@ -234,7 +234,7 @@ int calculateVorticitiesNFromVectors(const double* x, const double* y, const dou
 int calculateRHS2048FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth)
 {
 	try {
-		return calculateVorticitiesNFromVectors<2048>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		return calculateVorticitiesNFromVectors<2048, 1>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 	}
 	catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
@@ -347,6 +347,35 @@ int calculateDerivativeFFT256(const c_double* input, c_double* output)
 		std::cerr << "Error: " << ex.what() << std::endl;
 	}
 	return 0;
+}
+
+int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, int batchSize)
+{
+	switch (batchSize)
+	{
+		case 1:
+			return calculateVorticitiesNFromVectors<256, 1>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 2:
+			return calculateVorticitiesNFromVectors<256, 2>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 4:
+			return calculateVorticitiesNFromVectors<256, 4>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 8:
+			return calculateVorticitiesNFromVectors<256, 8>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 16:
+			return calculateVorticitiesNFromVectors<256, 16>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 32:
+			return calculateVorticitiesNFromVectors<256, 32>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 64:
+			return calculateVorticitiesNFromVectors<256, 64>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 128:
+			return calculateVorticitiesNFromVectors<256, 128>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 256:
+			return calculateVorticitiesNFromVectors<256, 256>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+	default:
+		std::cerr << "Error: Unsupported batch size " << batchSize << std::endl;
+		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256" << std::endl;
+		break;
+	}
 }
 
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)

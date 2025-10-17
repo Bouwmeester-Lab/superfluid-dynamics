@@ -69,20 +69,23 @@ __global__ void createVelocityMatrices(const std_complex* Z, const std_complex* 
 	}
 }
 
-__global__ void createHeliumVelocityMatrices(const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int N, std_complex* const out1, std_complex* const out2, bool lower)
+__global__ void createHeliumVelocityMatrices(const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int N, std_complex* const out1, std_complex* const out2, bool lower, size_t batchSize)
 {
 	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
 	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
+	int b = blockIdx.z; // batch index
+
+	if (b >= batchSize) return; // out of bounds check
 
 	if (k < N && j < N) {
-		int indx = k + j * N; // column major index
+		int indx = k + j * N + b * N * N; // column major index
 
 		if (k == j)
 		{
 			// we are in the diagonal:
 
-			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * Zpp[k] / (cuda::std::pow(Zp[k], 2.0)));
-			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(std_complex(0, Z[k].imag() + h)));
+			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * Zpp[k + b*N] / (cuda::std::pow(Zp[k + b*N], 2.0)));
+			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(std_complex(0, Z[k + b*N].imag() + h)));
 			if (lower)
 			{
 				out1[indx] += 1.0 / (2.0 * Zp[k]);
@@ -91,12 +94,12 @@ __global__ void createHeliumVelocityMatrices(const std_complex* const Z, const s
 			{
 				out1[indx] -= 0.5 / Zp[k];
 			}
-			out2[k] = multiply_by_i(1.0 / (2.0 * CUDART_PI * Zp[k]));
+			out2[k + b*N] = multiply_by_i(1.0 / (2.0 * CUDART_PI * Zp[k + b*N]));
 		}
 		else
 		{
-			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * cotangent_green_function(Z[k], Z[j]));
-			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(0.5 * (Z[k] - cuda::std::conj(Z[j])) + std_complex(0, h)));
+			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * cotangent_green_function(Z[k+b*N], Z[j + b*N]));
+			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(0.5 * (Z[k + b*N] - cuda::std::conj(Z[j + b*N])) + std_complex(0, h)));
 		}
 	}
 }

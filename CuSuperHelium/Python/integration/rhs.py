@@ -105,7 +105,20 @@ def calculate_derivativeFFT256(input : NDArray) -> tuple[int, NDArray]:
 
     return lib.calculateDerivativeFFT256(np.ascontiguousarray(input), output), output
 
+def calculate_rhs256_from_vectors_batched(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, batch_size: int):
+    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib.calculateRHS256FromVectorsBatched.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_int)
+    lib.calculateRHS256FromVectorsBatched.restype = c_int
 
+    n = x.shape[0] // batch_size
+    if y.shape[0] != n * batch_size or phi.shape[0] != 256 * batch_size:
+        raise ValueError("Input arrays must have the same length equal to 256 * batch_size")
+
+    vx = np.empty_like(x)
+    vy = np.empty_like(x)
+    dphi = np.empty_like(x)
+
+    return lib.calculateRHS256FromVectorsBatched(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, batch_size), vx, vy, dphi
 
 
 # with h5py.File(os.path.join(path, filename), 'w') as f:
@@ -191,15 +204,17 @@ if __name__ == "__main__":
     initial_amplitude = 0.01*depth
     phase_spaces = np.random.uniform(0, 0.8*np.pi, modes)
     N = 256
-    r = np.array([2.0*np.pi/N*x for x in range(N)])
-    x = np.array([2.0*np.pi/N*x for x in range(N)])
+    r = np.array([2.0*np.pi/N*x for x in range(N)]*2)
+    x = np.array([2.0*np.pi/N*x for x in range(N)]*2)
     amplitude = []
     for i in range(modes):
         amplitude.append(mode(0, r, np.pi, 2.0*np.pi, omegas[i], zetas[i], 1, 0, phase_spaces[i]))
 
     sum = np.sum(amplitude, axis=0)
+    
     ampl = np.cos(x) * initial_amplitude / L0 # sum / np.max(np.abs(sum)) * (initial_amplitude / (L / (2.0*np.pi)))
 
+    
 
     path = r"./Python/integration/files/"
     filename = "rhs_test.h5"
@@ -211,10 +226,30 @@ if __name__ == "__main__":
         sum += np.sin(i * (x- np.pi))
     # pot = (sum) * initial_amplitude
     pot = initial_amplitude/L0 * np.sin(x)
+
+    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(x, ampl, pot, L, 145, 0, depth, 2)
+
+    if res != 0:
+        raise Exception("Error in calculation")
+    print("Calculation successful")
     plt.figure()
-    plt.plot(x, ampl, label="initial interface")
-    plt.axhline(-depth*2.0*np.pi/L, color='r', linestyle='--', label="equilibrium height")
-    plt.plot(x, pot, label="initial potential")
+    plt.plot(x[:256], vx[:256], label="vx batch 1")
+    plt.plot(x[256:], vx[256:], label="vx batch 2")
+    plt.legend()
+    plt.figure()
+    plt.plot(x[:256], vy[:256], label="vy batch 1")
+    plt.plot(x[256:], vy[256:], label="vy batch 2")
+    plt.legend()
+    plt.figure()
+    plt.plot(x[:256], dphi[:256], label="dphi/dt batch 1")  
+    plt.plot(x[256:], dphi[256:], label="dphi/dt batch 2")
+    plt.legend()
+    # plt.show()
+
+    plt.figure()
+    plt.plot(x[256:], ampl[256:], label="initial interface")
+    # plt.axhline(-depth*2.0*np.pi/L, color='r', linestyle='--', label="equilibrium height")
+    plt.plot(x[256:], pot[256:], label="initial potential")
 
     plt.legend()
     plt.show()

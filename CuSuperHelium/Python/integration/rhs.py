@@ -18,7 +18,7 @@ import tqdm
 
 paths = os.environ[ 'path' ].split( ';' )
 paths.reverse()
-print(paths)
+# print(paths)
 
 for p in paths:
     if os.path.isdir( p ) and p != ".":
@@ -204,13 +204,14 @@ if __name__ == "__main__":
     initial_amplitude = 0.01*depth
     phase_spaces = np.random.uniform(0, 0.8*np.pi, modes)
     N = 256
-    r = np.array([2.0*np.pi/N*x for x in range(N)]*2)
-    x = np.array([2.0*np.pi/N*x for x in range(N)]*2)
+    batchSize = 256
+    r = np.array([2.0*np.pi/N*x for x in range(N)]*batchSize)
+    x = np.array([2.0*np.pi/N*x for x in range(N)]*batchSize)
     amplitude = []
-    for i in range(modes):
-        amplitude.append(mode(0, r, np.pi, 2.0*np.pi, omegas[i], zetas[i], 1, 0, phase_spaces[i]))
+    # for i in range(modes):
+    #     amplitude.append(mode(0, r, np.pi, 2.0*np.pi, omegas[i], zetas[i], 1, 0, phase_spaces[i]))
 
-    sum = np.sum(amplitude, axis=0)
+    # sum = np.sum(amplitude, axis=0)
     
     ampl = np.cos(x) * initial_amplitude / L0 # sum / np.max(np.abs(sum)) * (initial_amplitude / (L / (2.0*np.pi)))
 
@@ -227,7 +228,7 @@ if __name__ == "__main__":
     # pot = (sum) * initial_amplitude
     pot = initial_amplitude/L0 * np.sin(x)
 
-    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(x, ampl, pot, L, 145, 0, depth, 2)
+    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(x, ampl, pot, L, 145, 0, depth, batchSize)
 
     if res != 0:
         raise Exception("Error in calculation")

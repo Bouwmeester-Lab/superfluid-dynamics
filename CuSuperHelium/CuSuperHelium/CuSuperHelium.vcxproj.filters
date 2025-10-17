@@ -81,5 +81,8 @@
     <ClInclude Include="ExportTypes.cuh">
       <Filter>Export</Filter>
     </ClInclude>
+    <ClInclude Include="JacobianCalculator.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

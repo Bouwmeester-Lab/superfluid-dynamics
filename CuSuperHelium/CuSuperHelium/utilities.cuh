@@ -99,8 +99,8 @@ __global__ void first_derivative_multiplication(
     else if (i == n / 2) 
     {
         x = a[tid].x;
-        result[tid].x = 0;// -i * a[i].y / static_cast<double>(n);
-        result[tid].y = 0;// -PI_d * i * x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
+        result[tid].x = -PI_d * i * a[tid].y / static_cast<double>(n);
+        result[tid].y = -PI_d * i * x / static_cast<double>(n); // -PI_d * a[i].x / n; // we want to treat the Nyquist frequency as exp(i*pi*j) which means
         // that the inverse fft of the fft of exp(i*pi*j) should give i pi * exp(i * pi *j). This happens when the coeff[n/2] = -pi.
 		// Usually this coefficient should be -pi *n but cuFFT will NOT normalize by n, so when we do normalize manually by dividing by n, we get -pi.
     }
@@ -109,8 +109,8 @@ __global__ void first_derivative_multiplication(
         x = a[tid].x;
 		y = a[tid].y;
         // this is the Nyquist frequency, we want to set it to zero since we don't want to have any imaginary part in the result
-        result[tid].x = 0;
-        result[tid].y = 0;// PI_d* x / n; // this is the same as setting the imaginary part to zero
+        result[tid].x = 0;// -PI_d * i * y / static_cast<double>(n);
+        result[tid].y = 0; //-PI_d * i * x / static_cast<double>(n);// PI_d* x / n; // this is the same as setting the imaginary part to zero
 	}
     else if (i < n) {
         x = a[tid].x;
@@ -403,6 +403,13 @@ void checkCusolver(cusolverStatus_t status) {
     if (status != CUSOLVER_STATUS_SUCCESS) {
         std::cerr << "cuSolver Error" << std::endl;
         exit(EXIT_FAILURE);
+    }
+}
+
+void checkCublas(cublasStatus_t status) {
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        std::cerr << "cuBLAS Error: " << status << std::endl;
+		exit(EXIT_FAILURE);
     }
 }
 

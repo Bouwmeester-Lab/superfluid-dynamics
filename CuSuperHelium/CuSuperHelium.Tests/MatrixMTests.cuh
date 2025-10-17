@@ -206,7 +206,7 @@ TEST(Kernels, TwoByTwoMMatrix)
 		}
 	}
 
-	createMKernel << <matrix_blocks, matrix_threads >> > (devM, devZ, devZp, devZpp, 0.0, N);
+	createMKernel << <matrix_blocks, matrix_threads >> > (devM, devZ, devZp, devZpp, 0.0, N, 1);
 
 	cudaDeviceSynchronize();
 	cudaMemcpy(MMatrixCalculated.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost);
@@ -266,7 +266,7 @@ TEST(Kernels, MMatrixKernel)
 	// for comparison to the kernel output
 	createMMatrix(MMatrix.data(), h, omega, rho, t, N);
 	cudaDeviceSynchronize();
-	createMKernel<<<matrix_blocks, matrix_threads>>>(devM, devZ, devZp, devZpp, 0.0, N);
+	createMKernel<<<matrix_blocks, matrix_threads>>>(devM, devZ, devZp, devZpp, 0.0, N, 1);
 	cudaDeviceSynchronize();
 	cudaMemcpy(MMatrixCalculated.data(), devM, N * N * sizeof(double), cudaMemcpyDeviceToHost);
 

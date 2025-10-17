@@ -30,17 +30,17 @@ public:
 };
 
 namespace plt = matplotlibcpp;
-template<int N>
+template<int N, size_t batchSize>
 class BoundaryProblem {
 protected:
 	const dim3 matrix_threads;// (16, 16);     // 256 threads per block in 2D
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
-	const int blocks = (N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
+	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 public:
 	EnergyContainer<N> energyContainer; ///< Energy container for storing the energies calculated during the simulation
 
-	BoundaryProblem(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface) : matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16), energyContainer(kinetic, potential, surface)
+	BoundaryProblem(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface) : matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize), energyContainer(kinetic, potential, surface)
 	{}
 	virtual ~BoundaryProblem() {}
 	/// <summary>
@@ -52,7 +52,7 @@ public:
 	/// <param name="Zpp"></param>
 	/// <param name="rho"></param>
 	/// <param name="n"></param>
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) = 0;
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) = 0;
 	virtual void CalculateVelocities(const std_complex* Z,
 		const std_complex* Zp,
 		const std_complex* Zpp,
@@ -63,26 +63,26 @@ public:
 		std_complex* velocities,
 		ProblemProperties& properties,
 		bool lower) = 0;
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) = 0;
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) = 0;
 	virtual void CalculateEnergy(const DevicePointers& devPointers, cudaStream_t stream)
 	{
 		energyContainer.CalculateEnergy(devPointers, stream); ///< Calculate the energies based on the device pointers containing the state variables
 	};
 };
 
-template<int N>
-class WaterBoundaryProblem : public BoundaryProblem<N>
+template<int N, size_t batchSize>
+class WaterBoundaryProblem : public BoundaryProblem<N, batchSize>
 {
-	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	WaterBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N>(new KineticEnergy<N>(properties), new GravitationalEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	WaterBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new GravitationalEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
 	{
 		// Constructor for the water boundary problem, initializing the velocity calculator with the problem properties
 	}
 
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
 	{
-		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.rho, n);
+		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.rho, N, batchSize);
 	}
 	virtual void CalculateVelocities(const std_complex* Z,
 		const std_complex* Zp,
@@ -96,27 +96,27 @@ public:
 		bool lower) override
 	{
 		// create the V1 matrix and V2 diagonal vector
-		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
+		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower, batchSize);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
 	{
-		compute_rhs_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, problemPointers.VelocitiesUpper, result, properties.rho, N);
+		compute_rhs_phi_expression <<<this->blocks, this->threads >>> (problemPointers.Z, problemPointers.VelocitiesLower, problemPointers.VelocitiesUpper, result, properties.rho, batchSize * N);
 	}
 };
 
-template<int N>
-class HeliumBoundaryProblem : public BoundaryProblem<N>
+template<int N, size_t batchSize>
+class HeliumBoundaryProblem : public BoundaryProblem<N, batchSize>
 {
-	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	HeliumBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	HeliumBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
 	{
 		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
 	}
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
 	{
-		createFiniteDepthMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
+		createFiniteDepthMKernel<< <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, N, batchSize);
 	}
 
 	virtual void CalculateVelocities(const std_complex* Z,
@@ -134,27 +134,27 @@ public:
 		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp,properties.depth,  N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
 	{
 		if(properties.kappa != 0.0)
-			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, N);
+			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, batchSize * N);
 		else
-			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, N);
+			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N);
 	}
 };
 
-template <int N>
-class HeliumInfiniteDepthBoundaryProblem : public BoundaryProblem<N>
+template <int N, size_t batchSize>
+class HeliumInfiniteDepthBoundaryProblem : public BoundaryProblem<N, batchSize>
 {
-	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	HeliumInfiniteDepthBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	HeliumInfiniteDepthBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
 	{
 		// Constructor for the helium infinite depth boundary problem, initializing the velocity calculator with the problem properties
 	}
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties, int n) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
 	{
-		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, n);
+		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, N, batchSize);
 	}
 	virtual void CalculateVelocities(const std_complex* Z,
 		const std_complex* Zp,
@@ -171,18 +171,17 @@ public:
 		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, int N) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
 	{
-		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth,N);
+		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N);
 	}
 };
 
-
-template<int N>
-class BoundaryIntegralCalculator final : public AutonomousProblem<std_complex, 2*N>
+template<int N, size_t batchSize>
+class BoundaryIntegralCalculator final : public AutonomousProblem<std_complex, 2*N*batchSize>
 {
 public:
-	BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem);
+	BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N, batchSize>& boundaryProblem);
 	~BoundaryIntegralCalculator();
 
 	VolumeFlux<N> volumeFlux; ///< Volume flux calculator for the water boundary integral problem
@@ -194,6 +193,12 @@ public:
 	{
 		return deva;
 	}
+	std_complex* getDevZp() {
+		return devZp;
+	} ///< Getter for the device pointer to the Zp array
+	std_complex* getDevZpp() {
+		return devZpp;
+	} ///< Getter for the device pointer to the Zpp array
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override;
 
@@ -216,7 +221,7 @@ public:
 private:
 	//cuda::std::complex<double>* devZ; ///< Device pointer to the Z array
 	//cuda::std::complex<double>* devPhi; ///< Device pointer to the Phi array
-	BoundaryProblem<N>& boundaryProblem; ///< Reference to the boundary problem for creating the M matrix and calculating velocities
+	BoundaryProblem<N, batchSize>& boundaryProblem; ///< Reference to the boundary problem for creating the M matrix and calculating velocities
 
 	std_complex* devZp; ///< Device pointer to the ZPhiPrime array
 	std_complex* devPhiPrimeComplex; ///< Device pointer to the PhiPrime array (derivative of Phi)
@@ -236,41 +241,41 @@ private:
 	
 
 	ProblemProperties& problemProperties; ///< Reference to the problem properties for configuration
-	ZPhiDerivative<N> zPhiDerivative; ///< Derivative calculator for Z and Phi
-	FftDerivative<N, 1> fftDerivative; ///< FFT derivative calculator for single batch
-	MatrixSolver<N> matrixSolver; ///< Matrix solver for solving the vorticities.
-	VelocityCalculator<N> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	ZPhiDerivative<N, batchSize> zPhiDerivative; ///< Derivative calculator for Z and Phi
+	FftDerivative<N, batchSize> fftDerivative; ///< FFT derivative calculator for single batch
+	MatrixSolver<N, batchSize> matrixSolver; ///< Matrix solver for solving the vorticities.
+	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
-	const int blocks = (N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
+	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 
 	const dim3 matrix_threads;// (16, 16);     // 256 threads per block in 2D
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 };
 
-template<int N>
-BoundaryIntegralCalculator<N>::BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N>& boundaryProblem) : AutonomousProblem<cufftDoubleComplex, 2*N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties), volumeFlux(problemProperties),
+template<int N, size_t batchSize>
+BoundaryIntegralCalculator<N, batchSize>::BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N, batchSize>& boundaryProblem) : AutonomousProblem<cufftDoubleComplex, 2*N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties), volumeFlux(problemProperties),
 	zPhiDerivative(problemProperties), 
 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
-	cudaMalloc(&devZp, N * sizeof(std_complex));
-	cudaMalloc(&devPhiPrimeComplex, N * sizeof(std_complex)); // Device pointer for the PhiPrime array (derivative of Phi in complex form)
+	cudaMalloc(&devZp, batchSize * N * sizeof(std_complex));
+	cudaMalloc(&devPhiPrimeComplex, batchSize * N * sizeof(std_complex)); // Device pointer for the PhiPrime array (derivative of Phi in complex form)
 
-	cudaMalloc(&devPhiPrime, N * sizeof(double)); // Device pointer for the PhiPrime array (derivative of Phi)
-	cudaMalloc(&devZpp, N * sizeof(std_complex));
-	cudaMalloc(&devM, N * N * sizeof(double)); // Matrix M for solving the system
-	cudaMalloc(&deva, N * sizeof(double));
-	cudaMalloc(&devaComplex, N * sizeof(cufftDoubleComplex)); // Device pointer for the solution vector a in complex form
-	cudaMalloc(&devaprime, N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devV1, N * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devV2, N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devVelocitiesUpper, N * sizeof(cufftDoubleComplex)); // Device pointer for the velocities of the upper fluid
+	cudaMalloc(&devPhiPrime, batchSize * N * sizeof(double)); // Device pointer for the PhiPrime array (derivative of Phi)
+	cudaMalloc(&devZpp, batchSize * N * sizeof(std_complex));
+	cudaMalloc(&devM, batchSize * N * N * sizeof(double)); // Matrix M for solving the system
+	cudaMalloc(&deva, batchSize * N * sizeof(double));
+	cudaMalloc(&devaComplex, batchSize * N * sizeof(cufftDoubleComplex)); // Device pointer for the solution vector a in complex form
+	cudaMalloc(&devaprime, batchSize * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devV1, batchSize * N * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devV2, batchSize * N * sizeof(cufftDoubleComplex));
+	cudaMalloc(&devVelocitiesUpper, batchSize * N * sizeof(cufftDoubleComplex)); // Device pointer for the velocities of the upper fluid
 
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
 
-template<int N>
-BoundaryIntegralCalculator<N>::~BoundaryIntegralCalculator()
+template<int N, size_t batchSize>
+BoundaryIntegralCalculator<N, batchSize>::~BoundaryIntegralCalculator()
 {
 	// cudaFree(devZ);
 	// cudaFree(devPhi);
@@ -289,15 +294,15 @@ BoundaryIntegralCalculator<N>::~BoundaryIntegralCalculator()
 	// cudaFree(devRhsPhi);
 }
 
-template<int N>
-inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initialState, std_complex* rhs)
+template<int N, size_t batchSize>
+inline void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex* initialState, std_complex* rhs)
 {
 	// set the right-hand pointers using the rhs pointer, this creates the variables in here to avoid global variables
 	std_complex* const devVelocitiesLower = rhs; // Device pointer for the velocities of the lower fluid
-	std_complex* const devRhsPhi = rhs + N; // Device pointer for the right-hand side of the phi equation
+	std_complex* const devRhsPhi = rhs + batchSize * N; // Device pointer for the right-hand side of the phi equation
 	// set the state variables using the initialState pointer, this creates the variables in here to avoid global variables
 	const std_complex* devZ = initialState; // Device pointer for the Z array
-	const std_complex* devPhi = initialState + N; // Device pointer for the Phi array
+	const std_complex* devPhi = initialState + batchSize * N; // Device pointer for the Phi array
 	const ProblemPointers problemPointers{ devZ, devZp, devZpp, devPhi, devVelocitiesUpper, devVelocitiesLower };
 
 	calculateVorticities(initialState); // Calculate the vorticities based on the current state
@@ -353,7 +358,7 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 	std::vector<cuDoubleComplex> a_host(N, make_cuDoubleComplex(0,0));
 	
 #endif
-	real_to_complex << <blocks, threads >> > (deva, devaComplex, N); // Convert the real vorticities to complex form for velocity calculations
+	real_to_complex << <blocks, threads >> > (deva, devaComplex, batchSize * N); // Convert the real vorticities to complex form for velocity calculations
 	//
 	fftDerivative.exec(devaComplex, devaprime, false, 2.0*PI_d / N); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
 	
@@ -417,7 +422,7 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 	// 7. the RHS of the X, Y are the velocities above.
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	/*calculatePhiRhs();*/
-	boundaryProblem.CalculateRhsPhi(problemPointers, devRhsPhi, problemProperties, N); // Calculate the right-hand side of the phi equation
+	boundaryProblem.CalculateRhsPhi(problemPointers, devRhsPhi, problemProperties); // Calculate the right-hand side of the phi equation
 
 	// calculate the evolution constants like the energy:
 	//kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
@@ -428,12 +433,12 @@ inline void BoundaryIntegralCalculator<N>::runTimeStep(const std_complex* initia
 	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower, opsStream); // Calculate the volume flux based on the current state
 }
 
-template<int N>
-void BoundaryIntegralCalculator<N>::calculateVorticities(const std_complex* initialState)
+template<int N, size_t batchSize>
+void BoundaryIntegralCalculator<N, batchSize>::calculateVorticities(const std_complex* initialState)
 {
 	// set the state variables using the initialState pointer, this creates the variables in here to avoid global variables
 	const std_complex* devZ = initialState; // Device pointer for the Z array
-	const std_complex* devPhi = initialState + N; // Device pointer for the Phi array
+	const std_complex* devPhi = initialState + batchSize * N; // Device pointer for the Phi array
 	// Here you would implement the logic to run a time step of the simulation.
 	// This would typically involve:
 	// 1. Calculating ZPhiPrime and Zpp from devZPhi.
@@ -446,16 +451,16 @@ void BoundaryIntegralCalculator<N>::calculateVorticities(const std_complex* init
 
 	zPhiDerivative.exec(devZ, devPhi, devZp, devPhiPrimeComplex, devZpp); // Calculate derivatives of Z and Phi
 
-	boundaryProblem.CreateMMatrix(devM, devZ, devZp, devZpp, problemProperties, N); // Create the M matrix
+	boundaryProblem.CreateMMatrix(devM, devZ, devZp, devZpp, problemProperties); // Create the M matrix
 
-	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
+	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, batchSize * N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
 
 	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
 }
 
 
-template<int N>
-void BoundaryIntegralCalculator<N>::run(std_complex* initialState, std_complex* rhs)
+template<int N, size_t batchSize>
+void BoundaryIntegralCalculator<N, batchSize>::run(std_complex* initialState, std_complex* rhs)
 {
 	
 	this->runTimeStep(initialState, rhs); // Run the time step calculation

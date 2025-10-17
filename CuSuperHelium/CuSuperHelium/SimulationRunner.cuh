@@ -37,12 +37,12 @@ cudaError_t setDevice()
 
 
 
-template <int N>
+template <int N, size_t batchSize>
 struct KineticEnergyFunctor {
 private:
-    BoundaryProblem<N>& boundaryProblem;
+    BoundaryProblem<N, batchSize>& boundaryProblem;
 public:
-    KineticEnergyFunctor(BoundaryProblem<N>& boundaryProblem) : boundaryProblem(boundaryProblem)
+    KineticEnergyFunctor(BoundaryProblem<N, batchSize>& boundaryProblem) : boundaryProblem(boundaryProblem)
     {
 
     }
@@ -53,12 +53,12 @@ public:
     }
 };
 
-template <int N>
+template <int N, size_t batchSize>
 struct PotentialEnergyFunctor {
 private:
-    BoundaryProblem<N>& boundaryProblem;
+    BoundaryProblem<N, batchSize>& boundaryProblem;
 public:
-    PotentialEnergyFunctor(BoundaryProblem<N>& boundaryProblem) : boundaryProblem(boundaryProblem)
+    PotentialEnergyFunctor(BoundaryProblem<N, batchSize>& boundaryProblem) : boundaryProblem(boundaryProblem)
     {
 
     }
@@ -69,12 +69,12 @@ public:
     }
 };
 
-template <int N>
+template <int N, size_t batchSize>
 struct VolumeFluxFunctor {
 private:
-    BoundaryIntegralCalculator<N>& integralCalculator;
+    BoundaryIntegralCalculator<N, batchSize>& integralCalculator;
 public:
-    VolumeFluxFunctor(BoundaryIntegralCalculator<N>& integralCalculator) : integralCalculator(integralCalculator)
+    VolumeFluxFunctor(BoundaryIntegralCalculator<N, batchSize>& integralCalculator) : integralCalculator(integralCalculator)
     {
 
     }
@@ -259,6 +259,23 @@ int loadDataToDevice(const c_double* Z, const c_double* phi, DeviceParticleData&
     checkCuda(cudaMemcpyAsync(deviceData.devZ, Z, N * sizeof(std_complex), cudaMemcpyHostToDevice, stream));
 
     checkCuda(cudaMemcpyAsync(deviceData.devZ + N, phi, N * sizeof(std_complex), cudaMemcpyHostToDevice, stream));
+	
+    /*cudaDeviceSynchronize();
+	std::vector<c_double> ZHost(2 * N);
+	checkCuda(cudaMemcpy(ZHost.data(), deviceData.devZ, 2 * N * sizeof(c_double), cudaMemcpyDeviceToHost));
+
+    for (size_t i = 0; i < N; ++i) {
+        if (Z[i].re != ZHost[i].re || Z[i].im != ZHost[i].im)
+        {
+			std::cout << "Mismatch at " << i << ": " << Z[i].re << " != " << ZHost[i].re << std::endl;
+			std::cout << "Mismatch at " << i << ": " << Z[i].im << " != " << ZHost[i].im << std::endl;
+        }
+        if (phi[i].re != ZHost[i + N].re || phi[i].im != ZHost[i + N].im)
+        {
+			std::cout << "Mismatch at " << i << ": " << phi[i].re << " != " << ZHost[i + N].re << std::endl;
+			std::cout << "Mismatch at " << i << ": " << phi[i].im << " != " << ZHost[i + N].im << std::endl;
+        }
+    }*/
 
 	return 0;
 }
@@ -358,9 +375,9 @@ RK45_std_complex<2 * numParticles> createRK45Solver()
 
 }
 
-template <int numParticles, typename TSolver, typename TOptions>
+template <int numParticles, size_t batchSize, typename TSolver, typename TOptions>
 requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
-int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, TOptions solverOptions, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
+int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, TOptions solverOptions, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
@@ -378,17 +395,17 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
    // std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
 
     /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
-    BoundaryIntegralCalculator<numParticles> boundaryIntegrator(properties, boundaryProblem);
+    BoundaryIntegralCalculator<numParticles, batchSize> boundaryIntegrator(properties, boundaryProblem);
 
     // energy, constant functors
-    KineticEnergyFunctor<numParticles> kineticEnergy(boundaryProblem);
-    PotentialEnergyFunctor<numParticles> potentialEnergy(boundaryProblem);
-    VolumeFluxFunctor<numParticles> volumeFluxFunctor(boundaryIntegrator);
+    KineticEnergyFunctor<numParticles, batchSize> kineticEnergy(boundaryProblem);
+    PotentialEnergyFunctor<numParticles, batchSize> potentialEnergy(boundaryProblem);
+    VolumeFluxFunctor<numParticles, batchSize> volumeFluxFunctor(boundaryIntegrator);
 
 
-    std::shared_ptr<ValueLogger> kineticEnergyLogger = std::make_shared<ValueCallableLogger<KineticEnergyFunctor<numParticles>>>(kineticEnergy, loggingSteps, numSteps / loggingSteps + 1);
-    std::shared_ptr<ValueLogger> potentialEnergyLogger = std::make_shared<ValueCallableLogger<PotentialEnergyFunctor<numParticles>>>(potentialEnergy, loggingSteps, numSteps / loggingSteps + 1);
-    std::shared_ptr<ValueLogger> volumeFluxLogger = std::make_shared<ValueCallableLogger<VolumeFluxFunctor<numParticles>>>(volumeFluxFunctor, loggingSteps, numSteps / loggingSteps + 1);
+    std::shared_ptr<ValueLogger> kineticEnergyLogger = std::make_shared<ValueCallableLogger<KineticEnergyFunctor<numParticles, batchSize>>>(kineticEnergy, loggingSteps, numSteps / loggingSteps + 1);
+    std::shared_ptr<ValueLogger> potentialEnergyLogger = std::make_shared<ValueCallableLogger<PotentialEnergyFunctor<numParticles, batchSize>>>(potentialEnergy, loggingSteps, numSteps / loggingSteps + 1);
+    std::shared_ptr<ValueLogger> volumeFluxLogger = std::make_shared<ValueCallableLogger<VolumeFluxFunctor<numParticles, batchSize>>>(volumeFluxFunctor, loggingSteps, numSteps / loggingSteps + 1);
     
     
     TotalEnergyFunctor totalEnergyFunctor(kineticEnergyLogger, potentialEnergyLogger);
@@ -572,24 +589,24 @@ int runSimulation(BoundaryProblem<numParticles>& boundaryProblem, const int numS
 	return 0;
 }
 
-template<int numParticles, typename TSolver, typename TOptions>
+template<int numParticles, size_t batchSize, typename TSolver, typename TOptions>
 requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
 int runSimulationHelium(const int numSteps, ProblemProperties& properties, ParticleData data, TOptions rk45Options, SimulationOptions simOptions,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
-    HeliumBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles, TSolver, TOptions>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
+    HeliumBoundaryProblem<numParticles, batchSize> boundaryProblem(properties);
+    return runSimulation<numParticles, batchSize, TSolver, TOptions>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }
 
-template <int numParticles>
+template <int numParticles, size_t batchSize>
 int runSimulationWater(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
-    WaterBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
+    WaterBoundaryProblem<numParticles, batchSize> boundaryProblem(properties);
+    return runSimulation<numParticles, batchSize>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }
 
-template <int numParticles>
+template <int numParticles, size_t batchSize>
 int runSimulationHeliumInfiniteDepth(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
-    HeliumInfiniteDepthBoundaryProblem<numParticles> boundaryProblem(properties);
-    return runSimulation<numParticles>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
+    HeliumInfiniteDepthBoundaryProblem<numParticles, batchSize> boundaryProblem(properties);
+    return runSimulation<numParticles, batchSize>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }

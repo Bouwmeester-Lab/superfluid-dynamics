@@ -285,9 +285,9 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 	plt::legend();
 #endif
 	if(logger.shouldCopy(_step))
-		logger.setReadyToCopy(devY0, cudaStreamPerThread, currentTime + CastFrom<T>(timeStep), true);
+		logger.setReadyToCopy(devY0, cudaStreamPerThread, currentTime + CastFrom<T>(timeStep), true); //TODO: make this work with a custom stream.
 	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	initialize(devY0); // reinitialize the stepper with the initial state
+	initialize(devY0, true); // reinitialize the stepper with the initial state which is already on the device
 }
 
 template <typename T, int N>
@@ -296,7 +296,6 @@ void AutonomousRungeKuttaStepperBase<T, N>::initialize(T* devY0, bool onDevice)
 	if (onDevice) 
 	{
 		this->devY0 = devY0; // store the initial state
-
 		cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY1
 		cudaMemcpy(devY2, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY2
 		cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY3
@@ -410,13 +409,13 @@ OdeSolverResult AutonomousRungeKuttaStepperBase<T, N>::runEvolution(double start
 		runStep(step);
 		currentTime += CastFrom<T>(timeStep);
 #pragma unroll
-		/*for (auto& logger : valueLoggers)
+		for (auto& logger : valueLoggers)
 		{
 			if (logger->shouldLog(step))
 			{
 				logger->logValue();
 			}
-		}*/
+		}
 	}
 	if (currentTime >= endTime)
 		return OdeSolverResult::ReachedEndTime;

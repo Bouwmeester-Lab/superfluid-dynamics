@@ -114,7 +114,9 @@ template<int N, size_t batchSize>
 inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double* deva)
 {
     if (deva != devb) {
-        cudaMemcpyAsync(deva, devb, batchSize * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream); // Copy b to a if they are different this avoids overwriting b if deva is a different pointer than devb.
+        checkCuda(cudaMemcpyAsync(deva, devb, batchSize * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream)); // Copy b to a if they are different this avoids overwriting b if deva is a different pointer than devb.
+        
+		//std::cout << "Copied devb to deva to avoid overwriting devb." << std::endl;
     }
     if (batchSize == 1) {
 		// use cuSolver to perform LU factorization of M if batchSize is 1
@@ -130,12 +132,13 @@ inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double
             hMptrs[i] = devM + i * N * N;
             hbptrs[i] = deva + i * N;
         }
-		cudaMemcpyAsync(devMarray, hMptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream);
-		cudaMemcpyAsync(devbarray, hbptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream);
-
+		//std::cout << "Preparing to solve batch of size " << batchSize << " with matrix size " << N << "x" << N << std::endl;
+        checkCuda(cudaMemcpyAsync(devMarray, hMptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream));
+        checkCuda(cudaMemcpyAsync(devbarray, hbptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream));
+        
 		// LU Factorization
 		checkCublas(cublasDgetrfBatched(blas, N, devMarray, N, devPivotArray, devInfoArray, batchSize));
-
+		//std::cout << "LU factorization completed for batch of size " << batchSize << std::endl;
         // check info array
 		checkCuda(cudaMemcpyAsync((void*)hostInfoArray.data(), devInfoArray, batchSize * sizeof(int), cudaMemcpyDeviceToHost, this->stream));
 
@@ -148,9 +151,24 @@ inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double
                 throw std::runtime_error("LU factorization failed in batch " + std::to_string(i) + " with info = " + std::to_string(hInfo));
             }
 		}
+		//std::cout << "LU factorization successful for all batches." << std::endl;
+		//// print addresses of the matrices and vectors being solved for debugging
+		//std::cout << "devMarray addresses: ";
+		//std::cout << devMarray << std::endl;
+		//std::cout << "devbarray addresses: ";
+		//std::cout << devbarray << std::endl;
+		//std::cout << "devPivotArray address: " << devPivotArray << std::endl;
+		//std::cout << "devInfoArray address: " << devInfoArray << std::endl;
 
 		// Solve the systems
-		checkCublas(cublasDgetrsBatched(blas, CUBLAS_OP_N, N, 1, devMarray, N, devPivotArray, devbarray, N, devInfoArray, batchSize));
+		checkCublas(cublasDgetrsBatched(blas, CUBLAS_OP_N, N, 1, devMarray, N, devPivotArray, devbarray, N, hostInfoArray.data(), batchSize));
+        //std::cout << "Solved batch of size " << batchSize << std::endl;
+		// check info array again
+        for (int i = 0; i < batchSize; ++i) {
+            if(hostInfoArray[i] != 0) {
+                throw std::runtime_error("Solve failed in batch " + std::to_string(i) + " with info = " + std::to_string(hostInfoArray[i]));
+			}
+        }
     }
     
 }

@@ -32,6 +32,7 @@ extern "C"
 	__declspec(dllexport) int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, double L, double rho, double kappa, double depth);
 	__declspec(dllexport) int calculateDerivativeFFT256(const c_double* input, c_double* output);
 	__declspec(dllexport) int calculateJacobian256(const c_double* Zphi, const double* jac);
+	__declspec(dllexport) int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, int batchSize);
 	ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium = 150);
 }
 

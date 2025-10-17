@@ -192,36 +192,37 @@ int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, 
 	return 0;
 }
 
-int loadDataToDevice(const double* x, const double* y, const double* phi, DeviceParticleData& deviceData, const size_t N, cudaStream_t stream = cudaStreamPerThread)
+int loadDataToDevice(const double* x, const double* y, const double* phi, DeviceParticleData& deviceData, const size_t N, const size_t batchSize = 1, cudaStream_t stream = cudaStreamPerThread)
 {
     cudaError_t cudaStatus;
     // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMallocAsync(&deviceData.devZ, 2 * N * sizeof(std_complex), stream); // we need space for both positions and potentials
+    cudaStatus = cudaMallocAsync(&deviceData.devZ, 2 * N * batchSize * sizeof(std_complex), stream); // we need space for both positions and potentials
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMalloc failed!");
         return cudaStatus;
     }
     // Copy input vectors from host memory to GPU buffers.
-    std::vector<std_complex> ZHost(N);
-	std::vector<std_complex> PhiHost(N);
-    for (size_t i = 0; i < N; ++i)
+    std::vector<std_complex> ZHost(batchSize * N);
+	std::vector<std_complex> PhiHost(batchSize * N);
+    for (size_t i = 0; i < batchSize * N; ++i)
     {
         ZHost[i] = std_complex(x[i], y[i]);
 		PhiHost[i] = std_complex(phi[i], 0.0);
     }
 
-    cudaStatus = cudaMemcpyAsync(deviceData.devZ, ZHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
+    cudaStatus = cudaMemcpyAsync(deviceData.devZ, ZHost.data(), batchSize * N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMemcpy failed!");
         return cudaStatus;
     }
 
     // copy to device
-    cudaStatus = cudaMemcpyAsync(deviceData.devZ + N, PhiHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
+    cudaStatus = cudaMemcpyAsync(deviceData.devZ + batchSize * N, PhiHost.data(), batchSize * N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMemcpy failed!");
         return cudaStatus;
     }
+	//std::cout << "Data loaded to device." << std::endl;
     //cudaDeviceSynchronize();
     //std::vector<std_complex> checkZ(2 * N);
     //cudaStatus = cudaMemcpy(checkZ.data(), deviceData.devZ, 2 * N * sizeof(std_complex), cudaMemcpyDeviceToHost);

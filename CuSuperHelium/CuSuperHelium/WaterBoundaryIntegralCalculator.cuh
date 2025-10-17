@@ -131,7 +131,7 @@ public:
 		bool lower) override
 	{
 		// create the V1 matrix and V2 diagonal vector
-		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp,properties.depth,  N, V1, V2, lower);
+		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp,properties.depth,  N, V1, V2, lower, batchSize);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
 	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
@@ -451,11 +451,19 @@ void BoundaryIntegralCalculator<N, batchSize>::calculateVorticities(const std_co
 
 	zPhiDerivative.exec(devZ, devPhi, devZp, devPhiPrimeComplex, devZpp); // Calculate derivatives of Z and Phi
 
+	//std::cout << "Calculated derivatives Zp, Zpp, and PhiPrime." << std::endl;
+
 	boundaryProblem.CreateMMatrix(devM, devZ, devZp, devZpp, problemProperties); // Create the M matrix
+
+	//std::cout << "Created M matrix." << std::endl;
 
 	complex_to_real << <blocks, threads >> > (devPhiPrimeComplex, devPhiPrime, batchSize * N); // Convert ZPhiPrime to real PhiPrime (takes only the real part).
 
+	//std::cout << "Converted PhiPrime to real values." << std::endl;
+
 	matrixSolver.solve(devM, devPhiPrime, deva); // Solve the system Ma = phi' to get the vorticities (a)
+
+	//std::cout << "Calculated vorticities for the current time step." << std::endl;
 }
 
 

@@ -116,35 +116,36 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 	cudaError_t cudaStatus;
 
 	std::vector<cufftDoubleComplex> der(N * batchSize);
-	std::vector<double> derReal(N * batchSize);
-	for (int i = 0; i < batchSize; i++)
-	{
-		for (int j = 0; j < N; j++) {
-			/*der[batchSize * i + j].x = 0;
-			if (j < N / 2)
-			{
-				der[batchSize * i + j].y = j;
-			}
-			else
-			{
-				der[batchSize * i + j].y = j - N;
-			}*/
-			
-			der[batchSize * i + j].x = filterTanh(abs(j - N/2), N, 0.01*PI_d, 0.2);
-			der[batchSize * i + j].y = 0; // the filter coefficients are only real, so the imaginary part is 0
+	// TODO: fix filtering for batchSize > 512. Currently no filtering is used.
+	//std::vector<double> derReal(N * batchSize);
+	//for (int i = 0; i < batchSize; i++)
+	//{
+	//	for (int j = 0; j < N; j++) {
+	//		/*der[batchSize * i + j].x = 0;
+	//		if (j < N / 2)
+	//		{
+	//			der[batchSize * i + j].y = j;
+	//		}
+	//		else
+	//		{
+	//			der[batchSize * i + j].y = j - N;
+	//		}*/
+	//		
+	//		der[batchSize * i + j].x = filterTanh(abs(j - N/2), N, 0.01*PI_d, 0.2);
+	//		der[batchSize * i + j].y = 0; // the filter coefficients are only real, so the imaginary part is 0
 
-			if (der[batchSize * i + j].x < 1e-11)
-			{
-				der[batchSize * i + j].x = 0.0; // set the small values to 0 exactly
-			}
+	//		if (der[batchSize * i + j].x < 1e-11)
+	//		{
+	//			der[batchSize * i + j].x = 0.0; // set the small values to 0 exactly
+	//		}
 
 
-			derReal[batchSize * i + j] = der[batchSize * i + j].x;
+	//		derReal[batchSize * i + j] = der[batchSize * i + j].x;
 
-			
-			// std::cout << der[batchSize * i + j].y << std::endl;
-		}
-	}
+	//		
+	//		// std::cout << der[batchSize * i + j].y << std::endl;
+	//	}
+	//}
 	/*plt::figure();
 	plt::plot(derReal, { {"label", "filter coefficients"} });*/
 
@@ -161,11 +162,11 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 		return cudaStatus;
 	}
 	// copy the coefficients to GPU
-	cudaStatus = cudaMemcpy(filterCoeffs, der.data(), sizeof(cufftDoubleComplex) * N * batchSize, cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess) {
-		//fprintf(stderr, "cudaMalloc failed!");
-		return cudaStatus;
-	}
+	//cudaStatus = cudaMemcpy(filterCoeffs, der.data(), sizeof(cufftDoubleComplex) * N * batchSize, cudaMemcpyHostToDevice);
+	//if (cudaStatus != cudaSuccess) {
+	//	//fprintf(stderr, "cudaMalloc failed!");
+	//	return cudaStatus;
+	//}
 	cufftPlan1d(&plan, N, CUFFT_Z2Z, batchSize);
 	//printf("Initialized cufft");
 	return cudaStatus;
@@ -254,6 +255,7 @@ FftDerivative<N, batchSize>::~FftDerivative()
 template<int N, size_t batchSize>
 inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(ProblemProperties& properties) : properties(properties)
 {
+	//std::cout << "Initializing ZPhiDerivative\n";
 	fftDerivative.initialize();
 	singleDerivative.initialize();
 
@@ -265,14 +267,16 @@ inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(ProblemProperties& propertie
 		PhiLinear[j] = -(1 + properties.rho) * PI_d * properties.U / N * (double)j; // Phi linear part
 	}
 	// copy the array to the device
-	cudaMalloc(&devLinearPartZ, N * sizeof(double));
-	cudaMalloc(&devLinearPartPhi, N * sizeof(double));
+	checkCuda(cudaMalloc(&devLinearPartZ, N * sizeof(double)));
+	checkCuda(cudaMalloc(&devLinearPartPhi, N * sizeof(double)));
 
-	cudaMemcpy(devLinearPartZ, ZLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(devLinearPartPhi, PhiLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice);
+	checkCuda(cudaMemcpy(devLinearPartZ, ZLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice));
+	checkCuda(cudaMemcpy(devLinearPartPhi, PhiLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice));
 
-	cudaMalloc(&devPeriodicZ, batchSize * N * sizeof(std_complex));
-	cudaMalloc(&devPeriodicPhi, batchSize * N * sizeof(std_complex));
+	checkCuda(cudaMalloc(&devPeriodicZ, batchSize * N * sizeof(std_complex)));
+	checkCuda(cudaMalloc(&devPeriodicPhi, batchSize * N * sizeof(std_complex)));
+
+	//std::cout << "Initialized ZPhiDerivative\n";
 }
 
 template<int N, size_t batchSize>

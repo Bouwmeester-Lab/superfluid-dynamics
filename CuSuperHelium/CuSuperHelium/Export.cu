@@ -171,10 +171,11 @@ int calculateVorticitiesNFromVectors(const double* x, const double* y, const dou
 
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, L);
-
+		//std::cout << "Adimensionalized properties. " << std::endl;
 		HeliumBoundaryProblem<N, batchSize> heliumProblem(properties);
+		//std::cout << "Created HeliumBoundaryProblem. " << std::endl;
 		BoundaryIntegralCalculator<N, batchSize> calculator(properties, heliumProblem);
-
+		//std::cout << "Created BoundaryIntegralCalculator. " << std::endl;
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
 
@@ -371,11 +372,79 @@ int calculateRHS256FromVectorsBatched(const double* x, const double* y, const do
 			return calculateVorticitiesNFromVectors<256, 128>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 		case 256:
 			return calculateVorticitiesNFromVectors<256, 256>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 512:
+			return calculateVorticitiesNFromVectors<256, 512>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 768:
+			return calculateVorticitiesNFromVectors<256, 768>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 	default:
 		std::cerr << "Error: Unsupported batch size " << batchSize << std::endl;
 		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256" << std::endl;
 		break;
 	}
+}
+
+int calculatePerturbedStates256(const double* x, const double* y, const double* phi, c_double* Zperturbed, double L, double rho, double kappa, double depth, double epsilon)
+{
+	try {
+		const size_t N = 256;
+		const int blockSize = N;
+		const int numBlocks = (N + blockSize - 1) / blockSize;
+
+		const dim3 threads(256, 1, 1);
+		const dim3 blocks((2 * 256 + 255) / 256, 3 * N, 1);
+
+		std_complex* initialState;
+		std_complex* devZPhiBatched;
+		double* devState;
+
+		checkCuda(setDevice());
+
+		checkCuda(cudaMalloc(&devState, sizeof(double) * 3 * N));
+		checkCuda(cudaMalloc(&initialState, sizeof(std_complex) * 2 * N));
+		checkCuda(cudaMalloc(&devZPhiBatched, sizeof(std_complex) * 6 * N * N));
+
+		// copy the initial data to the devState
+		checkCuda(cudaMemcpy(devState, x, sizeof(double) * N, cudaMemcpyHostToDevice));
+		checkCuda(cudaMemcpy((devState + N), y, sizeof(double) * N, cudaMemcpyHostToDevice));
+		checkCuda(cudaMemcpy((devState + 2 * N), phi, sizeof(double) * N, cudaMemcpyHostToDevice));
+
+		
+		
+		
+
+		createInitialState <<<N, numBlocks >> > (devState, initialState, N);
+
+		std::cout << "Initial state created on device." << std::endl;
+		std::cout << "Threads: " << threads.x << "y: " << threads.y << "z: " << threads.z << std::endl;
+		std::cout << "Blocks : x:" << blocks.x << "y :" << blocks.y << " z: " << blocks.z << std::endl;
+		createInitialBatchedZ<<<blocks, threads >>> (initialState, devZPhiBatched, epsilon, N);
+		std::cout << "Perturbed state created on device." << std::endl;
+		std::cout << "N: " << N << std::endl;
+		std::cout << "Output address: " << Zperturbed << std::endl;
+		// make sure it's all done
+		cudaDeviceSynchronize();
+
+		//std::vector<std::complex<double>> hostZPhiBatched(6 * N * N);
+		// copy to host for saving
+		checkCuda(cudaMemcpy(Zperturbed, devZPhiBatched, sizeof(std_complex) * 6 * N * N , cudaMemcpyDeviceToHost));
+
+		
+
+		std::cout << "Perturbed states copied to host." << std::endl;
+
+		cudaDeviceSynchronize();
+
+		// free device memory
+		checkCuda(cudaFree(devState));
+		checkCuda(cudaFree(initialState));
+		checkCuda(cudaFree(devZPhiBatched));
+
+		return 0;
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}	
 }
 
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)

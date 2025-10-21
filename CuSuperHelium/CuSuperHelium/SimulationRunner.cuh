@@ -18,24 +18,6 @@
 
 namespace plt = matplotlibcpp;
 
-cudaError_t setDevice()
-{
-
-    cudaError_t cudaStatus;
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        return cudaStatus;
-    }
-
-    return cudaStatus;
-}
-
-
-
-
-
 
 template <int N, size_t batchSize>
 struct KineticEnergyFunctor {
@@ -196,14 +178,18 @@ int loadDataToDevice(const double* x, const double* y, const double* phi, Device
 {
     cudaError_t cudaStatus;
     // Allocate GPU buffers for three vectors (two input, one output)    .
+	//std::cout << "Allocating device memory..." << std::endl;
     cudaStatus = cudaMallocAsync(&deviceData.devZ, 2 * N * batchSize * sizeof(std_complex), stream); // we need space for both positions and potentials
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMalloc failed!");
         return cudaStatus;
     }
+	//std::cout << "Device memory allocated." << std::endl;
     // Copy input vectors from host memory to GPU buffers.
     std::vector<std_complex> ZHost(batchSize * N);
 	std::vector<std_complex> PhiHost(batchSize * N);
+
+	//std::cout << "Loading data to host complex vectors..." << std::endl;
     for (size_t i = 0; i < batchSize * N; ++i)
     {
         ZHost[i] = std_complex(x[i], y[i]);

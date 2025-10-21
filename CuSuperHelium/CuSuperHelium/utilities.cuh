@@ -12,7 +12,19 @@
 #include <cuda/std/complex>
 #include "PrecisionMath.cuh"
 
+cudaError_t setDevice()
+{
 
+    cudaError_t cudaStatus;
+    // Choose which GPU to run on, change this on a multi-GPU system.
+    cudaStatus = cudaSetDevice(0);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+        return cudaStatus;
+    }
+
+    return cudaStatus;
+}
 
 __global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
@@ -380,6 +392,9 @@ __global__ void conjugate_vector(std_complex* x, std_complex* z, int N)
 
 void checkCuda(cudaError_t result) {
     if (result != cudaSuccess) {
+        /*if (line != 0) {
+			std::cerr << "Line number: " << line << std::endl;
+        }*/
         std::cerr << "CUDA Error: " << cudaGetErrorString(result) << std::endl;
         exit(EXIT_FAILURE);
     }

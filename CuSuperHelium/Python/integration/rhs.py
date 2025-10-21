@@ -120,6 +120,22 @@ def calculate_rhs256_from_vectors_batched(x : NDArray, y: NDArray, phi: NDArray,
 
     return lib.calculateRHS256FromVectorsBatched(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, batch_size), vx, vy, dphi
 
+def calculate_perturbed_states256(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon: float = 1e-6):
+    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib.calculatePerturbedStates256.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double)
+    lib.calculatePerturbedStates256.restype = c_int
+
+    n = x.shape[0]
+    if y.shape[0] != n or phi.shape[0] != n:
+        raise ValueError("Input arrays must have the same length")
+
+    Zperturbed = np.ascontiguousarray(np.empty((6 * n * n, ), dtype=np.complex128))
+    print(Zperturbed.flags)
+    print(hex(Zperturbed.ctypes.data))
+    print(Zperturbed.shape)
+
+    return lib.calculatePerturbedStates256(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), Zperturbed, L, rho, kappa, depth, epsilon), Zperturbed
+
 
 # with h5py.File(os.path.join(path, filename), 'w') as f:
 #     dset = f.create_dataset("interface", data=Z, shape=(256, 2), dtype=np.float64)
@@ -204,8 +220,8 @@ if __name__ == "__main__":
     initial_amplitude = 0.01*depth
     phase_spaces = np.random.uniform(0, 0.8*np.pi, modes)
     N = 256
-    batchSize = 256
-    r = np.array([2.0*np.pi/N*x for x in range(N)]*batchSize)
+    batchSize = 256*3
+    r = np.array([2.0*np.pi/N*x for x in range(N)])
     x = np.array([2.0*np.pi/N*x for x in range(N)]*batchSize)
     amplitude = []
     # for i in range(modes):
@@ -213,22 +229,105 @@ if __name__ == "__main__":
 
     # sum = np.sum(amplitude, axis=0)
     
-    ampl = np.cos(x) * initial_amplitude / L0 # sum / np.max(np.abs(sum)) * (initial_amplitude / (L / (2.0*np.pi)))
-
+    ampl_batched = np.cos(x) * initial_amplitude / L0 # sum / np.max(np.abs(sum)) * (initial_amplitude / (L / (2.0*np.pi)))
+    ampl = np.cos(r) * initial_amplitude / L0 # sum / np.max(np.abs(sum)) * (initial_amplitude / (L / (2.0*np.pi)))
     
 
     path = r"./Python/integration/files/"
     filename = "rhs_test.h5"
 
-    Z = x + 1j * ampl
+    Z = r + 1j * ampl
     print(Z.shape)
-    sum = np.zeros_like(x)
-    for i in range(1, 5):
-        sum += np.sin(i * (x- np.pi))
+    # sum = np.zeros_like(x)
+    # for i in range(1, 5):
+    #     sum += np.sin(i * (x- np.pi))
     # pot = (sum) * initial_amplitude
-    pot = initial_amplitude/L0 * np.sin(x)
+    pot = initial_amplitude/L0 * np.sin(r)
+    pot_batched = initial_amplitude/L0 * np.sin(x)
 
-    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(x, ampl, pot, L, 145, 0, depth, batchSize)
+    res, perturbed = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth)
+
+    perturbed_real = np.real(perturbed[0:256])-x[0:256]
+    perturbed_ampl = np.imag(perturbed[0:256])
+    potential_perturbed = np.real(perturbed[256:512]) - x[0:256]
+    perturbed_x3 = np.real(perturbed[512:768]) - x[0:256]
+    perturbed_x4 = np.real(perturbed[768:1024]) - x[0:256]
+    perturbed_x5 = np.real(perturbed[1024:1280]) - x[0:256]
+
+    figure1, ax1 = plt.subplots()
+    figure2, ax2 = plt.subplots()
+    figure3, ax3 = plt.subplots()
+    figure4, ax4 = plt.subplots()
+
+    figure5, ax5 = plt.subplots()
+    figure6, ax6 = plt.subplots()
+
+    figure7, ax7 = plt.subplots()
+    figure8, ax8 = plt.subplots()
+    figure9, ax9 = plt.subplots()
+    figure10, ax10 = plt.subplots()
+    figure11, ax11 = plt.subplots()
+    figure12, ax12 = plt.subplots()
+
+
+    figure1.suptitle("Position X perturbations - comb like")
+    figure2.suptitle("Amplitude Y for X perturbations - so zero")
+
+    figure3.suptitle("Position X for Y perturbations - should be zero")
+    figure4.suptitle("Amplitude Y perturbations - comb like")
+
+    figure5.suptitle("Position X for potential perturbations - should be zero")
+    figure6.suptitle("Amplitude Y for potential perturbations - should be zero")
+
+    figure7.suptitle("Potential Real Part for perturbation on x - should be zero")
+    figure8.suptitle("Potential Imaginary Part for perturbation on x - should be zero")
+
+    figure9.suptitle("Potential Real Part for perturbation on y - should be zero")
+    figure10.suptitle("Potential Imaginary Part for perturbation on y - should be zero")
+
+    figure11.suptitle("Potential Real Part for perturbation on potential - comb like")
+    figure12.suptitle("Potential Imaginary Part for perturbation on potential - should be zero")
+
+    for i in range(3*256):
+        perturbed_x = np.real(perturbed[i * N:(i + 1) * N]) - x[0:256]
+        perturbed_y = np.imag(perturbed[i * N:(i + 1) * N]) - ampl[0:256]
+        
+        if i < 256:
+            ax1.plot(perturbed_x, label=f"perturbed interface batch {i+1}")
+            ax2.plot(perturbed_y, label=f"perturbed interface batch {i+1}")
+        elif i < 512:
+            ax3.plot(perturbed_x, label=f"perturbed x batch {i+1}")
+            ax4.plot(perturbed_y, label=f"perturbed y batch {i+1}")
+        elif i < 768:
+            ax5.plot(perturbed_x, label=f"perturbed x batch {i+1}")
+            ax6.plot(perturbed_y, label=f"perturbed y batch {i+1}")
+    for i in range(3*256, 6*256):
+        perturbed_x = np.real(perturbed[i * N:(i + 1) * N]) - pot[0:256]
+        perturbed_y = np.imag(perturbed[i * N:(i + 1) * N])
+        if i < 1024:
+            ax7.plot(perturbed_x, label=f"perturbed interface batch {i+1}")
+            ax8.plot(perturbed_y, label=f"perturbed potential batch {i+1}")
+        elif i < 1280:
+            ax9.plot(perturbed_x, label=f"perturbed x batch {i+1}")
+            ax10.plot(perturbed_y, label=f"perturbed y batch {i+1}")
+        elif i < 1536:
+            ax11.plot(perturbed_x, label=f"perturbed x batch {i+1}")
+            ax12.plot(perturbed_y, label=f"perturbed y batch {i+1}")
+
+
+            
+
+
+
+
+    # plt.plot(perturbed_real, label="perturbed interface")
+    # plt.plot(potential_perturbed, label="perturbed potential")
+    # plt.plot(perturbed_x3, label="perturbed x3")
+    # plt.plot(perturbed_x4, label="perturbed x4")
+    # plt.plot(perturbed_x5, label="perturbed x5")
+    plt.show()
+
+    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(x, ampl_batched, pot_batched, L, 145, 0, depth, batchSize)
 
     if res != 0:
         raise Exception("Error in calculation")
@@ -248,9 +347,9 @@ if __name__ == "__main__":
     # plt.show()
 
     plt.figure()
-    plt.plot(x[256:], ampl[256:], label="initial interface")
+    plt.plot(x[256:], ampl_batched[256:], label="initial interface")
     # plt.axhline(-depth*2.0*np.pi/L, color='r', linestyle='--', label="equilibrium height")
-    plt.plot(x[256:], pot[256:], label="initial potential")
+    plt.plot(x[256:], pot_batched[256:], label="initial potential")
 
     plt.legend()
     plt.show()
@@ -264,27 +363,27 @@ if __name__ == "__main__":
     # pot = pot.astype(np.complex128)
     print(pot[0])
 
-    y0 = np.concatenate((x, ampl, pot.astype(np.float64)))
-    hs = np.linspace(1e-5, 1e-15, 20)
-    rows = []
-    for h in hs:
-        J = jacobian_fd(f, y0, eps = h)
-        eigenvals = np.linalg.eigvals(J)
-        r = np.max(np.real(eigenvals))
-        S = 0.5 * (J + J.T)
-        s = np.linalg.norm(S, "fro")
-        j = np.linalg.norm(J, "fro")
+    y0 = np.concatenate((r, ampl, pot.astype(np.float64)))
+    # hs = np.linspace(1e-5, 1e-15, 20)
+    # rows = []
+    # for h in hs:
+    #     J = jacobian_fd(f, y0, eps = h)
+    #     eigenvals = np.linalg.eigvals(J)
+    #     r = np.max(np.real(eigenvals))
+    #     S = 0.5 * (J + J.T)
+    #     s = np.linalg.norm(S, "fro")
+    #     j = np.linalg.norm(J, "fro")
 
-        rows.append((h, r, s, j))
+    #     rows.append((h, r, s, j))
 
-    plt.figure()
-    plt.title("Largest real valued eigenvalue vs epsilon")
-    plt.plot(hs, [row[1] for row in rows], label="max real part")
-    plt.figure()
-    plt.plot(hs, [row[2] / row[3] for row in rows], label="symmetric norm")
-    plt.xlabel("Epsilon")
-    plt.title("Symmetric norm vs epsilon")
-    plt.show()
+    # plt.figure()
+    # plt.title("Largest real valued eigenvalue vs epsilon")
+    # plt.plot(hs, [row[1] for row in rows], label="max real part")
+    # plt.figure()
+    # plt.plot(hs, [row[2] / row[3] for row in rows], label="symmetric norm")
+    # plt.xlabel("Epsilon")
+    # plt.title("Symmetric norm vs epsilon")
+    # plt.show()
     # print("Calculating Jacobian...")
     Jac = jacobian_fd(f, y0, eps = 1e-6)
     # Jac2 = jacobian_fd(f, y0, h = eps *1e-2)
@@ -299,7 +398,7 @@ if __name__ == "__main__":
     ### get all the eigenvalues with zero real part and non zero imaginary part
     imaginary_only_eigenvalues = np.all(np.isclose(np.real(vals), 0, atol=1e-5)) & ~np.isclose(np.imag(vals), 0, atol=1e-5)
     ### get all the eigenvalues with zero real part and zero imaginary part
-    zero_eigenvalue = np.isclose(np.abs(vals), 0, atol=1e-5)
+    zero_eigenvalue = np.isclose(np.abs(vals), 0, atol=1e-3)
     print(f"There's {len(vals[zero_eigenvalue])} zero eigenvalues.")
     print(f"{len(vals[imaginary_only_eigenvalues])} eigenvalues are purely imaginary.")
     print(f" {len(vals) - len(vals[imaginary_only_eigenvalues]) - len(vals[zero_eigenvalue])} eigenvalues have a real part.")

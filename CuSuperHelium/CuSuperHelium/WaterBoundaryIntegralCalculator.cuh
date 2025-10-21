@@ -255,7 +255,7 @@ private:
 template<int N, size_t batchSize>
 BoundaryIntegralCalculator<N, batchSize>::BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N, batchSize>& boundaryProblem) : AutonomousProblem<cufftDoubleComplex, 2*N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties), volumeFlux(problemProperties),
 	zPhiDerivative(problemProperties), 
-matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
+matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
 	cudaMalloc(&devZp, batchSize * N * sizeof(std_complex));
@@ -270,7 +270,7 @@ matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16)
 	cudaMalloc(&devV1, batchSize * N * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devV2, batchSize * N * sizeof(cufftDoubleComplex));
 	cudaMalloc(&devVelocitiesUpper, batchSize * N * sizeof(cufftDoubleComplex)); // Device pointer for the velocities of the upper fluid
-
+	//std::cout << "Allocated device memory for BoundaryIntegralCalculator." << std::endl;
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
 

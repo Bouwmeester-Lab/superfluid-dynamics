@@ -8,6 +8,8 @@
 #include "WaterVelocities.cuh"
 #include "matplotlibcpp.h"
 #include "utilities.cuh"
+//#include "SimulationRunner.cuh"
+#include "JacobianCalculator.cuh"
 
 namespace plt = matplotlibcpp;
 
@@ -277,6 +279,118 @@ TEST(Kernels, MMatrixKernel)
 			EXPECT_NEAR(MMatrixCalculated[i + j * N], MMatrix[i + j * N], 1e-14) << "Mismatch at (" << i << ", " << j << ")";
 		}
 	}
+}
+
+TEST(Kernels, BatchedFormationForJacobian) 
+{
+
+
+	const int N = 256;
+	double t = 0.1;
+	double h = 0.5;
+	double omega = 10;
+	double rho = 0.0;
+	double epsilon = 1e-6;
+
+	std_complex* devZ; // device pointer for ZPhi
+	std_complex* devZp; // device pointer for ZPhiPrime
+	std_complex* devZpp; // device pointer for Zpp
+
+	std_complex* devPhi;
+	std_complex* devPhiPrime;
+
+	cudaMalloc(&devZ, N * sizeof(std_complex));
+	cudaMalloc(&devZp, N * sizeof(std_complex));
+	cudaMalloc(&devZpp, N * sizeof(std_complex));
+
+	cudaMalloc(&devPhi, N * sizeof(std_complex));
+	cudaMalloc(&devPhiPrime, N * sizeof(std_complex));
+
+	//dim3 matrix_threads(16, 16), matrix_blocks((N + 15) / 16, (N + 15) / 16);
+
+	std::array<std_complex, N> Z;
+	std::array<std_complex, N> Zp;
+	std::array<std_complex, N> Zpp;
+	std::array<std_complex, N> ArrPhi;
+	std::array<std_complex, N> PhiPrime;
+
+	prepareZPhi(Z.data(), ArrPhi.data(), Zp.data(), Zpp.data(), PhiPrime.data(), h, omega, t, rho, N);
+
+	std::array<double, N> x;
+	std::array<double, N> y;
+	std::array<double, N> phi;
+
+	for(int i = 0; i < N; i++) 
+	{
+		x[i] = Z[i].real();
+		y[i] = Z[i].imag();
+		phi[i] = ArrPhi[i].real();
+	}
+
+	//const size_t N = 256;
+	const int blockSize = N;
+	const int numBlocks = (N + blockSize - 1) / blockSize;
+
+	const dim3 block(255, 1, 1);
+	const dim3 grid((2 * 256 + 255) / 256, 3 * N, 1);
+
+	std_complex* initialState;
+	std_complex* devZPhiBatched;
+	double* devState;
+
+	std::vector<std_complex> Zperturbed(6 * N * N);
+
+
+	checkCuda(setDevice());
+
+	checkCuda(cudaMalloc(&devState, sizeof(double) * 3 * N));
+	checkCuda(cudaMalloc(&initialState, sizeof(std_complex) * 2 * N));
+	checkCuda(cudaMalloc(&devZPhiBatched, sizeof(std_complex) * 6 * N * N));
+
+	// copy the initial data to the devState
+	checkCuda(cudaMemcpy(devState, x.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
+	checkCuda(cudaMemcpy((devState + N), y.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
+	checkCuda(cudaMemcpy((devState + 2 * N), phi.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
+
+
+
+
+
+	createInitialState << <N, numBlocks >> > (devState, initialState, N);
+
+	std::cout << "Initial state created on device." << std::endl;
+	std::cout << "Threads: " << block.x << "y: " << block.y << "z: " << block.z << std::endl;
+	std::cout << "Blocks : x:" << grid.x << "y :" << grid.y << " z: " << grid.z << std::endl;
+	createInitialBatchedZ << <grid, block >> > (initialState, devZPhiBatched, epsilon, N);
+	cudaError_t err = cudaGetLastError();
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Launch error: %s\n", cudaGetErrorString(err));
+	}
+	cudaDeviceProp p; cudaGetDeviceProperties(&p, 0);
+	printf("maxThreadsPerBlock=%d\n", p.maxThreadsPerBlock);
+	printf("maxThreadsDim = [%d,%d,%d]\n", p.maxThreadsDim[0], p.maxThreadsDim[1], p.maxThreadsDim[2]);
+	printf("maxGridSize   = [%d,%d,%d]\n", p.maxGridSize[0], p.maxGridSize[1], p.maxGridSize[2]);
+
+	std::cout << "Perturbed state created on device." << std::endl;
+	std::cout << "N: " << N << std::endl;
+	std::cout << "Output address: " << Zperturbed.data() << std::endl;
+	// make sure it's all done
+	cudaDeviceSynchronize();
+
+	//std::vector<std::complex<double>> hostZPhiBatched(6 * N * N);
+	// copy to host for saving
+	checkCuda(cudaMemcpy(Zperturbed.data(), devZPhiBatched, sizeof(std_complex) * 6 * N * N, cudaMemcpyDeviceToHost));
+
+
+
+	std::cout << "Perturbed states copied to host." << std::endl;
+
+	cudaDeviceSynchronize();
+
+	// free device memory
+	checkCuda(cudaFree(devState));
+	checkCuda(cudaFree(initialState));
+	checkCuda(cudaFree(devZPhiBatched));
 }
 
 TEST(Kernels, Velocities) {

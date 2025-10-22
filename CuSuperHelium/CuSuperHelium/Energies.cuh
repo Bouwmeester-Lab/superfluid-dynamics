@@ -206,14 +206,23 @@ struct VolumeFluxCombination
 template <int N>
 EnergyBase<N>::EnergyBase(ProblemProperties& properties) : properties(properties)
 {
-	cudaMalloc(&devEnergy, sizeof(double));
+	checkCuda(cudaMalloc(&devEnergy, sizeof(double)));
 }
 
 template <int N>
 EnergyBase<N>::~EnergyBase()
 {
-	cudaFree(devEnergy);
+	checkCudaErrors("EnergyBase destructor start");
+
+	if(devEnergy) cudaFree(devEnergy);
+	checkCudaErrors("Freed devEnergy in EnergyBase destructor");
+
 	if(tempStorage) cudaFree(tempStorage);
+	checkCudaErrors("Freed tempStorage in EnergyBase destructor");
+	/*auto error = cudaGetLastError();
+	if (error != cudaSuccess) {
+		printf("CUDA Error in EnergyBase destructor: %s\n", cudaGetErrorString(error));
+	}*/
 }
 
 template <int N>
@@ -245,6 +254,7 @@ void KineticEnergy<N>::CalculateEnergy(const std_complex* devPhi, const std_comp
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 
 	cudaFreeAsync(this->tempStorage, stream);
+	this->tempStorage = nullptr;
 }
 
 
@@ -263,6 +273,7 @@ void GravitationalEnergy<N>::CalculateEnergy(const std_complex* devZ, const std_
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	cudaFreeAsync(this->tempStorage, stream);
+	this->tempStorage = nullptr;
 }
 
 template<int N>
@@ -279,6 +290,7 @@ void VanDerWaalsEnergy<N>::CalculateEnergy(const std_complex* devZ, cudaStream_t
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	cudaFreeAsync(this->tempStorage, stream);
+	this->tempStorage = nullptr;
 }
 
 template<int N>
@@ -295,6 +307,7 @@ void SurfaceEnergy<N>::CalculateEnergy(const std_complex* devZp, cudaStream_t st
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	cudaFreeAsync(this->tempStorage, stream);
+	this->tempStorage = nullptr;
 }
 
 template<int N>
@@ -311,4 +324,5 @@ void VolumeFlux<N>::CalculateEnergy(const std_complex* devZp, const std_complex*
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	cudaFreeAsync(this->tempStorage, stream);
+	this->tempStorage = nullptr;
 }

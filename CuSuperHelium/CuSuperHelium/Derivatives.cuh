@@ -245,11 +245,16 @@ void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, 
 template<int N, int batchSize>
 FftDerivative<N, batchSize>::~FftDerivative()
 {
-	cufftDestroy(plan);
+	if(plan) cufftDestroy(plan);
 	// delete all pointers
-	cudaFree(filterCoeffs);
-	cudaFree(coeffs);
+	if(filterCoeffs) cudaFree(filterCoeffs);
+	if(coeffs) cudaFree(coeffs);
 	//cudaFree()
+
+	auto error = cudaGetLastError();
+	if (error != cudaSuccess) {
+		std::cerr << "CUDA error in FftDerivative destructor: " << cudaGetErrorString(error) << std::endl;
+	}
 }
 
 template<int N, size_t batchSize>

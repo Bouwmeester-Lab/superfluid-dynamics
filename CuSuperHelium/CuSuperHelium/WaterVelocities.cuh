@@ -160,8 +160,18 @@ VelocityCalculator<N, batchSize>::VelocityCalculator() : matrix_threads(16, 16, 
 template<int N, size_t batchSize>
 VelocityCalculator<N, batchSize>::~VelocityCalculator()
 {
+	auto error = cudaGetLastError();
+	if (error != cudaSuccess) {
+		std::cerr << "CUDA error in ~VelocityCalculator before destroy handle: " << cudaGetErrorString(error) << std::endl;
+	}
+
 	if (handle) {
-		cublasDestroy(handle);
+		
+		checkCublas(cublasDestroy(handle));
+	}
+	 error = cudaGetLastError();
+	if (error != cudaSuccess) {
+		std::cerr << "CUDA error in ~VelocityCalculator before free of pointers of pointers: " << cudaGetErrorString(error) << std::endl;
 	}
 	if(devPtrV1Array)
 		cudaFree(devPtrV1Array);
@@ -169,6 +179,11 @@ VelocityCalculator<N, batchSize>::~VelocityCalculator()
 		cudaFree(devPtrAArray);
 	if (devPtrVelArray)
 		cudaFree(devPtrVelArray);
+
+	error = cudaGetLastError();
+	if (error != cudaSuccess) {
+		std::cerr << "CUDA error in ~VelocityCalculator: " << cudaGetErrorString(error) << std::endl;
+	}
 }
 
 template<int N, size_t batchSize>

@@ -15,6 +15,7 @@ from _ctypes import LoadLibrary # we are import back-end ctypes module
 from scipy.integrate import solve_ivp
 from scipy.sparse.linalg import eigs, LinearOperator
 import tqdm
+from time import process_time, sleep
 
 paths = os.environ[ 'path' ].split( ';' )
 paths.reverse()
@@ -177,7 +178,7 @@ def jacobian_fd(f, y0, eps=None, scales=None):
     J = np.empty((n, m), dtype=float) # matrix should be output dimension x input dimension
     # f0 = f(y0)  # not strictly needed, but useful for sanity checks
 
-    for j in tqdm.tqdm(range(m), desc="Calculating Jacobian"):
+    for j in range(m): #, desc="Calculating Jacobian"):
         ej = np.zeros(m); ej[j] = 1.0
         hj = h0[j]
         Fp = f(y0 + hj*ej)
@@ -255,10 +256,18 @@ if __name__ == "__main__":
     pot = initial_amplitude/L0 * np.sin(r)
     pot_batched = initial_amplitude/L0 * np.sin(x)
 
-    res, jacobian = calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-6)
+    for i in range(100):
+        res, jacobian = calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-6)
+        sleep(1)
+    
     y0 = np.concatenate((r, ampl, pot.astype(np.float64)))
-    # Jac = jacobian_fd(f, y0, eps = 1e-6)
+    from time import process_time_ns
 
+    t0 = process_time_ns()
+    Jac = jacobian_fd(f, y0, eps = 1e-6)
+    t1 = process_time_ns()
+
+    print("Time taken for FD Jacobian - Python: ", (t1 - t0) * 1e-9, " seconds")
     plt.figure()
     plt.imshow(np.abs(jacobian))
     plt.colorbar()

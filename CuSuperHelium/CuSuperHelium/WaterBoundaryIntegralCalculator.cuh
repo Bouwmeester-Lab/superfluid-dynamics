@@ -258,18 +258,18 @@ BoundaryIntegralCalculator<N, batchSize>::BoundaryIntegralCalculator(ProblemProp
 matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
-	cudaMalloc(&devZp, batchSize * N * sizeof(std_complex));
-	cudaMalloc(&devPhiPrimeComplex, batchSize * N * sizeof(std_complex)); // Device pointer for the PhiPrime array (derivative of Phi in complex form)
+	checkCuda(cudaMalloc(&devZp, batchSize * N * sizeof(std_complex)));
+	checkCuda(cudaMalloc(&devPhiPrimeComplex, batchSize * N * sizeof(std_complex))); // Device pointer for the PhiPrime array (derivative of Phi in complex form)
 
-	cudaMalloc(&devPhiPrime, batchSize * N * sizeof(double)); // Device pointer for the PhiPrime array (derivative of Phi)
-	cudaMalloc(&devZpp, batchSize * N * sizeof(std_complex));
-	cudaMalloc(&devM, batchSize * N * N * sizeof(double)); // Matrix M for solving the system
-	cudaMalloc(&deva, batchSize * N * sizeof(double));
-	cudaMalloc(&devaComplex, batchSize * N * sizeof(cufftDoubleComplex)); // Device pointer for the solution vector a in complex form
-	cudaMalloc(&devaprime, batchSize * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devV1, batchSize * N * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devV2, batchSize * N * sizeof(cufftDoubleComplex));
-	cudaMalloc(&devVelocitiesUpper, batchSize * N * sizeof(cufftDoubleComplex)); // Device pointer for the velocities of the upper fluid
+	checkCuda(cudaMalloc(&devPhiPrime, batchSize * N * sizeof(double))); // Device pointer for the PhiPrime array (derivative of Phi)
+	checkCuda(cudaMalloc(&devZpp, batchSize * N * sizeof(std_complex)));
+	checkCuda(cudaMalloc(&devM, batchSize * N * N * sizeof(double))); // Matrix M for solving the system
+	checkCuda(cudaMalloc(&deva, batchSize * N * sizeof(double)));
+	checkCuda(cudaMalloc(&devaComplex, batchSize * N * sizeof(cufftDoubleComplex))); // Device pointer for the solution vector a in complex form
+	checkCuda(cudaMalloc(&devaprime, batchSize * N * sizeof(cufftDoubleComplex)));
+	checkCuda(cudaMalloc(&devV1, batchSize * N * N * sizeof(cufftDoubleComplex)));
+	checkCuda(cudaMalloc(&devV2, batchSize * N * sizeof(cufftDoubleComplex)));
+	checkCuda(cudaMalloc(&devVelocitiesUpper, batchSize * N * sizeof(cufftDoubleComplex))); // Device pointer for the velocities of the upper fluid
 	//std::cout << "Allocated device memory for BoundaryIntegralCalculator." << std::endl;
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
@@ -279,19 +279,26 @@ BoundaryIntegralCalculator<N, batchSize>::~BoundaryIntegralCalculator()
 {
 	// cudaFree(devZ);
 	// cudaFree(devPhi);
-	cudaFreeAsync(devZp, opsStream);
-	cudaFreeAsync(devPhiPrimeComplex, opsStream);
-	cudaFreeAsync(devPhiPrime, opsStream);
-	cudaFreeAsync(devZpp, opsStream);
-	cudaFreeAsync(devM, opsStream);
-	cudaFreeAsync(deva, opsStream);
-	cudaFreeAsync(devaComplex, opsStream);
-	cudaFreeAsync(devaprime, opsStream);
-	cudaFreeAsync(devV1, opsStream);
-	cudaFreeAsync(devV2, opsStream);
+	checkCuda(cudaFreeAsync(devZp, opsStream));
+	checkCuda(cudaFreeAsync(devPhiPrimeComplex, opsStream));
+	checkCuda(cudaFreeAsync(devPhiPrime, opsStream));
+	checkCuda(cudaFreeAsync(devZpp, opsStream));
+	checkCuda(cudaFreeAsync(devM, opsStream));
+	checkCuda(cudaFreeAsync(deva, opsStream));
+	checkCuda(cudaFreeAsync(devaComplex, opsStream));
+	checkCuda(cudaFreeAsync(devaprime, opsStream));
+	checkCuda(cudaFreeAsync(devV1, opsStream));
+	checkCuda(cudaFreeAsync(devV2, opsStream));
 	// cudaFree(devVelocitiesLower);
-	cudaFreeAsync(devVelocitiesUpper, opsStream);
+	checkCuda(cudaFreeAsync(devVelocitiesUpper, opsStream));
 	// cudaFree(devRhsPhi);
+
+	checkCuda(cudaDeviceSynchronize());
+
+	auto error = cudaGetLastError();
+	if (error != cudaSuccess) {
+		std::cerr << "CUDA after trying to destroy Boundary Integral Calculator: " << cudaGetErrorString(error) << std::endl;
+	}
 }
 
 template<int N, size_t batchSize>

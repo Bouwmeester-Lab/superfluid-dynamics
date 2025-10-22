@@ -331,7 +331,7 @@ TEST(Kernels, BatchedFormationForJacobian)
 	const int blockSize = N;
 	const int numBlocks = (N + blockSize - 1) / blockSize;
 
-	const dim3 block(255, 1, 1);
+	const dim3 block(256, 1, 1);
 	const dim3 grid((2 * 256 + 255) / 256, 3 * N, 1);
 
 	std_complex* initialState;

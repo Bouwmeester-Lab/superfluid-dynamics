@@ -130,12 +130,22 @@ def calculate_perturbed_states256(x : NDArray, y: NDArray, phi: NDArray, L : flo
         raise ValueError("Input arrays must have the same length")
 
     Zperturbed = np.ascontiguousarray(np.empty((6 * n * n, ), dtype=np.complex128))
-    print(Zperturbed.flags)
-    print(hex(Zperturbed.ctypes.data))
-    print(Zperturbed.shape)
+    # print(Zperturbed.flags)
+    # print(hex(Zperturbed.ctypes.data))
+    # print(Zperturbed.shape)
 
     return lib.calculatePerturbedStates256(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), Zperturbed, L, rho, kappa, depth, epsilon), Zperturbed
 
+def calculate_jacobian(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon : float = 1e-6):
+    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib.calculateJacobian.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("F_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double, c_size_t)
+    lib.calculateJacobian.restype = c_int
+
+    n = x.shape[0]
+    if y.shape[0] != n or phi.shape[0] != n:
+        raise ValueError("Input arrays must have the same length")
+    J = np.empty((3*n, 3*n), dtype=np.float64, order='F')
+    return lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, L, rho, kappa, depth, epsilon, n), J
 
 # with h5py.File(os.path.join(path, filename), 'w') as f:
 #     dset = f.create_dataset("interface", data=Z, shape=(256, 2), dtype=np.float64)
@@ -245,7 +255,29 @@ if __name__ == "__main__":
     pot = initial_amplitude/L0 * np.sin(r)
     pot_batched = initial_amplitude/L0 * np.sin(x)
 
-    res, perturbed = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth)
+    res, jacobian = calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-6)
+    y0 = np.concatenate((r, ampl, pot.astype(np.float64)))
+    # Jac = jacobian_fd(f, y0, eps = 1e-6)
+
+    plt.figure()
+    plt.imshow(np.abs(jacobian))
+    plt.colorbar()
+    plt.title("Jacobian matrix magnitude (C++)")
+    # plt.figure()
+    # plt.imshow(np.abs(Jac))
+    # plt.colorbar()
+    # plt.title("Jacobian matrix magnitude (FD - Python)")
+    # # plt.show()
+
+    # plt.figure()
+    # plt.imshow(np.abs(jacobian - Jac))
+    # plt.colorbar()
+    # plt.title("Jacobian matrix difference magnitude (C++ - FD - Python)")
+    plt.show()
+    res, perturbed = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, eps)
+    res, perturbedNeg = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, -eps)
+
+    batchSize = perturbed.shape[0] // (2*N)
 
     perturbed_real = np.real(perturbed[0:256])-x[0:256]
     perturbed_ampl = np.imag(perturbed[0:256])
@@ -302,7 +334,7 @@ if __name__ == "__main__":
             ax5.plot(perturbed_x, label=f"perturbed x batch {i+1}")
             ax6.plot(perturbed_y, label=f"perturbed y batch {i+1}")
     for i in range(3*256, 6*256):
-        perturbed_x = np.real(perturbed[i * N:(i + 1) * N]) - pot[0:256]
+        perturbed_x = np.real(perturbed[i * N:(i + 1) * N])- pot[0:256]
         perturbed_y = np.imag(perturbed[i * N:(i + 1) * N])
         if i < 1024:
             ax7.plot(perturbed_x, label=f"perturbed interface batch {i+1}")
@@ -325,12 +357,44 @@ if __name__ == "__main__":
     # plt.plot(perturbed_x3, label="perturbed x3")
     # plt.plot(perturbed_x4, label="perturbed x4")
     # plt.plot(perturbed_x5, label="perturbed x5")
-    plt.show()
+    # plt.show()
 
-    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(x, ampl_batched, pot_batched, L, 145, 0, depth, batchSize)
-
+    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(np.real(perturbed[:3*N*N]), np.imag(perturbed[:3*N*N]), np.real(perturbed[3*N*N:]), L, 145, 0, depth, batchSize)  
     if res != 0:
         raise Exception("Error in calculation")
+    res, vx_neg, vy_neg, dphi_neg = calculate_rhs256_from_vectors_batched(np.real(perturbedNeg[:3*N*N]), np.imag(perturbedNeg[:3*N*N]), np.real(perturbedNeg[3*N*N:]), L, 145, 0, depth, batchSize)  
+    if res != 0:
+        raise Exception("Error in calculation")
+    
+    # calculate the difference for the jacobian
+    approx_vx = (vx - vx_neg) / (2.0 * eps)
+    approx_vy = (vy - vy_neg) / (2.0 * eps)
+    approx_dphi = (dphi - dphi_neg) / (2.0 * eps)
+
+    plt.figure()
+    # we want to transform approx_vx, approx_vy, approx_dphi into a matrix of shape (3N, 3N) representing the jacobian knowing that vx, vy, dphi are (N * batchSize) with then the first N values corresponding to the first perturbation in x1, the second N values to the second perturbation x2, etc.
+    plt.title("Jacobian approximation from perturbed states")
+    Jacobian = np.zeros((3*N, 3*N))
+    Jacobian = np.zeros((3*N, 3*N))
+
+    # Reshape the input arrays as (N, batchSize)
+    vx = approx_vx.reshape(N, batchSize, order='F')
+    vy = approx_vy.reshape(N, batchSize, order='F')
+    dphi = approx_dphi.reshape(N, batchSize, order='F')
+
+    Jacobian[0:N,        :batchSize] = vx
+    Jacobian[N:2*N,      :batchSize] = vy
+    Jacobian[2*N:3*N,    :batchSize] = dphi
+    # for i in range(N*batchSize):
+    #     col = i // N
+    #     row = i % N
+    #     Jacobian[row, col] = approx_vx[i]
+    #     Jacobian[row + N, col] = approx_vy[i]
+    #     Jacobian[row + 2*N, col] = approx_dphi[i]
+    plt.imshow(np.abs(Jacobian))
+    plt.colorbar()
+    plt.show()
+
     print("Calculation successful")
     plt.figure()
     plt.plot(x[:256], vx[:256], label="vx batch 1")

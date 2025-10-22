@@ -33,7 +33,7 @@ extern "C"
 	/// <returns>Returns an integer status code indicating the success or failure of the calculation.</returns>
 	__declspec(dllexport) int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, double L, double rho, double kappa, double depth);
 	__declspec(dllexport) int calculateDerivativeFFT256(const c_double* input, c_double* output);
-	__declspec(dllexport) int calculateJacobian256(const c_double* Zphi, const double* jac);
+	__declspec(dllexport) int calculateJacobian(const double* state, double* jac, double L, double rho, double kappa, double depth, double epsilon, size_t N);
 	__declspec(dllexport) int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, int batchSize);
 
 	__declspec(dllexport) int calculatePerturbedStates256(const double* x, const double* y, const double* phi, c_double* Zperturbed, double L, double rho, double kappa, double depth, double epsilon);

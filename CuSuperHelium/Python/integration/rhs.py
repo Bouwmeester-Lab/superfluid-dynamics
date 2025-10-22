@@ -258,7 +258,7 @@ if __name__ == "__main__":
 
     for i in range(100):
         res, jacobian = calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-6)
-        sleep(1)
+        # sleep(1)
     
     y0 = np.concatenate((r, ampl, pot.astype(np.float64)))
     from time import process_time_ns
@@ -272,16 +272,16 @@ if __name__ == "__main__":
     plt.imshow(np.abs(jacobian))
     plt.colorbar()
     plt.title("Jacobian matrix magnitude (C++)")
-    # plt.figure()
-    # plt.imshow(np.abs(Jac))
-    # plt.colorbar()
-    # plt.title("Jacobian matrix magnitude (FD - Python)")
-    # # plt.show()
+    plt.figure()
+    plt.imshow(np.abs(Jac))
+    plt.colorbar()
+    plt.title("Jacobian matrix magnitude (FD - Python)")
+    # plt.show()
 
-    # plt.figure()
-    # plt.imshow(np.abs(jacobian - Jac))
-    # plt.colorbar()
-    # plt.title("Jacobian matrix difference magnitude (C++ - FD - Python)")
+    plt.figure()
+    plt.imshow(np.abs(jacobian - Jac))
+    plt.colorbar()
+    plt.title("Jacobian matrix difference magnitude (C++ - FD - Python)")
     plt.show()
     res, perturbed = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, eps)
     res, perturbedNeg = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, -eps)

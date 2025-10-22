@@ -381,14 +381,14 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 		if (error != cudaSuccess) {
 			std::cerr << "CUDA after trying to allocate error: " << cudaGetErrorString(error) << std::endl;
 		}
-		HeliumBoundaryProblem<N, 3 * N> heliumProblem(properties);
-		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
+		
 		checkCuda(cudaMemcpyAsync(devState, state, sizeof(double) * 3 * N, cudaMemcpyHostToDevice, cudaStreamPerThread));
 		
 		
 		{
 			
-			
+			HeliumBoundaryProblem<N, 3 * N> heliumProblem(properties);
+			std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
 
 
 			JacobianCalculator<N> jacobianCalculator(std::move(boundaryIntegralCalculatorPtr));

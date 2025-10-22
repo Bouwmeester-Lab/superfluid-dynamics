@@ -126,9 +126,9 @@ private:
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 
 	// variables for the batched version
-	cuDoubleComplex** devPtrV1Array; // device pointer array for V1 matrices
-	cuDoubleComplex** devPtrAArray;  // device pointer array for a vectors
-	cuDoubleComplex** devPtrVelArray; // device pointer array for velocity vectors
+	cuDoubleComplex** devPtrV1Array = nullptr; // device pointer array for V1 matrices
+	cuDoubleComplex** devPtrAArray = nullptr;  // device pointer array for a vectors
+	cuDoubleComplex** devPtrVelArray = nullptr; // device pointer array for velocity vectors
 
 public:
 	VelocityCalculator();
@@ -173,12 +173,26 @@ VelocityCalculator<N, batchSize>::~VelocityCalculator()
 	if (error != cudaSuccess) {
 		std::cerr << "CUDA error in ~VelocityCalculator before free of pointers of pointers: " << cudaGetErrorString(error) << std::endl;
 	}
-	if(devPtrV1Array)
-		cudaFree(devPtrV1Array);
-	if (devPtrAArray)
-		cudaFree(devPtrAArray);
-	if (devPtrVelArray)
-		cudaFree(devPtrVelArray);
+	if (devPtrV1Array) {
+		//std::cout << "Freeing devPtrV1Array in ~VelocityCalculator" << devPtrV1Array << std::endl;
+		checkCuda(cudaFree(devPtrV1Array));
+		devPtrV1Array = nullptr;
+		checkCudaErrors("Freeing devPtrV1Array in ~VelocityCalculator");
+	}
+		
+
+	if (devPtrAArray) {
+		checkCuda(cudaFree(devPtrAArray));
+		devPtrAArray = nullptr;
+	}
+	checkCudaErrors("Freeing devPtrAArray in ~VelocityCalculator");
+
+	if (devPtrVelArray) {
+		checkCuda(cudaFree(devPtrVelArray));
+		devPtrVelArray = nullptr;
+	}
+		
+	checkCudaErrors("Freeing devPtrVelArray in ~VelocityCalculator");
 
 	error = cudaGetLastError();
 	if (error != cudaSuccess) {

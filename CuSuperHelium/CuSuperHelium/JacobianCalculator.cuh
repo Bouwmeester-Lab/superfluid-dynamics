@@ -6,6 +6,7 @@
 #include <memory>
 #include "constants.cuh"
 #include "utilities.cuh"
+#include <utility>
 
 __global__ void createInitialBatchedZ(const std_complex* __restrict__ initialState, std_complex* __restrict__ ZBatched, double eps, size_t N)
 {
@@ -88,33 +89,58 @@ __device__ __host__ __forceinline__ size_t columnMajorIndex(const size_t row, co
 /// <param name="particles">The number of particles in the system.</param>
 /// <param name="eps">The perturbation magnitude used for finite difference calculations.</param>
 /// <returns>This function does not return a value; it writes the computed Jacobian matrix to the array pointed to by C.</returns>
-__global__ void createJacobianMatrixFromPerturbedRhs(const std_complex* __restrict__ pos, const std_complex* __restrict__ neg, double* __restrict__ C, size_t particles, double eps)
+__global__ void createJacobianMatrixFromPerturbedRhs(const std_complex* __restrict__ pos, const std_complex* __restrict__ neg, double* __restrict__ C, size_t N, double eps)
 {
-	int tId = blockIdx.x * blockDim.x + threadIdx.x;
+	int tId = blockIdx.x * blockDim.x + threadIdx.x; // from 0 to 6*N*N - 1
 	// create a stride loop to cover all elements in the matrix
-	int totalElementsComplex = 6 * particles * particles; // 6N x 2N matrix with complex numbers 
+	int totalElementsComplex = 6 * N * N; // 6N x 2N matrix with complex numbers 
 	size_t k;
+	size_t j;
 	size_t p;
 
 	
 
 	std_complex temp;
-	for (int i = tId; i < totalElementsComplex; i += blockDim.x * gridDim.x)
-	{
-		temp = pos[i] - neg[i];
-		k = i % (2 * particles); 
-		p = i / (2 * particles); 
+	/*for (int i = tId; i < totalElementsComplex; i += blockDim.x * gridDim.x)
+	{*/
+	size_t i = tId;
+	temp = (pos[i] - neg[i])/(2.0*eps);
+	k = i / N; // 0 -> particle x_1 perturbed, 1-> particle x_2 perturbed
+	p = i % N; // particle treated. So from 0 to N-1. 0 is the 0th particle, etc...
+
+	//if (tId >= 3 * N * N) return; 
 		
-		if (k < particles) {
-			// this is a velocity
-			C[columnMajorIndex(k, p, 3 * particles)] = temp.real() / (2.0 * eps); // dVx / dx or dVy / dy
-			C[columnMajorIndex(k + particles, p, 3 * particles)] = temp.imag() / (2.0 * eps); // dVy / dx or dVy / dy
-		}
-		else {
-			// this is a potential
-			C[columnMajorIndex(k + particles, p, 3 * particles)] = temp.real() / (2.0 * eps); // dPhi / dx or dPhi / dy
-		}
+	/*if (k > 2 * N) {
+		printf("Pos: %f + i %f, Neg: %f + i %f, temp: %f + i %f, i: %u, k: %u, p: %u\n", pos[i].real(), pos[i].imag(), neg[i].real(), neg[i].imag(), temp.real(), temp.imag(), (unsigned)i, (unsigned)k, (unsigned)p);
+	}*/
+	if (k < 3 * N) {
+		// this is a velocity
+		C[k * 3 * N + p] = temp.real(); // dVx / dx or dVy / dy // the access is column major since we want to keep this compatible with cublas in the future
+		C[k * 3 * N + (p + N)] = temp.imag(); // dVy / dx or dVy / dy
 	}
+	else
+	{
+		C[(k-3*N) * 3 * N + (p + 2 * N)] = temp.real();
+	}
+		
+	//C[(p + 2 * N) * 3 * N + k] = (pos[i + 3 * N * N] - neg[i + 3 * N * N]).real()/ (2.0 * eps); // dPhi / dx or dPhi / dy
+	//}
+	//else {
+	//	// this is a potential
+	//	//j = k - 3*N; // adjust k to adjust for potential part so that 0 -> x_1 perturbed, 1-> x_2 perturbed, etc...
+	//	//if (j < N) {
+	//	//	// this is dPhi / dY for Y = x or y
+	//	//	C[columnMajorIndex(p, k, 3 * N)] = temp.real() / (2.0 * eps); // dPhi / dx
+	//	//	C[columnMajorIndex(p + N, k, 3 * N)] = temp.imag() / (2.0 * eps); // dPhi / dy
+	//	//}
+	//	//else
+	//	//{
+	//	//	// this is dPhi_l / dPhi_j for phi
+	//	//	C[columnMajorIndex(p + 2 * N, k, 3 * N)] = temp.real() / (2.0 * eps);
+	//	//}
+	//	C[columnMajorIndex(p + 2 * N, k - 3*N, 3 * N)] = temp.real();
+	//}
+	//}
 }
 
 
@@ -127,74 +153,101 @@ __global__ void createInitialState(const double* initialState, std_complex* comp
 	complexState[tId + N] = std_complex(initialState[tId + 2 * N], 0.0); // phi + i 0
 }
 //
-//template <size_t N>
-//class JacobianCalculator
-//{
-//private:
-//	double eps = 1e-6;
-//	std::unique_ptr<BatchedAutonomousProblem<std_complex*, 2*N, 3*N>> autonomousProblem;
-//	
-//	std_complex* initialState;
-//	std_complex* devZPhiBatched; // this is an array holding 3*N * 2*N complex numbers. It's a basically 3*N different initial states for the autonomous problem, each one with a different perturbation in one of the state variables x, y, phi.
-//	std_complex* devNegZPhiBatched;
-//	std_complex* devPositiveRhsCalculated;
-//	std_complex* devNegativeRhsCalculated;
-//
-//	dim3 matrix_threads;
-//	dim3 matrix_blocks;// = dim3()
-//public:
-//	void setEpsilon(double eps);
-//	void calculateJacobian(const double* devState, double* devJacobian, cudaStream_t stream);
-//
-//	JacobianCalculator() : matrix_threads(256, 1, 1), matrix_blocks((3 * N + 255) / 256, 3 * N, 1)
-//	{
-//	}
-//};
-//
-///// <summary>
-///// Set the epsilon value used for numerical differentiation.
-///// </summary>
-///// <typeparam name="N"></typeparam>
-///// <param name="eps"></param>
-//template<size_t N>
-//void JacobianCalculator<N>::setEpsilon(double eps)
-//{
-//	this->eps = eps;
-//}
-//
-//template<size_t N>
-//void JacobianCalculator<N>::calculateJacobian(const double* devState, double* devJacobian, cudaStream_t stream)
-//{
-//	// for this operation we have to calculate how the autonomous problem changes when we change each state variable by eps
-//	// I am wondering wht's the best way to do this on the GPU so that it can be parallelized as much as possible.
-//	// first I want to translate the state in double* to a state in std_complex*.
-//	// The devState is (x, y, phi) where eache x, y, phi is a vector of size N. In the complex plane this is translated as (x + i y, phi + i 0) so it becomes a vector of size 2 N with complex numbers.
-//	if(initialState == nullptr)
-//	{
-//		checkCuda(cudaMallocAsync(&initialState, sizeof(std_complex) * 2 * N, stream));
-//	}
-//	if (devZPhiBatched == nullptr) 
-//	{
-//		checkCuda(cudaMallocAsync(&devZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
-//	}
-//	if (devPositiveRhsCalculated == nullptr) 
-//	{
-//		checkCuda(cudaMallocAsync(&devPositiveRhsCalculated, sizeof(std_complex) * 6 * N * N, stream));
-//	}
-//
-//	//// create the initial state in complex numbers using the custom kernel
-//	//int blockSize = 256;
-//	//int numBlocks = (N + blockSize - 1) / blockSize;
-//	//createInitialState << <this->matrixThreads, this->matrixBlocks, 0, stream >> > (devState, initialState, N);
-//
-//	//createInitialBatchedZ<N> << <numBlocks, blockSize, 0, stream >> > (initialState, devZBatched, eps);
-//	//createInitialBatchedZ<N> << <numBlocks, blockSize, 0, stream >> > (initialState, devNegZPhiBatched, -eps); // negative perturbation
-//
-//	//autonomousProblem->setStream(stream);
-//	//autonomousProblem->runBatch(devZPhiBatched, devPositiveRhsCalculated); // calculate the autonomous problem for each perturbed initial state in devZBatched with a postiive perturbation F(Y + eps)
-//	//autonomousProblem->runBatch(devNegZPhiBatched, devNegativeRhsCalculated); // calculates the autonomous problem for each perturbed initial state in devZBatched with a negative perturbation F(Y - eps)
-//	//// now we have the results of the autonomous problem for each perturbed initial state in devRhsCalculated. We can now calculate the Jacobian using finite differences.
-//	//// we will use central differences here.
-//	//// J_ij = (f(x + eps) - f(x - eps)) / (2 * eps)
-//	//createJacobianMatrixFromPerturbedRhs << <(6 * N * N + 255) / 256, 256, 0, stream >> > (devPositiveRhsCalculated, devNegativeRhsCalculated, devJacobian, N, this->eps);
-//}
+template <size_t N>
+class JacobianCalculator final
+{
+private:
+	double eps = 1e-6;
+	std::unique_ptr<AutonomousProblem<std_complex, 6*N*N>> autonomousProblem;
+	
+	std_complex* initialState;
+	std_complex* devZPhiBatched; // this is an array holding 3*N * 2*N complex numbers. It's a basically 3*N different initial states for the autonomous problem, each one with a different perturbation in one of the state variables x, y, phi.
+	std_complex* devNegZPhiBatched;
+	std_complex* devPositiveRhsCalculated;
+	std_complex* devNegativeRhsCalculated;
+
+	dim3 matrix_threads;
+	dim3 matrix_blocks;// = dim3()
+
+	cudaStream_t stream = cudaStreamPerThread; // default stream
+public:
+	void setEpsilon(double eps);
+	void setStream(cudaStream_t stream) { this->stream = stream; }
+	void calculateJacobian(const double* devState, double* devJacobian);
+
+	JacobianCalculator(std::unique_ptr<AutonomousProblem<std_complex, 6*N*N>> autonomousPtr) : matrix_threads(256, 1, 1), matrix_blocks((2 * N + 255) / 256, 3 * N, 1), autonomousProblem(std::move(autonomousPtr))
+	{
+		checkCuda(cudaMallocAsync(&initialState, sizeof(std_complex) * 2 * N, stream));
+		checkCuda(cudaMallocAsync(&devZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
+		checkCuda(cudaMallocAsync(&devNegZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
+
+		checkCuda(cudaMallocAsync(&devPositiveRhsCalculated, sizeof(std_complex) * 6 * N * N, stream));
+		checkCuda(cudaMallocAsync(&devNegativeRhsCalculated, sizeof(std_complex) * 6 * N * N, stream));
+	}
+
+	~JacobianCalculator()
+	{
+		cudaFreeAsync(initialState, stream);
+		cudaFreeAsync(devZPhiBatched, stream);
+		cudaFreeAsync(devNegZPhiBatched, stream);
+		cudaFreeAsync(devPositiveRhsCalculated, stream);
+		cudaFreeAsync(devNegativeRhsCalculated, stream);
+	}
+};
+
+/// <summary>
+/// Set the epsilon value used for numerical differentiation.
+/// </summary>
+/// <typeparam name="N"></typeparam>
+/// <param name="eps"></param>
+template<size_t N>
+void JacobianCalculator<N>::setEpsilon(double eps)
+{
+	this->eps = eps;
+}
+
+template<size_t N>
+void JacobianCalculator<N>::calculateJacobian(const double* devState, double* devJacobian)
+{
+	// for this operation we have to calculate how the autonomous problem changes when we change each state variable by eps
+	// I am wondering wht's the best way to do this on the GPU so that it can be parallelized as much as possible.
+	// first I want to translate the state in double* to a state in std_complex*.
+	// The devState is (x, y, phi) where eache x, y, phi is a vector of size N. In the complex plane this is translated as (x + i y, phi + i 0) so it becomes a vector of size 2 N with complex numbers.
+
+
+	//// create the initial state in complex numbers using the custom kernel
+	int blockSize = 256;
+	int numBlocks = (N + blockSize - 1) / blockSize;
+	createInitialState << <numBlocks, blockSize, 0, this->stream >> > (devState, initialState, N);
+
+	createInitialBatchedZ << <this->matrix_blocks, this->matrix_threads, 0, this->stream >> > (initialState, devZPhiBatched, this->eps, N);
+	auto error = cudaGetLastError();
+	if (error != cudaSuccess)
+	{
+		printf("CUDA error after first createInitialBatchedZ kernel launch: %s\n", cudaGetErrorString(error));
+	}
+
+	createInitialBatchedZ << <this->matrix_blocks, this->matrix_threads, 0, this->stream >> > (initialState, devNegZPhiBatched, -this->eps, N); // negative perturbation
+	// check for errors from CUDA kernel launches
+	error = cudaGetLastError();
+	if (error != cudaSuccess)
+	{
+		printf("CUDA error after second createInitialBatchedZ kernel launch: %s\n", cudaGetErrorString(error));
+	}
+
+
+	autonomousProblem->setStream(this->stream);
+	autonomousProblem->run(devZPhiBatched, devPositiveRhsCalculated); // calculate the autonomous problem for each perturbed initial state in devZBatched with a postiive perturbation F(Y + eps)
+	//autonomousProblem->runBatch(devZPhiBatched, devPositiveRhsCalculated); // calculate the autonomous problem for each perturbed initial state in devZBatched with a postiive perturbation F(Y + eps)
+	autonomousProblem->run(devNegZPhiBatched, devNegativeRhsCalculated); // calculates the autonomous problem for each perturbed initial state in devZBatched with a negative perturbation F(Y - eps)
+	//// now we have the results of the autonomous problem for each perturbed initial state in devRhsCalculated. We can now calculate the Jacobian using finite differences.
+	//// we will use central differences here.
+	//// J_ij = (f(x + eps) - f(x - eps)) / (2 * eps)
+	createJacobianMatrixFromPerturbedRhs << <(6 * N * N + 255) / 256, 256, 0, this->stream >> > (devPositiveRhsCalculated, devNegativeRhsCalculated, devJacobian, N, this->eps);
+
+	error = cudaGetLastError();
+	if (error != cudaSuccess)
+	{
+		printf("CUDA error after createJacobianMatrixFromPerturbedRhs kernel launch: %s\n", cudaGetErrorString(error));
+	}
+}

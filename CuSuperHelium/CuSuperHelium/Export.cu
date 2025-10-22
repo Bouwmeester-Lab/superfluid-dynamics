@@ -350,6 +350,76 @@ int calculateDerivativeFFT256(const c_double* input, c_double* output)
 	return 0;
 }
 
+template <size_t N>
+int calculateJacobian(const double* state, double* jac, double L, double rho, double kappa, double depth, double epsilon)
+{
+	try {
+		ProblemProperties properties;
+		properties.rho = rho;
+		properties.kappa = kappa;
+		properties.depth = depth;
+
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, L);
+
+		HeliumBoundaryProblem<N, 3*N> heliumProblem(properties);
+
+		double* devState;
+		double* devJac;
+
+		checkCuda(setDevice());
+		checkCuda(cudaMalloc(&devState, sizeof(double) * 3 * N));
+		checkCuda(cudaMalloc(&devJac, sizeof(double) * 9 * N * N));
+
+		checkCuda(cudaMemcpy(devState, state, sizeof(double) * 3 * N, cudaMemcpyHostToDevice));
+
+		std::unique_ptr<AutonomousProblem<std_complex, 6*N*N>> boundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3*N>>(properties, heliumProblem);
+
+		JacobianCalculator<N> jacobianCalculator(std::move(boundaryIntegralCalculatorPtr));
+
+		jacobianCalculator.setEpsilon(epsilon);
+		jacobianCalculator.setStream(cudaStreamPerThread);
+		jacobianCalculator.calculateJacobian(devState, devJac);
+		// copy back to host
+		checkCuda(cudaMemcpy(jac, devJac, sizeof(double) * 9 * N * N, cudaMemcpyDeviceToHost));
+
+
+		// free device memory
+		checkCuda(cudaFree(devState));
+		checkCuda(cudaFree(devJac));
+		return 0;
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+}
+
+int calculateJacobian(const double* state, double* jac, double L, double rho, double kappa, double depth, double epsilon, size_t N)
+{
+	switch (N)
+	{
+		case 32:
+			return calculateJacobian<32>(state, jac, L, rho, kappa, depth, epsilon);
+		case 64:
+			return calculateJacobian<64>(state, jac, L, rho, kappa, depth, epsilon);
+		case 128:
+			return calculateJacobian<128>(state, jac, L, rho, kappa, depth, epsilon);
+		case 256:
+			return calculateJacobian<256>(state, jac, L, rho, kappa, depth, epsilon);
+		case 512:
+			return calculateJacobian<512>(state, jac, L, rho, kappa, depth, epsilon);
+		case 1024:
+			return calculateJacobian<1024>(state, jac, L, rho, kappa, depth, epsilon);
+		case 2048:
+			return calculateJacobian<2048>(state, jac, L, rho, kappa, depth, epsilon);
+	default:
+		std::cerr << "Error: Unsupported N size " << N << std::endl;
+		std::cerr << "Supported N sizes are: 32, 64, 128, 256, 512, 1024, 2048" << std::endl;
+		break;
+	}
+}
+
 int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, int batchSize)
 {
 	switch (batchSize)
@@ -376,6 +446,12 @@ int calculateRHS256FromVectorsBatched(const double* x, const double* y, const do
 			return calculateVorticitiesNFromVectors<256, 512>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 		case 768:
 			return calculateVorticitiesNFromVectors<256, 768>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 1024:
+			return calculateVorticitiesNFromVectors<256, 1024>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 1536:
+			return calculateVorticitiesNFromVectors<256, 1536>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
+		case 2048:
+			return calculateVorticitiesNFromVectors<256, 2048>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 	default:
 		std::cerr << "Error: Unsupported batch size " << batchSize << std::endl;
 		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256" << std::endl;

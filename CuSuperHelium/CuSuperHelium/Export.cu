@@ -353,6 +353,11 @@ int calculateDerivativeFFT256(const c_double* input, c_double* output)
 template <size_t N>
 int calculateJacobian(const double* state, double* jac, double L, double rho, double kappa, double depth, double epsilon)
 {
+	using std::chrono::high_resolution_clock;
+	using std::chrono::duration_cast;
+	using std::chrono::duration;
+	using std::chrono::milliseconds;
+	auto t1 = high_resolution_clock::now();
 	try {
 		ProblemProperties properties;
 		properties.rho = rho;
@@ -362,31 +367,83 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, L);
 
-		HeliumBoundaryProblem<N, 3*N> heliumProblem(properties);
+		
 
 		double* devState;
 		double* devJac;
 
-		checkCuda(setDevice());
-		checkCuda(cudaMalloc(&devState, sizeof(double) * 3 * N));
-		checkCuda(cudaMalloc(&devJac, sizeof(double) * 9 * N * N));
+		//checkCuda(setDevice());
+		
+		checkCuda(cudaMallocAsync(&devState, sizeof(double) * 3 * N, cudaStreamPerThread));
+		checkCuda(cudaMallocAsync(&devJac, sizeof(double) * 9 * N * N, cudaStreamPerThread));
+		checkCuda(cudaDeviceSynchronize());
+	 	auto error = cudaGetLastError();
+		if (error != cudaSuccess) {
+			std::cerr << "CUDA after trying to allocate error: " << cudaGetErrorString(error) << std::endl;
+		}
+		HeliumBoundaryProblem<N, 3 * N> heliumProblem(properties);
+		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
+		checkCuda(cudaMemcpyAsync(devState, state, sizeof(double) * 3 * N, cudaMemcpyHostToDevice, cudaStreamPerThread));
+		
+		
+		{
+			
+			
 
-		checkCuda(cudaMemcpy(devState, state, sizeof(double) * 3 * N, cudaMemcpyHostToDevice));
 
-		std::unique_ptr<AutonomousProblem<std_complex, 6*N*N>> boundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3*N>>(properties, heliumProblem);
+			JacobianCalculator<N> jacobianCalculator(std::move(boundaryIntegralCalculatorPtr));
 
-		JacobianCalculator<N> jacobianCalculator(std::move(boundaryIntegralCalculatorPtr));
+			jacobianCalculator.setEpsilon(epsilon);
+			jacobianCalculator.setStream(cudaStreamPerThread);
+			jacobianCalculator.calculateJacobian(devState, devJac);
 
-		jacobianCalculator.setEpsilon(epsilon);
-		jacobianCalculator.setStream(cudaStreamPerThread);
-		jacobianCalculator.calculateJacobian(devState, devJac);
+			error = cudaGetLastError();
+			if (error != cudaSuccess) {
+
+				std::cerr << "CUDA error after calculating Jacobian: " << cudaGetErrorString(error) << std::endl;
+			}
+			cudaDeviceSynchronize();
+		}
+			error = cudaGetLastError();
+			if (error != cudaSuccess) {
+
+				std::cerr << "CUDA error after scope ending: " << cudaGetErrorString(error) << std::endl;
+			}
+		
 		// copy back to host
 		checkCuda(cudaMemcpy(jac, devJac, sizeof(double) * 9 * N * N, cudaMemcpyDeviceToHost));
-
+		// make sure we have finished before returning
+		error = cudaGetLastError();
+		if (error != cudaSuccess) {
+			std::cerr << "jac " << jac << std::endl;
+			std::cerr << "devJac " << devJac << std::endl;
+			std::cerr << "CUDA error after copying: " << cudaGetErrorString(error) << std::endl;
+		}
 
 		// free device memory
 		checkCuda(cudaFree(devState));
+		error = cudaGetLastError();
+		if (error != cudaSuccess) {
+			std::cerr << "devState " << devState << std::endl;
+			std::cerr << "CUDA error after freeing: " << cudaGetErrorString(error) << std::endl;
+		}
 		checkCuda(cudaFree(devJac));
+		error = cudaGetLastError();
+		if (error != cudaSuccess) {
+			std::cerr << "CUDA error before freeing devJac: " << cudaGetErrorString(error) << std::endl;
+		}
+
+		
+
+		auto t2 = high_resolution_clock::now();
+		duration<double, std::milli> ms_double = t2 - t1;
+		std::cout << ms_double.count() << std::endl;
+
+		error = cudaGetLastError();
+		if (error != cudaSuccess) {
+			std::cerr << "CUDA error before returning: " << cudaGetErrorString(error) << std::endl;
+		}
+
 		return 0;
 	}
 	catch (const std::exception& e) {

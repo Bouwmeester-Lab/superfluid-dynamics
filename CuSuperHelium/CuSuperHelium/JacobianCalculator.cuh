@@ -187,11 +187,18 @@ public:
 
 	~JacobianCalculator()
 	{
-		cudaFreeAsync(initialState, stream);
-		cudaFreeAsync(devZPhiBatched, stream);
-		cudaFreeAsync(devNegZPhiBatched, stream);
-		cudaFreeAsync(devPositiveRhsCalculated, stream);
-		cudaFreeAsync(devNegativeRhsCalculated, stream);
+		checkCuda(cudaFree(initialState));
+		checkCuda(cudaFree(devZPhiBatched));
+		checkCuda(cudaFree(devNegZPhiBatched));
+		checkCuda(cudaFree(devPositiveRhsCalculated));
+		checkCuda(cudaFree(devNegativeRhsCalculated));
+
+		checkCuda(cudaDeviceSynchronize()); // ensure all async frees are done before checking for errors
+
+		auto error = cudaGetLastError();
+		if (error != cudaSuccess) {
+			std::cerr << "CUDA after trying to free memory in JacobianCalculator error: " << cudaGetErrorString(error) << std::endl;
+		}
 	}
 };
 
@@ -218,13 +225,30 @@ void JacobianCalculator<N>::calculateJacobian(const double* devState, double* de
 	//// create the initial state in complex numbers using the custom kernel
 	int blockSize = 256;
 	int numBlocks = (N + blockSize - 1) / blockSize;
+	auto error = cudaGetLastError();
+
+	if(error != cudaSuccess)
+	{
+		printf("CUDA error before create Initial State kernel launch: %s\n", cudaGetErrorString(error));
+	}
 	createInitialState << <numBlocks, blockSize, 0, this->stream >> > (devState, initialState, N);
+	error = cudaGetLastError();
+	if (error != cudaSuccess)
+	{
+		printf("CUDA error after create Initial State kernel launch: %s\n", cudaGetErrorString(error));
+		/*std::cerr << "MAtrix Blocks: " << this->matrix_blocks.x << ", " << this->matrix_blocks.y << ", " << this->matrix_blocks.z << std::endl;
+		std::cerr << "Matrix Threads: " << this->matrix_threads.x << ", " << this->matrix_threads.y << ", " << this->matrix_threads.z << std::endl;*/
+		std::cerr << "arguments: " << devState << ", " << initialState << std::endl;
+	}
 
 	createInitialBatchedZ << <this->matrix_blocks, this->matrix_threads, 0, this->stream >> > (initialState, devZPhiBatched, this->eps, N);
-	auto error = cudaGetLastError();
+	error = cudaGetLastError();
 	if (error != cudaSuccess)
 	{
 		printf("CUDA error after first createInitialBatchedZ kernel launch: %s\n", cudaGetErrorString(error));
+		std::cerr << "MAtrix Blocks: " << this->matrix_blocks.x << ", " << this->matrix_blocks.y << ", " << this->matrix_blocks.z << std::endl;
+		std::cerr << "Matrix Threads: " << this->matrix_threads.x << ", " << this->matrix_threads.y << ", " << this->matrix_threads.z << std::endl;
+		std::cerr << "arguments: " << initialState << ", " << devZPhiBatched << ", " << this->eps << ", " << N << std::endl;
 	}
 
 	createInitialBatchedZ << <this->matrix_blocks, this->matrix_threads, 0, this->stream >> > (initialState, devNegZPhiBatched, -this->eps, N); // negative perturbation

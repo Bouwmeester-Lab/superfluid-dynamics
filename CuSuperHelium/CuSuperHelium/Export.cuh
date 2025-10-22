@@ -7,6 +7,7 @@
 #include "ExportTypes.cuh"
 #include "Derivatives.cuh"
 #include "JacobianCalculator.cuh"
+#include <chrono>
 
 extern "C" 
 {

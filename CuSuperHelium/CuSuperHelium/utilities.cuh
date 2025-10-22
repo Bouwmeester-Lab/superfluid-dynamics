@@ -26,6 +26,14 @@ cudaError_t setDevice()
     return cudaStatus;
 }
 
+void checkCudaErrors(std::string from)
+{
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            
+			std::cerr << "CUDA Error from " << from << ": " << cudaGetErrorString(err) << std::endl;
+        }
+}
 __global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
     cufftDoubleComplex* result,

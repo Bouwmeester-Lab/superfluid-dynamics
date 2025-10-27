@@ -178,7 +178,7 @@ def jacobian_fd(f, y0, eps=None, scales=None):
     J = np.empty((n, m), dtype=float) # matrix should be output dimension x input dimension
     # f0 = f(y0)  # not strictly needed, but useful for sanity checks
 
-    for j in range(m): #, desc="Calculating Jacobian"):
+    for j in tqdm.tqdm(range(m), desc="Calculating Jacobian"):
         ej = np.zeros(m); ej[j] = 1.0
         hj = h0[j]
         Fp = f(y0 + hj*ej)
@@ -256,10 +256,17 @@ if __name__ == "__main__":
     pot = initial_amplitude/L0 * np.sin(r)
     pot_batched = initial_amplitude/L0 * np.sin(x)
 
-    for i in range(100):
-        res, jacobian = calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-6)
+    # for i in range(100):
+    res, jacobian = calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-8)
         # sleep(1)
-    
+    eigvals = np.linalg.eigvals(jacobian)
+    print("Eigenvalues of the Jacobian (C++):")
+    plt.figure()
+    plt.scatter(np.real(eigvals), np.imag(eigvals))
+    plt.title("Eigenvalues of the Jacobian (C++)")
+    plt.xlabel("Real part")
+    plt.ylabel("Imaginary part")
+    # plt.show()
     y0 = np.concatenate((r, ampl, pot.astype(np.float64)))
     from time import process_time_ns
 
@@ -282,6 +289,17 @@ if __name__ == "__main__":
     plt.imshow(np.abs(jacobian - Jac))
     plt.colorbar()
     plt.title("Jacobian matrix difference magnitude (C++ - FD - Python)")
+
+    eigs_vals_fd = np.linalg.eigvals(Jac)
+    print("Eigenvalues of the Jacobian (FD - Python):")
+    plt.figure()
+    plt.scatter(np.real(eigs_vals_fd), np.imag(eigs_vals_fd))
+    plt.title("Eigenvalues of the Jacobian (FD - Python)")
+    plt.xlabel("Real part")
+    plt.ylabel("Imaginary part")
+
+
+
     plt.show()
     res, perturbed = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, eps)
     res, perturbedNeg = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, -eps)
@@ -367,6 +385,40 @@ if __name__ == "__main__":
     # plt.plot(perturbed_x4, label="perturbed x4")
     # plt.plot(perturbed_x5, label="perturbed x5")
     # plt.show()
+    ej = np.zeros(3*N)
+    ej[2] = 1.0
+    y1 = y0 + 1e-6 * ej
+    y2 = y0 # - 1e-6 * ej
+
+    res, vx1, vy1, dphi1 = calculate_rhs256_from_vectors(y1[:256], y1[256:512], y1[512:768], L, 145, 0, depth)
+
+    res, vx2, vy2, dphi2 = calculate_rhs256_from_vectors(y2[:256], y2[256:512], y2[512:768], L, 145, 0, depth)
+
+    approx_vx_fd = (vx1 - vx2) / (eps)
+    approx_vy_fd = (vy1 - vy2) / (2.0 * eps)
+    approx_dphi_fd = (dphi1 - dphi2) / (2.0 * eps)
+
+    # compare to the batched implementation of rhs256
+    y_batched = np.concatenate((y1[:256], y2[:256], y1[256:512], y2[256:512], y1[512:768], y2[512:768]))
+    res, vx_batched, vy_batched, dphi_batched = calculate_rhs256_from_vectors_batched(y_batched[:512], y_batched[512:1024], y_batched[1024:1536], L, 145, 0, depth, 2)
+
+    approx_vx_fd_batched = (vx_batched[:256] - vx_batched[256:]) / ( eps)
+
+    plt.figure()
+    plt.plot(y_batched[:256] - y_batched[256:512], label="Batched input amplitude")
+    plt.legend()
+
+    plt.figure()
+    plt.plot(vx_batched, label="Batched vx output")
+    plt.plot(vx_batched[:256])
+    plt.plot(vx_batched[256:])
+    plt.figure()
+    plt.plot(approx_vx_fd, label="Approx vx FD")
+    # plt.plot(Jac[:, 2][:256], label="Jacobian vx col 2")
+    # plt.plot(jacobian[:, 2][:256], label="C++ Jacobian vx col 2")
+    plt.plot(approx_vx_fd_batched, label="Approx vx FD batched")
+    plt.legend()
+    plt.show()
 
     res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(np.real(perturbed[:3*N*N]), np.imag(perturbed[:3*N*N]), np.real(perturbed[3*N*N:]), L, 145, 0, depth, batchSize)  
     if res != 0:
@@ -383,24 +435,24 @@ if __name__ == "__main__":
     plt.figure()
     # we want to transform approx_vx, approx_vy, approx_dphi into a matrix of shape (3N, 3N) representing the jacobian knowing that vx, vy, dphi are (N * batchSize) with then the first N values corresponding to the first perturbation in x1, the second N values to the second perturbation x2, etc.
     plt.title("Jacobian approximation from perturbed states")
-    Jacobian = np.zeros((3*N, 3*N))
-    Jacobian = np.zeros((3*N, 3*N))
+    mixed_jacobian = np.zeros((3*N, 3*N))
+    mixed_jacobian = np.zeros((3*N, 3*N))
 
     # Reshape the input arrays as (N, batchSize)
     vx = approx_vx.reshape(N, batchSize, order='F')
     vy = approx_vy.reshape(N, batchSize, order='F')
     dphi = approx_dphi.reshape(N, batchSize, order='F')
 
-    Jacobian[0:N,        :batchSize] = vx
-    Jacobian[N:2*N,      :batchSize] = vy
-    Jacobian[2*N:3*N,    :batchSize] = dphi
+    mixed_jacobian[0:N,        :batchSize] = vx
+    mixed_jacobian[N:2*N,      :batchSize] = vy
+    mixed_jacobian[2*N:3*N,    :batchSize] = dphi
     # for i in range(N*batchSize):
     #     col = i // N
     #     row = i % N
     #     Jacobian[row, col] = approx_vx[i]
     #     Jacobian[row + N, col] = approx_vy[i]
     #     Jacobian[row + 2*N, col] = approx_dphi[i]
-    plt.imshow(np.abs(Jacobian))
+    plt.imshow(np.abs(mixed_jacobian))
     plt.colorbar()
     plt.show()
 

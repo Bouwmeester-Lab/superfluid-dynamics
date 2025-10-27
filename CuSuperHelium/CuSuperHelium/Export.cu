@@ -437,7 +437,7 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 
 		auto t2 = high_resolution_clock::now();
 		duration<double, std::milli> ms_double = t2 - t1;
-		std::cout << ms_double.count() << std::endl;
+		// std::cout << ms_double.count() << std::endl;
 
 		error = cudaGetLastError();
 		if (error != cudaSuccess) {

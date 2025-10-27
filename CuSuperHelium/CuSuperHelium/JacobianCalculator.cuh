@@ -113,6 +113,13 @@ __global__ void createJacobianMatrixFromPerturbedRhs(const std_complex* __restri
 	/*if (k > 2 * N) {
 		printf("Pos: %f + i %f, Neg: %f + i %f, temp: %f + i %f, i: %u, k: %u, p: %u\n", pos[i].real(), pos[i].imag(), neg[i].real(), neg[i].imag(), temp.real(), temp.imag(), (unsigned)i, (unsigned)k, (unsigned)p);
 	}*/
+	/*if (k == 2 && p == 1) 
+	{
+		printf("Pos: %f + i %f, Neg: %f + i %f, temp: %f + i %f, i: %u, k: %u, p: %u\n", pos[i].real(), pos[i].imag(), neg[i].real(), neg[i].imag(), temp.real(), temp.imag(), (unsigned)i, (unsigned)k, (unsigned)p);
+
+		printf("Change: %f", pos[i].real() - neg[i].real());
+	}*/
+
 	if (k < 3 * N) {
 		// this is a velocity
 		C[k * 3 * N + p] = temp.real(); // dVx / dx or dVy / dy // the access is column major since we want to keep this compatible with cublas in the future

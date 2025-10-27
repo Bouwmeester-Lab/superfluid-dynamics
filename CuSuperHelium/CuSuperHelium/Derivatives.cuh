@@ -167,7 +167,21 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 	//	//fprintf(stderr, "cudaMalloc failed!");
 	//	return cudaStatus;
 	//}
-	cufftPlan1d(&plan, N, CUFFT_Z2Z, batchSize);
+	if(batchSize == 1)
+		cufftPlan1d(&plan, N, CUFFT_Z2Z, batchSize);
+	else {
+		int n[1] = { N };
+		int istride = 1, ostride = 1;
+		int idist = static_cast<int>(N);
+		int odist = static_cast<int>(N);
+		int inembed[1] = { static_cast<int>(N) };
+		int onembed[1] = { static_cast<int>(N) };
+		//int batch = static_cast<int>(2 * M);
+
+		cufftPlanMany(&plan, 1, n, inembed, istride, idist,
+			onembed, ostride, odist,
+			CUFFT_Z2Z, batchSize);
+	}
 	//printf("Initialized cufft");
 	return cudaStatus;
 }
@@ -304,7 +318,7 @@ inline void ZPhiDerivative<N, batchSize>::exec(const std_complex* Z, const std_c
 	batched_vector_subtract_singletime_complex_real << < blocks, threads >> > (Phi, devLinearPartPhi, devPeriodicPhi, N, batchSize); // subtract the linear part of Z and Phi
 	//cudaDeviceSynchronize();
 
-	fftDerivative.exec(devPeriodicZ, Zpp, true, 4.0 * PI_d * PI_d / (N*N)); // TODO: check the scaling here, not sure about dividing by N again here since the inverse FFT already does that in the coefficients
+	fftDerivative.exec(devPeriodicZ, Zpp, true, 4.0 * PI_d * PI_d / (N * N)); // TODO: check the scaling here, not sure about dividing by N again here since the inverse FFT already does that in the coefficients
 
 	fftDerivative.exec(devPeriodicZ, ZPrime, false, 2.0 * PI_d /N); // 2.0 * PI_d / N
 	fftDerivative.exec(devPeriodicPhi, PhiPrime, false, 2.0 * PI_d / N); // calculates the derivative of Z and Phi 2.0 * PI_d / N

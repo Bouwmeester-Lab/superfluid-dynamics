@@ -11,11 +11,17 @@
 
 extern "C" 
 {
-	
+	///// <summary>
+	///// This function initializes the simulation spaces required for computations. In particular it makes sure that the 
+	///// </summary>
+	///// <returns></returns>
+	//__declspec(dllexport) int initializeSimulationSpaces();
+
 	__declspec(dllexport) int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps);
 	__declspec(dllexport) int calculateRHS256FromFile(const char* inputFile, const char* outputFile, double L, double rho, double kappa, double depth);
 	
 	__declspec(dllexport) int calculateRHS256FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth);
+	__declspec(dllexport) int calculateRHSFromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, size_t N);
 
 	__declspec(dllexport) int calculateRHS2048FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth);
 

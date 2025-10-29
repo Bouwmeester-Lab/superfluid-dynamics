@@ -12,10 +12,12 @@ if os.name != "nt":
 from ctypes import CDLL # this is normal module
 from _ctypes import LoadLibrary # we are import back-end ctypes module
 
+
 from scipy.integrate import solve_ivp
 from scipy.sparse.linalg import eigs, LinearOperator
 import tqdm
 from time import process_time, sleep
+from pathlib import Path
 
 paths = os.environ[ 'path' ].split( ';' )
 paths.reverse()
@@ -24,7 +26,10 @@ paths.reverse()
 for p in paths:
     if os.path.isdir( p ) and p != ".":
         os.add_dll_directory(p)
-os.add_dll_directory( r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release" )
+
+directory =  os.path.dirname(os.getcwd()) + r"\CuSuperHelium\x64\Release"
+print(str(directory))
+os.add_dll_directory(directory)
 os.add_dll_directory(os.getcwd())
 
 def load_dll(path: str) -> CDLL:
@@ -36,7 +41,7 @@ def load_dll(path: str) -> CDLL:
 
 
 def calculate_rhs256(input_file : str, output_file : str, L : float, rho : float, kappa : float, depth : float) -> int:
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculateRHS256FromFile.argtypes = (c_char_p, c_char_p, c_double, c_double, c_double, c_double)
     lib.calculateRHS256FromFile.restype = c_int
 
@@ -47,7 +52,7 @@ def calculate_rhs256(input_file : str, output_file : str, L : float, rho : float
 
 
 def calculate_rhs256_from_vectors(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculateRHS256FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
     lib.calculateRHS256FromVectors.restype = c_int
 
@@ -62,7 +67,7 @@ def calculate_rhs256_from_vectors(x : NDArray, y: NDArray, phi: NDArray, L : flo
     return lib.calculateRHS256FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
 
 def calculate_rhs2048_from_vectors(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculateRHS2048FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
     lib.calculateRHS2048FromVectors.restype = c_int
 
@@ -80,7 +85,7 @@ class CDouble(Structure):
     _fields_ = [("re", c_double), ("im", c_double)]
 
 def calculate_vorticities256_from_vectors(Z : NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculateVorticities256FromVectors.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), c_double, c_double, c_double, c_double)
     lib.calculateVorticities256FromVectors.restype = c_int
 
@@ -95,7 +100,7 @@ def calculate_vorticities256_from_vectors(Z : NDArray, phi: NDArray, L : float, 
 
 
 def calculate_derivativeFFT256(input : NDArray) -> tuple[int, NDArray]:
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculateDerivativeFFT256.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")))
     lib.calculateDerivativeFFT256.restype = c_int
 
@@ -107,7 +112,7 @@ def calculate_derivativeFFT256(input : NDArray) -> tuple[int, NDArray]:
     return lib.calculateDerivativeFFT256(np.ascontiguousarray(input), output), output
 
 def calculate_rhs256_from_vectors_batched(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, batch_size: int):
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculateRHS256FromVectorsBatched.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_int)
     lib.calculateRHS256FromVectorsBatched.restype = c_int
 
@@ -122,7 +127,7 @@ def calculate_rhs256_from_vectors_batched(x : NDArray, y: NDArray, phi: NDArray,
     return lib.calculateRHS256FromVectorsBatched(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, batch_size), vx, vy, dphi
 
 def calculate_perturbed_states256(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon: float = 1e-6):
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculatePerturbedStates256.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double)
     lib.calculatePerturbedStates256.restype = c_int
 
@@ -138,7 +143,7 @@ def calculate_perturbed_states256(x : NDArray, y: NDArray, phi: NDArray, L : flo
     return lib.calculatePerturbedStates256(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), Zperturbed, L, rho, kappa, depth, epsilon), Zperturbed
 
 def calculate_jacobian(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon : float = 1e-6):
-    lib = load_dll("D:\\repos\\superfluid-dynamics\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
     lib.calculateJacobian.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("F_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double, c_size_t)
     lib.calculateJacobian.restype = c_int
 

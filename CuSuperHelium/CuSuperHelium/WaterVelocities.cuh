@@ -88,11 +88,11 @@ __global__ void createHeliumVelocityMatrices(const std_complex* const Z, const s
 			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(std_complex(0, Z[k + b*N].imag() + h)));
 			if (lower)
 			{
-				out1[indx] += 1.0 / (2.0 * Zp[k]);
+				out1[indx] += 1.0 / (2.0 * Zp[k + b*N]);
 			}
 			else
 			{
-				out1[indx] -= 0.5 / Zp[k];
+				out1[indx] -= 0.5 / Zp[k + b*N];
 			}
 			out2[k + b*N] = multiply_by_i(1.0 / (2.0 * CUDART_PI * Zp[k + b*N]));
 		}

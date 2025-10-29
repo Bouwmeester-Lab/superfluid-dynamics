@@ -318,7 +318,7 @@ inline void ZPhiDerivative<N, batchSize>::exec(const std_complex* Z, const std_c
 	batched_vector_subtract_singletime_complex_real << < blocks, threads >> > (Phi, devLinearPartPhi, devPeriodicPhi, N, batchSize); // subtract the linear part of Z and Phi
 	//cudaDeviceSynchronize();
 
-	fftDerivative.exec(devPeriodicZ, Zpp, true, 4.0 * PI_d * PI_d / (N * N)); // TODO: check the scaling here, not sure about dividing by N again here since the inverse FFT already does that in the coefficients
+	fftDerivative.exec(devPeriodicZ, Zpp, true, 4.0 * PI_d * PI_d / (N*N)); // TODO: check the scaling here, not sure about dividing by N again here since the inverse FFT already does that in the coefficients
 
 	fftDerivative.exec(devPeriodicZ, ZPrime, false, 2.0 * PI_d /N); // 2.0 * PI_d / N
 	fftDerivative.exec(devPeriodicPhi, PhiPrime, false, 2.0 * PI_d / N); // calculates the derivative of Z and Phi 2.0 * PI_d / N

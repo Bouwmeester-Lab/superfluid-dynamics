@@ -1,5 +1,6 @@
 import ctypes, os, sys
 from ctypes import c_double, c_size_t, c_char_p, c_char, POINTER, create_string_buffer, c_int, Structure
+from typing import Self
 import scipy.special as sp
 import numpy as np
 from numpy.typing import NDArray
@@ -19,139 +20,163 @@ import tqdm
 from time import process_time, sleep
 from pathlib import Path
 
-paths = os.environ[ 'path' ].split( ';' )
-paths.reverse()
+
 # print(paths)
 
-for p in paths:
-    if os.path.isdir( p ) and p != ".":
-        os.add_dll_directory(p)
+class SimulationManager:
+    def __init__(self, dll_path: str | None = None):
+        paths = os.environ[ 'path' ].split( ';' )
+        paths.reverse()
+        for p in paths:
+            if os.path.isdir( p ) and p != ".":
+                os.add_dll_directory(p)
+        directory =  os.path.dirname(os.getcwd()) 
+        os.add_dll_directory(directory)
+        os.add_dll_directory(os.getcwd())
+        if dll_path is None:
+            dll_path = os.path.dirname(os.getcwd()) + r"\CuSuperHelium\x64\Release\CuSuperHelium.dll"
+            os.add_dll_directory(os.path.dirname(dll_path))
+        self.lib = SimulationManager.load_dll(dll_path)
+    
+    @staticmethod
+    def load_dll(path: str) -> CDLL:
+        if path == "" or path is None:
+            raise TypeError("Please fill valid path")
+        # handle = LoadLibrary(path)
+        # return ctypes.CDLL(None, handle=handle)
+        return ctypes.CDLL(path)
 
-directory =  os.path.dirname(os.getcwd()) + r"\CuSuperHelium\x64\Release"
-print(str(directory))
-os.add_dll_directory(directory)
-os.add_dll_directory(os.getcwd())
+    def calculate_rhs256(self : Self, input_file : str, output_file : str, L : float, rho : float, kappa : float, depth : float) -> int:
+        # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+        self.lib.calculateRHS256FromFile.argtypes = (c_char_p, c_char_p, c_double, c_double, c_double, c_double)
+        self.lib.calculateRHS256FromFile.restype = c_int
 
-def load_dll(path: str) -> CDLL:
-    if path == "" or path is None:
-        raise TypeError("Please fill valid path")
-    # handle = LoadLibrary(path)
-    # return ctypes.CDLL(None, handle=handle)
-    return ctypes.CDLL(path)
+        input_file_b = input_file.encode()
+        output_file_b = output_file.encode()
 
-
-def calculate_rhs256(input_file : str, output_file : str, L : float, rho : float, kappa : float, depth : float) -> int:
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateRHS256FromFile.argtypes = (c_char_p, c_char_p, c_double, c_double, c_double, c_double)
-    lib.calculateRHS256FromFile.restype = c_int
-
-    input_file_b = input_file.encode()
-    output_file_b = output_file.encode()
-
-    return lib.calculateRHS256FromFile(input_file_b, output_file_b, L, rho, kappa, depth)
-
-
-def calculate_rhs256_from_vectors(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateRHS256FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
-    lib.calculateRHS256FromVectors.restype = c_int
-
-    n = x.shape[0]
-    if y.shape[0] != n or phi.shape[0] != n:
-        raise ValueError("Input arrays must have the same length")
-
-    vx = np.empty_like(x)
-    vy = np.empty_like(x)
-    dphi = np.empty_like(x)
-
-    return lib.calculateRHS256FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
-
-def calculate_rhs2048_from_vectors(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateRHS2048FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
-    lib.calculateRHS2048FromVectors.restype = c_int
-
-    n = x.shape[0]
-    if y.shape[0] != n or phi.shape[0] != n:
-        raise ValueError("Input arrays must have the same length")
-
-    vx = np.empty_like(x)
-    vy = np.empty_like(x)
-    dphi = np.empty_like(x)
-
-    return lib.calculateRHS2048FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
-
-class CDouble(Structure):
-    _fields_ = [("re", c_double), ("im", c_double)]
-
-def calculate_vorticities256_from_vectors(Z : NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateVorticities256FromVectors.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), c_double, c_double, c_double, c_double)
-    lib.calculateVorticities256FromVectors.restype = c_int
-
-    n = Z.shape[0]
-    if phi.shape[0] != n:
-        raise ValueError("Input arrays must have the same length")
-
-    vorticity = np.empty(n, dtype=np.float64)
-    Zp = np.empty(n, dtype=np.complex128)
-    Zpp = np.empty(n, dtype=np.complex128)
-    return lib.calculateVorticities256FromVectors(np.ascontiguousarray(Z, dtype=np.complex128), np.ascontiguousarray(phi, dtype=np.complex128), vorticity, Zp, Zpp, L, rho, kappa, depth), vorticity, Zp, Zpp
+        return self.lib.calculateRHS256FromFile(input_file_b, output_file_b, L, rho, kappa, depth)
 
 
-def calculate_derivativeFFT256(input : NDArray) -> tuple[int, NDArray]:
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateDerivativeFFT256.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")))
-    lib.calculateDerivativeFFT256.restype = c_int
+    def calculate_rhs256_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+        self.lib.calculateRHS256FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
+        self.lib.calculateRHS256FromVectors.restype = c_int
 
-    n = input.shape[0]
-    output = np.empty(n, dtype=np.complex128)
-    if output.shape[0] != n:
-        raise ValueError("Input and output arrays must have the same length")
+        n = x.shape[0]
+        if y.shape[0] != n or phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
 
-    return lib.calculateDerivativeFFT256(np.ascontiguousarray(input), output), output
+        vx = np.empty_like(x)
+        vy = np.empty_like(x)
+        dphi = np.empty_like(x)
 
-def calculate_rhs256_from_vectors_batched(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, batch_size: int):
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateRHS256FromVectorsBatched.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_int)
-    lib.calculateRHS256FromVectorsBatched.restype = c_int
+        return self.lib.calculateRHS256FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
 
-    n = x.shape[0] // batch_size
-    if y.shape[0] != n * batch_size or phi.shape[0] != 256 * batch_size:
-        raise ValueError("Input arrays must have the same length equal to 256 * batch_size")
+    def calculate_rhs_from_vectors(self : Self, x : NDArray,y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+        self.lib.calculateRHSFromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                         ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                           ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                             ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                               ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                                 ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                                   c_double, c_double, c_double, c_double, c_size_t)
+        self.lib.calculateRHSFromVectors.restype = c_int
 
-    vx = np.empty_like(x)
-    vy = np.empty_like(x)
-    dphi = np.empty_like(x)
+        n = x.shape[0]
+        if y.shape[0] != n or phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
 
-    return lib.calculateRHS256FromVectorsBatched(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, batch_size), vx, vy, dphi
+        vx = np.empty_like(x)
+        vy = np.empty_like(x)
+        dphi = np.empty_like(x)
 
-def calculate_perturbed_states256(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon: float = 1e-6):
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculatePerturbedStates256.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double)
-    lib.calculatePerturbedStates256.restype = c_int
+        return self.lib.calculateRHSFromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, n), vx, vy, dphi
+    
+    def calculate_rhs2048_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+        # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+        self.lib.calculateRHS2048FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
+        self.lib.calculateRHS2048FromVectors.restype = c_int
 
-    n = x.shape[0]
-    if y.shape[0] != n or phi.shape[0] != n:
-        raise ValueError("Input arrays must have the same length")
+        n = x.shape[0]
+        if y.shape[0] != n or phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
 
-    Zperturbed = np.ascontiguousarray(np.empty((6 * n * n, ), dtype=np.complex128))
-    # print(Zperturbed.flags)
-    # print(hex(Zperturbed.ctypes.data))
-    # print(Zperturbed.shape)
+        vx = np.empty_like(x)
+        vy = np.empty_like(x)
+        dphi = np.empty_like(x)
 
-    return lib.calculatePerturbedStates256(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), Zperturbed, L, rho, kappa, depth, epsilon), Zperturbed
+        return self.lib.calculateRHS2048FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
 
-def calculate_jacobian(x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon : float = 1e-6):
-    lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-    lib.calculateJacobian.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("F_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double, c_size_t)
-    lib.calculateJacobian.restype = c_int
+    class CDouble(Structure):
+        _fields_ = [("re", c_double), ("im", c_double)]
 
-    n = x.shape[0]
-    if y.shape[0] != n or phi.shape[0] != n:
-        raise ValueError("Input arrays must have the same length")
-    J = np.empty((3*n, 3*n), dtype=np.float64, order='F')
-    return lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, L, rho, kappa, depth, epsilon, n), J
+    def calculate_vorticities256_from_vectors(self : Self, Z : NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+        # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+        self.lib.calculateVorticities256FromVectors.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), c_double, c_double, c_double, c_double)
+        self.lib.calculateVorticities256FromVectors.restype = c_int
+
+        n = Z.shape[0]
+        if phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
+
+        vorticity = np.empty(n, dtype=np.float64)
+        Zp = np.empty(n, dtype=np.complex128)
+        Zpp = np.empty(n, dtype=np.complex128)
+        return self.lib.calculateVorticities256FromVectors(np.ascontiguousarray(Z, dtype=np.complex128), np.ascontiguousarray(phi, dtype=np.complex128), vorticity, Zp, Zpp, L, rho, kappa, depth), vorticity, Zp, Zpp
+
+
+    def calculate_derivativeFFT256(self : Self, input : NDArray) -> tuple[int, NDArray]:
+        # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+        self.lib.calculateDerivativeFFT256.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")))
+        self.lib.calculateDerivativeFFT256.restype = c_int
+
+        n = input.shape[0]
+        output = np.empty(n, dtype=np.complex128)
+        if output.shape[0] != n:
+            raise ValueError("Input and output arrays must have the same length")
+
+        return self.lib.calculateDerivativeFFT256(np.ascontiguousarray(input), output), output
+
+    def calculate_rhs256_from_vectors_batched(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, batch_size: int):
+        # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+        self.lib.calculateRHS256FromVectorsBatched.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_int)
+        self.lib.calculateRHS256FromVectorsBatched.restype = c_int
+
+        n = x.shape[0] // batch_size
+        if y.shape[0] != n * batch_size or phi.shape[0] != 256 * batch_size:
+            raise ValueError("Input arrays must have the same length equal to 256 * batch_size")
+
+        vx = np.empty_like(x)
+        vy = np.empty_like(x)
+        dphi = np.empty_like(x)
+
+        return self.lib.calculateRHS256FromVectorsBatched(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, batch_size), vx, vy, dphi
+
+    def calculate_perturbed_states256(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon: float = 1e-6):
+        # self.lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+        self.lib.calculatePerturbedStates256.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double)
+        self.lib.calculatePerturbedStates256.restype = c_int
+
+        n = x.shape[0]
+        if y.shape[0] != n or phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
+
+        Zperturbed = np.ascontiguousarray(np.empty((6 * n * n, ), dtype=np.complex128))
+        # print(Zperturbed.flags)
+        # print(hex(Zperturbed.ctypes.data))
+        # print(Zperturbed.shape)
+
+        return self.lib.calculatePerturbedStates256(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), Zperturbed, L, rho, kappa, depth, epsilon), Zperturbed
+
+    def calculate_jacobian(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon : float = 1e-6):
+        # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
+        self.lib.calculateJacobian.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("F_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double, c_size_t)
+        self.lib.calculateJacobian.restype = c_int
+
+        n = x.shape[0]
+        if y.shape[0] != n or phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
+        J = np.ones((3*n, 3*n), dtype=np.float64, order='F')*100
+        return self.lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, L, rho, kappa, depth, epsilon, n), J
 
 # with h5py.File(os.path.join(path, filename), 'w') as f:
 #     dset = f.create_dataset("interface", data=Z, shape=(256, 2), dtype=np.float64)
@@ -200,6 +225,7 @@ def richardson_jacobian(f, y0, h):
 
 if __name__ == "__main__":
     alpha_hammaker = 2.6e-24
+    simManager = SimulationManager()
     def mode(t, r, r0, R, omega, zeta, A, phase_space=0, phase_time=0):
         
         return A * sp.jv(0, zeta * (r - r0) / R + phase_space) * np.cos(omega * t + phase_time)
@@ -210,17 +236,18 @@ if __name__ == "__main__":
 
     def zeta(n):
         return sp.jn_zeros(1, n)
-    def rhs_func(t, y, L = 1e-6, depth = 15e-9):
-        N = 256
+    def rhs_func(t, y, L = 1e-6, depth = 15e-9, N = 256):
         local_x = y[:N]
         local_ampl = y[N:2*N]
         local_pot = y[2*N:3*N]
-        res, vx, vy, dphi = calculate_rhs256_from_vectors(local_x, local_ampl, local_pot, L, 145, 0, depth)
+        res, vx, vy, dphi = simManager.calculate_rhs_from_vectors(local_x, local_ampl, local_pot, L, 145, 0, depth, N)
         if res != 0:
             raise Exception("Error in calculation")
         return np.concatenate((vx, vy, dphi))
+    
+    N = 128
     def f(y):
-        return rhs_func(0, y, L, depth)
+        return rhs_func(0, y, L, depth, N)
     H0 = 15e-9 # 15 nm
     L = 1e-6 # 1 micron
     L0 = L / (2.0 * np.pi)
@@ -233,9 +260,9 @@ if __name__ == "__main__":
 
     omegas = angular_freq(zetas, speed, R)
     depth = 15e-9
-    initial_amplitude = 0.01*depth
+    initial_amplitude = 0.1*depth
     phase_spaces = np.random.uniform(0, 0.8*np.pi, modes)
-    N = 256
+    
     batchSize = 256*3
     r = np.array([2.0*np.pi/N*x for x in range(N)])
     x = np.array([2.0*np.pi/N*x for x in range(N)]*batchSize)
@@ -261,8 +288,61 @@ if __name__ == "__main__":
     pot = initial_amplitude/L0 * np.sin(r)
     pot_batched = initial_amplitude/L0 * np.sin(x)
 
+
+    ## test for best epsilon
+    # hs = np.linspace(1e-5, 1e-15, 20)
+    # rows = []
+    # for h in tqdm.tqdm(hs):
+    #     res, J = simManager.calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=h)
+    #     eigenvals = np.linalg.eigvals(J)
+    #     r_val = np.max(np.real(eigenvals))
+    #     S = 0.5 * (J + J.T)
+    #     s = np.linalg.norm(S, "fro")
+    #     j = np.linalg.norm(J, "fro")
+    #     rows.append((h, r_val, s, j))
+
+    # plt.figure()
+    # plt.title("Largest real valued eigenvalue vs epsilon")
+    # plt.plot(hs, [row[1] for row in rows], label="max real part")
+    # plt.figure()
+    # plt.plot(hs, [row[2] / row[3] for row in rows], label="symmetric norm")
+    # plt.xlabel("Epsilon")
+    # plt.title("Symmetric norm vs epsilon")
+    # plt.show()
+
+
+
+
+    res, vx_original, vy_original, dphi_original = simManager.calculate_rhs_from_vectors(r, ampl, pot, L, 145, 0, depth)
+    # res, vx, vy, dphi = simManager.calculate_rhs256_from_vectors_batched(x, ampl_batched, pot_batched, L, 145, 0, depth, batchSize)
+
+    if res != 0:
+        raise Exception("Error in calculation")
+    
+    plt.figure()
+    plt.plot(r, vx_original, label="vx original")
+    plt.plot(r, vy_original, label="vy original")
+    plt.plot(r, dphi_original, label="dphi/dt original")
+    plt.legend()
+    plt.show()
+    # plt.figure()
+    # for i in range(batchSize):
+    #     plt.plot(x[i*N:(i+1)*N], vx[i*N:(i+1)*N] - vx_original, label=f"vx batch {i+1}")
+    # plt.figure()
+    # for i in range(batchSize):
+    #     plt.plot(x[i*N:(i+1)*N], dphi[i*N:(i+1)*N] - dphi_original, label=f"dphi/dt batch {i+1}")
+    # plt.figure()
+    # for i in range(batchSize):
+    #     plt.plot(x[i*N:(i+1)*N], vy[i*N:(i+1)*N] - vy_original, label=f"vy batch {i+1}")
+    # # plt.plot(x[:256], vx[:256], label="vx batch 1")
+    # # plt.plot(x[256:], vx[256:], label="vx batch 2")
+
+
+    # plt.legend()
+    # plt.show()    
+
     # for i in range(100):
-    res, jacobian = calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-8)
+    res, jacobian = simManager.calculate_jacobian(r, ampl, pot, L, 145, 0, depth, epsilon=1e-8)
         # sleep(1)
     eigvals = np.linalg.eigvals(jacobian)
     print("Eigenvalues of the Jacobian (C++):")
@@ -281,20 +361,40 @@ if __name__ == "__main__":
 
     print("Time taken for FD Jacobian - Python: ", (t1 - t0) * 1e-9, " seconds")
     plt.figure()
-    plt.imshow(np.abs(jacobian))
+    plt.imshow(np.abs(jacobian)[:2*N, :2*N])
     plt.colorbar()
     plt.title("Jacobian matrix magnitude (C++)")
     plt.figure()
-    plt.imshow(np.abs(Jac))
+    plt.imshow(np.abs(Jac)[:2*N, :2*N])
     plt.colorbar()
     plt.title("Jacobian matrix magnitude (FD - Python)")
     # plt.show()
 
     plt.figure()
-    plt.imshow(np.abs(jacobian - Jac))
+    plt.imshow(np.abs(jacobian - Jac)[:2*N, :2*N])
     plt.colorbar()
     plt.title("Jacobian matrix difference magnitude (C++ - FD - Python)")
 
+    plt.figure()
+    plt.plot(jacobian[0, :2*N], label="C++ jac at row 0")
+    plt.plot(Jac[0, :2*N], label="FD - Python jac at row 0")
+    plt.legend()
+    plt.figure()
+    plt.plot(jacobian[1, :2*N], label="C++ jac at row 1")
+    plt.plot(Jac[1, :2*N], label="FD - Python jac at row 1")
+    plt.legend()
+    plt.figure()
+    plt.plot(jacobian[2, :2*N], label="C++ jac at row 2")
+    plt.plot(Jac[2, :2*N], label="FD - Python jac at row 2")
+    plt.legend()
+
+    plt.figure()
+    plt.plot(jacobian[255, :2*N], label="C++ jac at row 255")
+    plt.plot(Jac[255, :2*N], label="FD - Python jac at row 255")
+
+    # plt.plot(np.abs(jacobian[255, :] - Jac[255, :]), label="Difference magnitude at row 255")
+    plt.legend()
+    
     eigs_vals_fd = np.linalg.eigvals(Jac)
     print("Eigenvalues of the Jacobian (FD - Python):")
     plt.figure()
@@ -306,8 +406,8 @@ if __name__ == "__main__":
 
 
     plt.show()
-    res, perturbed = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, eps)
-    res, perturbedNeg = calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, -eps)
+    res, perturbed = simManager.calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, eps)
+    res, perturbedNeg = simManager.calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, -eps)
 
     batchSize = perturbed.shape[0] // (2*N)
 
@@ -395,9 +495,9 @@ if __name__ == "__main__":
     y1 = y0 + 1e-6 * ej
     y2 = y0 # - 1e-6 * ej
 
-    res, vx1, vy1, dphi1 = calculate_rhs256_from_vectors(y1[:256], y1[256:512], y1[512:768], L, 145, 0, depth)
+    res, vx1, vy1, dphi1 = simManager.calculate_rhs256_from_vectors(y1[:256], y1[256:512], y1[512:768], L, 145, 0, depth)
 
-    res, vx2, vy2, dphi2 = calculate_rhs256_from_vectors(y2[:256], y2[256:512], y2[512:768], L, 145, 0, depth)
+    res, vx2, vy2, dphi2 = simManager.calculate_rhs256_from_vectors(y2[:256], y2[256:512], y2[512:768], L, 145, 0, depth)
 
     approx_vx_fd = (vx1 - vx2) / (eps)
     approx_vy_fd = (vy1 - vy2) / (2.0 * eps)
@@ -405,7 +505,7 @@ if __name__ == "__main__":
 
     # compare to the batched implementation of rhs256
     y_batched = np.concatenate((y1[:256], y2[:256], y1[256:512], y2[256:512], y1[512:768], y2[512:768]))
-    res, vx_batched, vy_batched, dphi_batched = calculate_rhs256_from_vectors_batched(y_batched[:512], y_batched[512:1024], y_batched[1024:1536], L, 145, 0, depth, 2)
+    res, vx_batched, vy_batched, dphi_batched = simManager.calculate_rhs256_from_vectors_batched(y_batched[:512], y_batched[512:1024], y_batched[1024:1536], L, 145, 0, depth, 2)
 
     approx_vx_fd_batched = (vx_batched[:256] - vx_batched[256:]) / ( eps)
 
@@ -425,10 +525,10 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
-    res, vx, vy, dphi = calculate_rhs256_from_vectors_batched(np.real(perturbed[:3*N*N]), np.imag(perturbed[:3*N*N]), np.real(perturbed[3*N*N:]), L, 145, 0, depth, batchSize)  
+    res, vx, vy, dphi = simManager.calculate_rhs256_from_vectors_batched(np.real(perturbed[:3*N*N]), np.imag(perturbed[:3*N*N]), np.real(perturbed[3*N*N:]), L, 145, 0, depth, batchSize)  
     if res != 0:
         raise Exception("Error in calculation")
-    res, vx_neg, vy_neg, dphi_neg = calculate_rhs256_from_vectors_batched(np.real(perturbedNeg[:3*N*N]), np.imag(perturbedNeg[:3*N*N]), np.real(perturbedNeg[3*N*N:]), L, 145, 0, depth, batchSize)  
+    res, vx_neg, vy_neg, dphi_neg = simManager.calculate_rhs256_from_vectors_batched(np.real(perturbedNeg[:3*N*N]), np.imag(perturbedNeg[:3*N*N]), np.real(perturbedNeg[3*N*N:]), L, 145, 0, depth, batchSize)  
     if res != 0:
         raise Exception("Error in calculation")
     

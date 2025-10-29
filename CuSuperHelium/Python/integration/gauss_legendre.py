@@ -121,7 +121,7 @@ def gauss_legendre_s2_step(y, h, f, J, newton_tol=1e-10, newton_maxit=12, simpli
     return y_next, {'nit': it, 'converged': converged, 'res_norm': float(res_norm)}
 
 
-def integrate_gl2(f, J, y0, t0, t1, h, newton_tol=1e-10, newton_maxit=12, simplified=False, return_trajectory=True):
+def integrate_gl2(f, J, y0, t0, t1, h, newton_tol=1e-10, newton_maxit=12, simplified=False, return_trajectory=True, **kwargs):
     """
     Fixed-step integrator using Gauss–Legendre s=2.
     Autonomous systems only.
@@ -140,7 +140,7 @@ def integrate_gl2(f, J, y0, t0, t1, h, newton_tol=1e-10, newton_maxit=12, simpli
 
     t = t0
     for n in tqdm.tqdm(range(nsteps), desc="Integrating", unit="step"):
-        y, info = gauss_legendre_s2_step(y, h_eff, f, J, newton_tol, newton_maxit, simplified)
+        y, info = gauss_legendre_s2_step(y, h_eff, f, J, newton_tol, newton_maxit, simplified, **kwargs)
         if not info['converged']:
             raise RuntimeError(f"Newton failed at step {n} (t ≈ {t:.6g}): "
                                f"iter={info['nit']} res={info['res_norm']:.3e}")
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     t0, t1, h = 0.0, 2000.0, 2
     T, Y = integrate_gl2(f, J, y0, t0, t1, h, simplified=False)
     y_fwd = Y[-1]
-    Tback, Yback = integrate_gl2(f, J, y_fwd, t1, t0, h, simplified=False)  # integrate backward
+    Tback, Yback = integrate_gl2(f, J, y_fwd, t1, t0, h, simplified=False, newton_maxit = 20)  # integrate backward
     rev_err = np.linalg.norm(Yback[-1] - y0)
     print("Reversibility error:", rev_err)
 

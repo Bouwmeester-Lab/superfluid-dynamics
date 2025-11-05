@@ -44,4 +44,6 @@ PingPongBuffer<T>::PingPongBuffer()
 template <typename T>
 PingPongBuffer<T>::~PingPongBuffer()
 {
+	if (pingBuffer) cudaFree(pingBuffer);
+	if (pongBuffer) cudaFree(pongBuffer);
 }

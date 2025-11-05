@@ -1,7 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="Export.cu">
+      <Filter>Export</Filter>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Water">
@@ -15,6 +17,9 @@
     </Filter>
     <Filter Include="Functions">
       <UniqueIdentifier>{7fa26592-7f1d-4ac7-8460-1ba46b0b55ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Export">
+      <UniqueIdentifier>{d66dee31-648c-4dc6-9408-91a5535082d9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -62,6 +67,21 @@
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="SimulationOptions.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="OdeSolver.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Export.cuh">
+      <Filter>Export</Filter>
+    </ClInclude>
+    <ClInclude Include="SimulationFunctions.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="ExportTypes.cuh">
+      <Filter>Export</Filter>
+    </ClInclude>
+    <ClInclude Include="JacobianCalculator.cuh">
       <Filter>Common</Filter>
     </ClInclude>
   </ItemGroup>

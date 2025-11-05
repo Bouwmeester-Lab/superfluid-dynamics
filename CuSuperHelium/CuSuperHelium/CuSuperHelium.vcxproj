@@ -17,13 +17,13 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
@@ -54,7 +54,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpp23</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -100,7 +100,7 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="Export.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AutonomousProblem.h" />
@@ -111,8 +111,12 @@
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
+    <ClInclude Include="Export.cuh" />
+    <ClInclude Include="ExportTypes.cuh" />
+    <ClInclude Include="JacobianCalculator.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
+    <ClInclude Include="OdeSolver.h" />
     <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
@@ -121,6 +125,7 @@
     <ClInclude Include="RK45.cuh" />
     <ClInclude Include="RK45_Kernels.cuh" />
     <ClInclude Include="SimpleEuler.cuh" />
+    <ClInclude Include="SimulationFunctions.cuh" />
     <ClInclude Include="SimulationOptions.h" />
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="SolitonPeak.h" />

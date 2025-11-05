@@ -14,7 +14,7 @@
  */
 #pragma once
 #include <cuComplex.h>
-
+#include "constants.cuh"
 template <typename T>
 T CastTo(double d) {
     if constexpr (std::same_as<T, cuDoubleComplex>) {

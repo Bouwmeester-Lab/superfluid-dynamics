@@ -404,3 +404,4 @@ CuSuperHelium/CuSuperHelium/temp/*.h5
 CuSuperHelium/CuSuperHelium/temp/dispersion_test_0.00001.h5
 /CuSuperHelium/CuSuperHelium.App/temp
 /CuSuperHelium/Python/integration/files
+CuSuperHelium/Python/data/*

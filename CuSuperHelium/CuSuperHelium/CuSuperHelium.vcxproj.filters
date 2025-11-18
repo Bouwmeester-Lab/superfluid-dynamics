@@ -96,5 +96,6 @@
     <ClInclude Include="VectorUtilities.cuh">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
   </ItemGroup>
 </Project>

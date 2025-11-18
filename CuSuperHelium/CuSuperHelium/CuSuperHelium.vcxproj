@@ -113,6 +113,8 @@
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export.cuh" />
     <ClInclude Include="ExportTypes.cuh" />
+    <ClInclude Include="GaussLegendre.cuh" />
+    <ClInclude Include="GLCoefficients.hpp" />
     <ClInclude Include="JacobianCalculator.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />

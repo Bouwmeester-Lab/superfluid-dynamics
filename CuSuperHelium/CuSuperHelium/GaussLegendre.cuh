@@ -61,6 +61,8 @@ private:
 	MatrixSolver<6 * N, 1> matrixSolver;
 	GaussLegendre2Options options;
 	void setOptions(const GaussLegendre2Options options) { this->options = options; }
+	
+	bool devStateOwned = false;
 
 	double* devState = nullptr;
 	double* devTempState = nullptr;
@@ -121,6 +123,7 @@ private:
 	void gaussLegendreS2Step(double* devCurrentState, double* devDestination, const double stepSize, StepResult& result);
 	void stageStates(const double* devY, const double stepSize);
 	void residualAndPhi(const double* devY, const double* k1, const double* k2, const double stepSize, StagingResult& stagingResult);
+	void freeDeviceMemory();
 };
 
 template <size_t N>
@@ -130,6 +133,8 @@ GaussLegendre2<N>::GaussLegendre2(AutonomousProblem<double, 3*N>& problem, Jacob
 template <size_t N>
 GaussLegendre2<N>::~GaussLegendre2()
 {
+	// free device memory
+	freeDeviceMemory();
 }
 
 template<size_t N>
@@ -232,6 +237,7 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 		this->devState = initialState;
 	}
 	else {
+		devStateOwned = true;
 		size_t stateSizeBytes = 3 * N * sizeof(double); // x, y, phi each of size N.
 		cudaError_t err = cudaMalloc(&this->devState, stateSizeBytes);
 		if (err != cudaSuccess) {
@@ -275,6 +281,27 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 	checkCuda(cudaMallocAsync(&this->ktrial, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
 	this->ktrial1 = this->ktrial;
 	this->ktrial2 = this->ktrial + 3 * N;
+}
+template<size_t N>
+void GaussLegendre2<N>::freeDeviceMemory()
+{
+	if (this->devStateOwned) {
+		cudaFreeAsync(this->devState, this->stream);
+	}
+	cudaFreeAsync(this->devTempState, this->stream);
+	cudaFreeAsync(this->devTempNextState, this->stream);
+	cudaFreeAsync(this->k1, this->stream);
+	cudaFreeAsync(this->y1, this->stream);
+	cudaFreeAsync(this->R, this->stream);
+	cudaFreeAsync(this->devfY1, this->stream);
+	cudaFreeAsync(this->devJFrozen, this->stream);
+	cudaFreeAsync(this->devJ1, this->stream);
+	cudaFreeAsync(this->devJ2, this->stream);
+	cudaFreeAsync(this->devM, this->stream);
+	cudaFreeAsync(this->dK, this->stream);
+	cudaFreeAsync(this->ktrial, this->stream);
+
+	cublasDestroy(this->cublasHandle);
 }
 
 template<size_t N>

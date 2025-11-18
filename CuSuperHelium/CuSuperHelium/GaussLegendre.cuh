@@ -1,25 +1,41 @@
-#pragma once
+﻿#pragma once
 
 #include "GLCoefficients.hpp"
 #include "JacobianCalculator.cuh"
 #include "OdeSolver.h"
 #include <math.h>
+#include <thrust/device_vector.h>
+#include <cuda/std/array>
+#include "VectorUtilities.cuh"
+#include <indicators/progress_bar.hpp>
 
 struct GaussLegendre2Options {
 	double stepSize;
 	double newtonTolerance;
 	size_t maxNewtonIterations;
-	bool simplified;
+	bool allowSimplifiedFallback = true;
 	bool returnTrajectory = true;
+	double armijo_c = 1e-4;
+	double backtrack = 0.5;
+	double minAlpha = 1e-6;
+	size_t maxStepsHalves = 6;
 
 	GaussLegendre2Options() :
 		stepSize(0.01),
 		newtonTolerance(1e-10),
 		maxNewtonIterations(20),
-		simplified(false),
+		allowSimplifiedFallback(false),
 		returnTrajectory(true)
 	{
 	}
+};
+
+size_t to_percent(double t, double t0, double t1)
+{
+	if (t <= t0) return 0;
+	if (t >= t1) return 100;
+	double frac = (t - t0) / (t1 - t0);
+	return static_cast<std::size_t>(std::round(frac * 100.0));
 };
 
 
@@ -45,13 +61,25 @@ private:
 
 	double* devState = nullptr;
 	double* devTempState = nullptr;
+	double* devTempNextState = nullptr;
 
-	double* devTimes = nullptr;
-	double* devYs = nullptr;
+	thrust::device_vector<double> devTimes;
+	thrust::device_vector<cuda::std::array<double, 3 * N>> devYs;
+
+	double hmin = -1;
 
 	cudaStream_t stream = cudaStreamPerThread;
 
+	std::unique_ptr<indicators::ProgressBar> progressBar;
 
+	struct StepResult {
+		size_t numberIterations;
+		bool converged;
+		double residualNorm;
+		bool simplifiedFallbackUsed;
+	} stepRes;
+
+	void gaussLegendreS2Step(double* devCurrentState, double* devDestination, const double stepSize, StepResult& result);
 };
 
 template <size_t N>
@@ -71,7 +99,12 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 	}
 
 	int nSteps = static_cast<int>(std::ceil(std::abs(endTime - startTime) / this->options.stepSize));
-	const double hEff = (endTime - startTime) / nSteps;
+	double totalT = std::abs(endTime - startTime);
+
+	if (hmin < 0) {
+		hmin = totalT / (std::pow(2, 20));
+	}
+
 
 	if(this->devState == nullptr) {
 		throw std::runtime_error("Initial state not set. Call initialize() before running evolution.");
@@ -85,29 +118,70 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 		checkCuda(cudaMallocAsync(&this->devTimes, (nSteps + 1) * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 85));
 		linspace<<<(nSteps + 1 + 255) / 256, 256, 0, this->stream>>>(this->devTimes, startTime, endTime, nSteps + 1);
 
-		checkCuda(cudaMallocAsync(&this->devYs, (nSteps + 1) * 3 * N * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 88)));
-		// copy initial state to first entry
-		checkCuda(cudaMemcpyAsync(this->devYs, this->devTempState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 90));
+		appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
 	}
 
 	double currentTime = startTime;
+	double forward = (endTime >= startTime) ? 1.0 : -1.0;
+	double heff;
+	double htry;
+	// create the progress bar
+	progressBar = std::make_unique<indicators::ProgressBar>(
+		indicators::option::BarWidth{ 50 },
+		indicators::option::Start{"["},
+		indicators::option::Fill{"="},
+		indicators::option::Lead{">"},
+		indicators::option::Remainder{" "},
+		indicators::option::End{"]"},
+		indicators::option::PrefixText{"Gauss-Legendre 2nd Order Integration Progress:"},
+		indicators::option::ShowPercentage{true},
+		indicators::option::ShowElapsedTime{true},
+		indicators::option::ShowRemainingTime{true}
+	);
+	bool attempt_ok;
 
-	for(int step = 0; step < nSteps; ++step) {
-		// Perform a single Gauss-Legendre step from currentTime to currentTime + hEff
-		// Using Newton's method to solve the implicit equations
-		// Pseudocode for Newton's method:
-		// 1. Initialize guess for stage values
-		// 2. Iterate until convergence or max iterations reached
-		//    a. Evaluate the residuals
-		//    b. Evaluate the Jacobian
-		//    c. Update the guess
-		// After convergence, update devTempState with the new state
-		currentTime += hEff;
-		if (options.returnTrajectory) {
-			// Copy the new state into the trajectory storage
-			checkCuda(cudaMemcpyAsync(this->devYs + (step + 1) * 3 * N, this->devTempState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 123));
+	
+
+	while ((currentTime - endTime) * forward < 0.0)
+	{
+		heff = std::min(this->options.stepSize, std::abs(endTime - currentTime)) * forward;
+		
+		attempt_ok = false;
+		htry = heff;
+		for (int i = 0; i < this->options.maxStepsHalves + 1; ++i) 
+		{
+			this->gaussLegendreS2Step(this->devTempState, this->devTempNextState, htry, this->stepRes);
+			if(this->stepRes.converged) 
+			{
+				attempt_ok = true;
+				break;
+			}
+			if(htry <= hmin) 
+			{
+				break;
+			}
+			// Halve the step size and try again
+			htry *= 0.5;
+		}
+
+		if(!attempt_ok) 
+		{
+			throw std::runtime_error(std::format("Gauss-Legendre 2nd Order method failed to converge at t≈{}; residual={:.3e}; last htry={:.3e}", currentTime, stepRes.residualNorm, htry);
+		}
+
+		// Step successful, update state and time
+		cudaMemcpyAsync(this->devTempState, this->devTempNextState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream);
+		progressBar->set_progress(to_percent(currentTime, endTime, startTime));
+		currentTime += htry;
+		this->options.stepSize = std::abs(htry); // Update step size for next iteration
+
+		if (this->options.returnTrajectory) 
+		{
+			this->devTimes.push_back(currentTime);
+			appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
 		}
 	}
+	return OdeSolverResult::ReachedEndTime;
 }
 
 template<size_t N>
@@ -122,6 +196,9 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 		if (err != cudaSuccess) {
 			throw std::runtime_error("Failed to allocate device memory for initial state.");
 		}
+		checkCuda(cudaMallocAsync(&this->devTempState, stateSizeBytes, this->stream), "GaussLegendre2<N>::initialize", "GaussLegendre.cuh", 152));
+		checkCuda(cudaMallocAsync(&this->devTempNextState, stateSizeBytes, this->stream), "GaussLegendre2<N>::initialize", "GaussLegendre.cuh", 153));
+
 		err = cudaMemcpy(this->devState, initialState, stateSizeBytes, cudaMemcpyHostToDevice);
 		if (err != cudaSuccess) {
 			throw std::runtime_error("Failed to copy initial state to device memory.");
@@ -129,4 +206,23 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 	}
 	
 
+}
+
+template<size_t N>
+void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* devDestination, const double stepSize, StepResult& result)
+{
+	// k = np.vstack([f(y), f(y)])   # shape(2, m)
+	// WIP...
+	for (int iteration = 0; iteration < this->options.maxNewtonIterations; ++iteration)
+	{
+
+		//// Compute the function value and Jacobian at the current guess
+		//// f(Y) = Y - y_n - h/2 * (f(t_n, y_n) + f(t_n + h, Y))
+		//// where Y is the next state we are solving for
+		//// Here we use devTempState as Y
+		//problem.evaluateRHS(devCurrentState, this->devTempState, this->stream); // f(t_n, y_n)
+		//problem.evaluateRHS(this->devTempState, this->devTempState, this->stream); // f(t_n + h, Y)
+		//// Compute the residual
+		//// res = Y - y_n - h/2 * (f(t_n, y_n) + f(t_n + h, Y))
+	}
 }

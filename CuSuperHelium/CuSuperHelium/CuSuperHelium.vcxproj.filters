@@ -93,5 +93,8 @@
     <ClInclude Include="GaussLegendre.cuh">
       <Filter>Gauss Legendre</Filter>
     </ClInclude>
+    <ClInclude Include="VectorUtilities.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

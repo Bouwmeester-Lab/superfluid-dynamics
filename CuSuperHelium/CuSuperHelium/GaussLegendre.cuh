@@ -10,7 +10,7 @@
 #include <indicators/progress_bar.hpp>
 #include <cublas_v2.h>
 #include "MatrixSolver.cuh"
-
+#include "ExportTypes.cuh"
 struct GaussLegendre2Options {
 	double stepSize;
 	double newtonTolerance;
@@ -31,6 +31,21 @@ struct GaussLegendre2Options {
 	{
 	}
 };
+
+GaussLegendre2Options createOptionsFromCOptions(const GaussLegendreOptions& cOptions)
+{
+	GaussLegendre2Options options;
+	options.stepSize = cOptions.stepSize;
+	options.newtonTolerance = cOptions.newtonTolerance;
+	options.maxNewtonIterations = cOptions.maxNewtonIterations;
+	options.allowSimplifiedFallback = cOptions.allowSimplifiedFallback;
+	options.returnTrajectory = cOptions.returnTrajectory;
+	options.armijo_c = cOptions.armijo_c;
+	options.backtrack = cOptions.backtrack;
+	options.minAlpha = cOptions.minAlpha;
+	options.maxStepsHalves = cOptions.maxStepsHalves;
+	return options;
+}
 
 size_t to_percent(double t, double t0, double t1)
 {
@@ -55,6 +70,9 @@ public:
 	/// <param name="onDevice"></param>
 	void initialize(double* initialState, bool onDevice = false);
 	void setStream(cudaStream_t stream) { this->stream = stream; }
+
+	int copyTimesToHost(double** hostTimes, size_t* countHost);
+	int copyStatesToHost(double** hostStates, size_t* countHost);
 private:
 	AutonomousProblem<std_complex, N>& problem;
 	JacobianCalculator<N>& jacobianCalculator;
@@ -282,6 +300,59 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 	this->ktrial1 = this->ktrial;
 	this->ktrial2 = this->ktrial + 3 * N;
 }
+
+template<size_t N>
+int GaussLegendre2<N>::copyTimesToHost(double** hostTimes, size_t* countHost)
+{
+	if (this->options.returnTrajectory) 
+	{
+		double* t = static_cast<double*>(std::malloc(devTimes.size() * sizeof(double)));
+		if (!t) {
+			return -1; // memory allocation failed
+		}
+		// copy times to host
+		checkCuda(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		*hostTimes = t;
+		*countHost = devTimes.size();
+	}
+	else 
+	{
+		// no times were recorded
+		*hostTimes = nullptr;
+		*countHost = 0;
+	}
+	return 0;
+}
+
+template<size_t N>
+int GaussLegendre2<N>::copyStatesToHost(double** hostStates, size_t* countHost)
+{
+	if (this->options.returnTrajectory) 
+	{
+		double* s = static_cast<double*>(std::malloc(devYs.size() * 3 * N * sizeof(double)));
+		if (!s) {
+			return -1; // memory allocation failed
+		}
+		// copy states to host
+		checkCuda(cudaMemcpyAsync(s, thrust::raw_pointer_cast(devYs.data()), devYs.size() * 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		*hostStates = s;
+		*countHost = devYs.size();
+	}
+	else
+	{
+		// no states were recorded so copy the latest state calculated.
+		double* s = static_cast<double*>(std::malloc(3 * N * sizeof(double)));
+		if (!s) {
+			return -1; // memory allocation failed
+		}
+		checkCuda(cudaMemcpyAsync(s, this->devTempState, 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+
+		*hostStates = s;
+		*countHost = 1;
+	}
+	return 0;
+}
+
 template<size_t N>
 void GaussLegendre2<N>::freeDeviceMemory()
 {

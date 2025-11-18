@@ -629,6 +629,86 @@ int calculatePerturbedStates256(const double* x, const double* y, const double* 
 	}	
 }
 
+template <size_t N>
+int integrateSimulationGL2_N(const double* initialState, double** statesOut, size_t* statesCount,
+	double** timesOut, size_t* timesCount,
+	SimProperties* simProperties, GaussLegendreOptions* glCOptions)
+{
+	try {
+		ProblemProperties properties;
+		properties.rho = simProperties->rho;
+		properties.kappa = simProperties->kappa;
+		properties.depth = simProperties->depth;
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, simProperties->L);
+		// create the options for GL
+		GaussLegendre2Options glOptions = createOptionsFromCOptions(*glCOptions);
+
+
+		// calculators for the f(y)
+		HeliumBoundaryProblem<N, 1> heliumProblem(properties);
+		BoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
+		RealBoundaryItegralCalculator<N> realCalculator(calculator);
+		// calculators for the jacobian
+		HeliumBoundaryProblem<N, 3 * N> heliumJacProblem(properties);
+		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);
+		JacobianCalculator<N> jacobianCalculator(std::move(jacBoundaryIntegralCalculatorPtr));
+
+
+		GaussLegendre2<N> integrator(realCalculator, jacobianCalculator, glOptions);
+		integrator.setStream(cudaStreamPerThread);
+
+		integrator.initialize(initialState, false);
+		integrator.runEvolution(glCOptions->t0, glCOptions->t1);
+
+		// copy results to output
+		cudaStreamSynchronize(cudaStreamPerThread);
+		integrator.copyTimesToHost(timesOut, timesCount);
+		integrator.copyStatesToHost(statesOut, statesCount);
+
+		//integrator.integrate(deviceData.devZ, simProperties->t0, simProperties->tFinal, statesOut, timesOut, N);
+		//freeDeviceData(deviceData);
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+	return 0;
+}
+
+
+int integrateSimulationGL2(const double* initialState, double** statesOut, size_t* statesCount,
+	double** timesOut, size_t* timesCount,
+	SimProperties* simProperties, GaussLegendreOptions* glCOptions, size_t N) 
+{
+	switch (N)
+	{
+		case 32:
+			return integrateSimulationGL2_N<32>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
+		case 64:
+			return integrateSimulationGL2_N<64>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
+		case 128:
+			return integrateSimulationGL2_N<128>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
+		case 256:
+			return integrateSimulationGL2_N<256>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
+		case 512:
+			return integrateSimulationGL2_N<512>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
+		case 1024:
+			return integrateSimulationGL2_N<1024>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
+	default:
+		std::cerr << "Error: Unsupported N size " << N << std::endl;
+		std::cerr << "Supported N sizes are: 32, 64, 128 , 256, 512, 1024" << std::endl;
+		break;
+	}
+}
+
+
+int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut)
+{
+	std::free(statesOut);
+	std::free(timesOut);
+}
+
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)
 {
 	double L0 = L / (2.0 * PI_d); // characteristic length

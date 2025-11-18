@@ -5,6 +5,27 @@
 extern "C"
 {
 	struct __declspec(align(16)) c_double { double re; double im; };
+	struct SimProperties {
+		double L;
+		double rho;
+		double kappa;
+		double depth;
+	};
+	struct GaussLegendreOptions
+	{
+		double t0;
+		double t1;
+		double stepSize;
+		double newtonTolerance;
+		size_t maxNewtonIterations;
+		bool allowSimplifiedFallback = true;
+		bool returnTrajectory = true;
+		double armijo_c = 1e-4;
+		double backtrack = 0.5;
+		double minAlpha = 1e-6;
+		size_t maxStepsHalves = 6;
+	};
+
 }
 
 

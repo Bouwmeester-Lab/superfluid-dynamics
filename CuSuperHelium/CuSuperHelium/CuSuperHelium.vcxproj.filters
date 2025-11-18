@@ -21,6 +21,9 @@
     <Filter Include="Export">
       <UniqueIdentifier>{d66dee31-648c-4dc6-9408-91a5535082d9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Gauss Legendre">
+      <UniqueIdentifier>{7a673252-b33f-4d69-bca2-5206892e5699}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -83,6 +86,12 @@
     </ClInclude>
     <ClInclude Include="JacobianCalculator.cuh">
       <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="GLCoefficients.hpp">
+      <Filter>Gauss Legendre</Filter>
+    </ClInclude>
+    <ClInclude Include="GaussLegendre.cuh">
+      <Filter>Gauss Legendre</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

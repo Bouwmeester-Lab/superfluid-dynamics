@@ -26,3 +26,24 @@ public:
 	virtual void run(T* initialState, T* rhs) = 0;
 	virtual void setStream(cudaStream_t stream) = 0;
 };
+
+template<typename T, int N, size_t batchSize>
+class BatchedAutonomousProblem
+{
+public:
+	// virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
+	BatchedAutonomousProblem()
+	{
+	}
+	virtual ~BatchedAutonomousProblem()
+	{
+	}
+
+	/// <summary>
+	/// Function to run the time evolution problem, at the end the device pointer devTimeEvolutionRhs should be filled with the right-hand side of the problem
+	/// </summary>
+	/// <param name="initialState">An array pointer to a N*batchSize sized array holding batchSize initial states for the autonomous problem</param>
+	/// <param name="rhs">The rhs vector where to place the result for each initial state. It's sized as (NxbatchSize) in 1D.</param>
+	virtual void runBatch(T* initialState, T* rhs) = 0;
+	virtual void setStream(cudaStream_t stream) = 0;
+};

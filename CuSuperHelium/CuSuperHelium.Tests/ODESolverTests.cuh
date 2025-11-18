@@ -98,8 +98,8 @@ TEST(ODE_Solvers, RK4)
 	stateLogger.setStep(loggingSteps);
 
 
-	AutonomousRungeKuttaStepper<cuDoubleComplex, N> stepper(problem, stateLogger, dt);
-	stepper.initialize(devInitialState);
+	AutonomousRungeKuttaStepper<cuDoubleComplex, N> stepper(problem, stateLogger, {}, dt);
+	stepper.initialize(devInitialState, true);
 	for(int i = 0; i < steps; ++i) 
 	{
 		stepper.runStep(i);
@@ -276,7 +276,8 @@ TEST(ODE_Solvers, RK45)
 	stepper.initialize(devInitialState, true);
 	stepper.setTolerance(1e-8, 1e-8);
 
-	stepper.runEvolution(steps, dt * steps);
+	auto result = stepper.runEvolution(0, dt * steps);
+	EXPECT_EQ(result, OdeSolverResult::ReachedEndTime);
 	cudaDeviceSynchronize();
 	// Copy the results back to the host
 	cuDoubleComplex* results = new cuDoubleComplex[N];

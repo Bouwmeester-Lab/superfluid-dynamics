@@ -58,7 +58,7 @@ extern "C"
 	/// <param name="simProperties"></param>
 	/// <param name="glCOptions"></param>
 	/// <returns></returns>
-	__declspec(dllexport) int integrateSimulationGL2(const double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, GaussLegendreOptions* glCOptions, size_t N);
+	__declspec(dllexport) int integrateSimulationGL2(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, GaussLegendreOptions* glCOptions, size_t N);
 	__declspec(dllexport) int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut);
 
 	ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium = 150);

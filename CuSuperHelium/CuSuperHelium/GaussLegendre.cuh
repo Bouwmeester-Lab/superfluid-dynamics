@@ -11,6 +11,75 @@
 #include <cublas_v2.h>
 #include "MatrixSolver.cuh"
 #include "ExportTypes.cuh"
+#include <indicators/cursor_control.hpp>
+
+__global__ void calculateNextStateKernel(const double* devY, const double stepSize, const double* k1, const double* k2, double* devYnext, const GL_Coefficients coeffs, const size_t N)
+{
+	// ynext = devY + stepSize * ( B1 * k1 + B2 * k2 ) // devY, k1 k2 are two vectors of size 3N
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < 3 * N) {
+		devYnext[idx] = devY[idx] + stepSize * (coeffs.b1 * k1[idx] + coeffs.b2 * k2[idx]);
+	}
+}
+
+__global__ void stageStatesKernel(const double* devY, const double stepSize, const double* k1, const double* k2, double* y1, double* y2, const GL_Coefficients coeffs, const size_t N)
+{
+	// y1 = devY + stepSize * ( A11 * k1 + A12 * k2 ) // devY, k1 k2 are two vectors of size 3N
+	// y2 = devY + stepSize * ( A21 * k1 + A22 * k2 )
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < 3 * N) {
+		y1[idx] = devY[idx] + stepSize * (coeffs.A11 * k1[idx] + coeffs.A12 * k2[idx]);
+		y2[idx] = devY[idx] + stepSize * (coeffs.A21 * k1[idx] + coeffs.A22 * k2[idx]);
+	}
+}
+
+__global__ void createKTrial(const double* k1, const double* k2, const double alpha, const double* dK1, const double* dK2, double* ktrial1, double* ktrial2, const size_t N)
+{
+	// ktrial1 = k1 + alpha * dK1
+	// ktrial2 = k2 + alpha * dK2
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < 3 * N) {
+		ktrial1[idx] = k1[idx] + alpha * dK1[idx];
+		ktrial2[idx] = k2[idx] + alpha * dK2[idx];
+	}
+}
+
+__global__ void fillMMatrix(const double* devJ1, const double* devJ2, const double stepSize, const GL_Coefficients coeffs, double* devM, const size_t N) {
+	// M = [ I - h * A11 * J1,   - h * A12 * J2
+	//       - h * A21 * J1,     I - h * A22 * J2 ]
+	size_t row = blockIdx.y * blockDim.y + threadIdx.y;
+	size_t col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (row < 3 * N && col < 3 * N) {
+		// Top-left block
+		devM[row * (6 * N) + col] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A11 * devJ1[row * (3 * N) + col];
+		// Top-right block
+		devM[row * (6 * N) + (col + 3 * N)] = -stepSize * coeffs.A12 * devJ2[row * (3 * N) + col];
+		// Bottom-left block
+		devM[(row + 3 * N) * (6 * N) + col] = -stepSize * coeffs.A21 * devJ1[row * (3 * N) + col];
+		// Bottom-right block
+		devM[(row + 3 * N) * (6 * N) + (col + 3 * N)] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A22 * devJ2[row * (3 * N) + col];
+	}
+}
+
+__global__ void multiplyVector(const double a, double* v, double* vout, size_t N)
+{
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx >= N) return;
+
+	vout[idx] = a * v[idx];
+}
+
+__global__ void computeResidualsKernel(const double* fY1, const double* fY2, const double* k1, const double* k2, double* R1, double* R2, const size_t N) {
+	// R1 = k1 - fY1
+	// R2 = k2 - fY2
+	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < 3 * N) {
+		R1[idx] = k1[idx] - fY1[idx];
+		R2[idx] = k2[idx] - fY2[idx];
+	}
+}
+
 struct GaussLegendre2Options {
 	double stepSize;
 	double newtonTolerance;
@@ -74,7 +143,7 @@ public:
 	int copyTimesToHost(double** hostTimes, size_t* countHost);
 	int copyStatesToHost(double** hostStates, size_t* countHost);
 private:
-	AutonomousProblem<std_complex, N>& problem;
+	AutonomousProblem<double, 3 * N>& problem;
 	JacobianCalculator<N>& jacobianCalculator;
 	MatrixSolver<6 * N, 1> matrixSolver;
 	GaussLegendre2Options options;
@@ -179,8 +248,8 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 	// create the trajectory storage
 	if (options.returnTrajectory)
 	{
-		checkCuda(cudaMallocAsync(&this->devTimes, (nSteps + 1) * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 85));
-		linspace<<<(nSteps + 1 + 255) / 256, 256, 0, this->stream>>>(this->devTimes, startTime, endTime, nSteps + 1);
+		/*checkCuda(cudaMallocAsync(&this->devTimes, (nSteps + 1) * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 85));
+		linspace<<<(nSteps + 1 + 255) / 256, 256, 0, this->stream>>>(this->devTimes, startTime, endTime, nSteps + 1);*/
 
 		appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
 	}
@@ -200,12 +269,16 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 		indicators::option::PrefixText{"Gauss-Legendre 2nd Order Integration Progress:"},
 		indicators::option::ShowPercentage{true},
 		indicators::option::ShowElapsedTime{true},
-		indicators::option::ShowRemainingTime{true}
+		indicators::option::ShowRemainingTime{true},
+		indicators::option::Stream{ std::cout }
 	);
+	indicators::show_console_cursor(false);
+
 	bool attempt_ok;
-
+	size_t previousPercent = 0;
+	size_t percent = 0;
 	
-
+	std::cout << "Starting Gauss-Legendre 2nd Order Integration from t=" << startTime << " to t=" << endTime << " with initial step size " << this->options.stepSize << ".\n";
 	while ((currentTime - endTime) * forward < 0.0)
 	{
 		heff = std::min(this->options.stepSize, std::abs(endTime - currentTime)) * forward;
@@ -230,12 +303,19 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 
 		if(!attempt_ok) 
 		{
-			throw std::runtime_error(std::format("Gauss-Legendre 2nd Order method failed to converge at t≈{}; residual={:.3e}; last htry={:.3e}", currentTime, stepRes.residualNorm, htry);
+			throw std::runtime_error(std::format("Gauss-Legendre 2nd Order method failed to converge at t≈{}; residual={:.3e}; last htry={:.3e}", currentTime, stepRes.residualNorm, htry));
 		}
 
 		// Step successful, update state and time
 		cudaMemcpyAsync(this->devTempState, this->devTempNextState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream);
-		progressBar->set_progress(to_percent(currentTime, endTime, startTime));
+		percent = to_percent(currentTime, startTime, endTime);
+		if(percent != previousPercent) {
+			progressBar->set_progress(percent);
+			// std::cout << percent << "% completed.\n";
+			previousPercent = percent;
+		}
+
+		//progressBar->set_progress();
 		currentTime += htry;
 		this->options.stepSize = std::abs(htry); // Update step size for next iteration
 
@@ -245,18 +325,20 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 			appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
 		}
 	}
+	indicators::show_console_cursor(true);
 	return OdeSolverResult::ReachedEndTime;
 }
 
 template<size_t N>
 void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 {
+	size_t stateSizeBytes = 3 * N * sizeof(double);
 	if (onDevice) {
 		this->devState = initialState;
 	}
 	else {
 		devStateOwned = true;
-		size_t stateSizeBytes = 3 * N * sizeof(double); // x, y, phi each of size N.
+		 // x, y, phi each of size N.
 		cudaError_t err = cudaMalloc(&this->devState, stateSizeBytes);
 		if (err != cudaSuccess) {
 			throw std::runtime_error("Failed to allocate device memory for initial state.");
@@ -267,36 +349,36 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 		}
 	}
 
-	checkCuda(cudaMallocAsync(&this->devTempState, stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
-	checkCuda(cudaMallocAsync(&this->devTempNextState, stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->devTempState, stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	checkCuda(cudaMallocAsync(&this->devTempNextState, stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
 
 	// Also allocate k1, k2, y1, y2
-	checkCuda(cudaMallocAsync(&this->k1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->k1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
 	this->k2 = this->k1 + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->y1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->y1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
 	this->y2 = this->y1 + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->R, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->R, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
 	this->R1 = this->R;
 	this->R2 = this->R + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->devfY1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->devfY1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
 	this->devfY2 = this->devfY1 + 3 * N;
 
 	cublasCreate(&this->cublasHandle);
 
 	// allocate the space for the jacobians
-	checkCuda(cudaMallocAsync(&this->devJFrozen, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__));
-	checkCuda(cudaMallocAsync(&this->devJ1, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__));
-	checkCuda(cudaMallocAsync(&this->devJ2, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->devJFrozen, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
+	checkCuda(cudaMallocAsync(&this->devJ1, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
+	checkCuda(cudaMallocAsync(&this->devJ2, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
 
-	checkCuda(cudaMallocAsync(&this->devM, 4 * (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__));
-	checkCuda(cudaMallocAsync(&this->dK, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->devM, 4 * (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
+	checkCuda(cudaMallocAsync(&this->dK, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
 	this->dK1 = this->dK;
 	this->dK2 = this->dK + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->ktrial, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__));
+	checkCuda(cudaMallocAsync(&this->ktrial, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
 	this->ktrial1 = this->ktrial;
 	this->ktrial2 = this->ktrial + 3 * N;
 }
@@ -401,8 +483,8 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 	problem.setStream(this->stream);
 	problem.run(devCurrentState, k_local);
 	cudaMemcpyAsync(k2_local, k_local, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream);
-
-	for (int iteration = 0; iteration < this->options.maxNewtonIterations; ++iteration)
+	int iteration;
+	for (iteration = 0; iteration < this->options.maxNewtonIterations; ++iteration)
 	{
 		this->residualAndPhi(devCurrentState, k1_local, k2_local, stepSize, this->stagingRes);
 		if (this->stagingRes.residualNorm <= this->options.newtonTolerance * (1.0 + this->stagingRes.normK)) 
@@ -465,7 +547,7 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 				{
 					freezeJacobian = true;
 					simplifiedUsed = true;
-					jacobianCalculator.calculateJacobian(this->devCurrentState, this->devJFrozen);
+					jacobianCalculator.calculateJacobian(devCurrentState, this->devJFrozen);
 					break; // break the line search and continue with frozen Jacobian
 				}
 				else
@@ -495,72 +577,6 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 	result.simplifiedFallbackUsed = simplifiedUsed;
 }
 
-__global__ void calculateNextStateKernel(const double* devY, const double stepSize, const double* k1, const double* k2, double* devYnext, const GL_Coefficients coeffs, const size_t N)
-{
-	// ynext = devY + stepSize * ( B1 * k1 + B2 * k2 ) // devY, k1 k2 are two vectors of size 3N
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < 3 * N) {
-		devYnext[idx] = devY[idx] + stepSize * (coeffs.b1 * k1[idx] + coeffs.b2 * k2[idx]);
-	}
-}
-
-__global__ void stageStatesKernel(const double* devY, const double stepSize, const double* k1, const double* k2, double* y1, double* y2, const GL_Coefficients coeffs, const size_t N)
-{
-	// y1 = devY + stepSize * ( A11 * k1 + A12 * k2 ) // devY, k1 k2 are two vectors of size 3N
-	// y2 = devY + stepSize * ( A21 * k1 + A22 * k2 )
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < 3 * N) {
-		y1[idx] = devY[idx] + stepSize * (coeffs.A11 * k1[idx] + coeffs.A12 * k2[idx]);
-		y2[idx] = devY[idx] + stepSize * (coeffs.A21 * k1[idx] + coeffs.A22 * k2[idx]);
-	}
-}
-
-__global__ void createKTrial(const double* k1, const double* k2, const double alpha, const double* dK1, const double* dK2, double* ktrial1, double* ktrial2, const size_t N)
-{
-	// ktrial1 = k1 + alpha * dK1
-	// ktrial2 = k2 + alpha * dK2
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < 3 * N) {
-		ktrial1[idx] = k1[idx] + alpha * dK1[idx];
-		ktrial2[idx] = k2[idx] + alpha * dK2[idx];
-	}
-}
-
-__global__ void fillMMatrix(const double* devJ1, const double* devJ2, const double stepSize, const GL_Coefficients coeffs, double* devM, const size_t N){
-	// M = [ I - h * A11 * J1,   - h * A12 * J2
-	//       - h * A21 * J1,     I - h * A22 * J2 ]
-	size_t row = blockIdx.y * blockDim.y + threadIdx.y;
-	size_t col = blockIdx.x * blockDim.x + threadIdx.x;
-	if (row < 3 * N && col < 3 * N) {
-		// Top-left block
-		devM[row * (6 * N) + col] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A11 * devJ1[row * (3 * N) + col];
-		// Top-right block
-		devM[row * (6 * N) + (col + 3 * N)] = -stepSize * coeffs.A12 * devJ2[row * (3 * N) + col];
-		// Bottom-left block
-		devM[(row + 3 * N) * (6 * N) + col] = -stepSize * coeffs.A21 * devJ1[row * (3 * N) + col];
-		// Bottom-right block
-		devM[(row + 3 * N) * (6 * N) + (col + 3 * N)] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A22 * devJ2[row * (3 * N) + col];
-	}
-}
-
-__global__ void multiplyVector(const double a, double* v, double* vout, size_t N) 
-{
-		size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-		if (idx >= N) return;
-
-		vout[idx] = a * v[idx];
-}
-
-__global__ void computeResidualsKernel(const double* fY1, const double* fY2, const double* k1, const double* k2, double* R1, double* R2, const size_t N){
-	// R1 = k1 - fY1
-	// R2 = k2 - fY2
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < 3 * N) {
-		R1[idx] = k1[idx] - fY1[idx];
-		R2[idx] = k2[idx] - fY2[idx];
-	}
-}
 
 template<size_t N>
 void GaussLegendre2<N>::stageStates(const double* devY, const double stepSize)
@@ -588,8 +604,8 @@ void GaussLegendre2<N>::residualAndPhi(const double* devY, const double* k1, con
 	// compute the residuals
 	computeResidualsKernel << <(3 * N + 255) / 256, 256, 0, this->stream >> > (this->devfY1, this->devfY2, k1, k2, this->R1, this->R2, N);
 	// compute R dot R
-	cublasDdot(handle, 3*N, this->R, 1, this->R, 1, &stagingResult.phi);
-	cublasDdot(handle, 6 * N, k1, 1, k1, 1, &stagingResult.normK); // important that k1 and k2 are contiguous in memory!
+	cublasDdot(cublasHandle, 3*N, this->R, 1, this->R, 1, &stagingResult.phi);
+	cublasDdot(cublasHandle, 6 * N, k1, 1, k1, 1, &stagingResult.normK); // important that k1 and k2 are contiguous in memory!
 	
 	stagingResult.residualNorm = std::sqrt(stagingResult.phi);
 	stagingResult.phi *= 0.5;

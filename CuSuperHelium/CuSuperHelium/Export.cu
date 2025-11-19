@@ -630,7 +630,7 @@ int calculatePerturbedStates256(const double* x, const double* y, const double* 
 }
 
 template <size_t N>
-int integrateSimulationGL2_N(const double* initialState, double** statesOut, size_t* statesCount,
+int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* statesCount,
 	double** timesOut, size_t* timesCount,
 	SimProperties* simProperties, GaussLegendreOptions* glCOptions)
 {
@@ -677,7 +677,7 @@ int integrateSimulationGL2_N(const double* initialState, double** statesOut, siz
 }
 
 
-int integrateSimulationGL2(const double* initialState, double** statesOut, size_t* statesCount,
+int integrateSimulationGL2(double* initialState, double** statesOut, size_t* statesCount,
 	double** timesOut, size_t* timesCount,
 	SimProperties* simProperties, GaussLegendreOptions* glCOptions, size_t N) 
 {
@@ -707,6 +707,7 @@ int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut)
 {
 	std::free(statesOut);
 	std::free(timesOut);
+	return 0;
 }
 
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)

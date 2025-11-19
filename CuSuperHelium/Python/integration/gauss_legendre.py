@@ -213,7 +213,7 @@ def integrate_gl2(
     if show_progress:
         pbar = tqdm(total=abs(t1 - t0), desc="Integrating", unit="t-units")
         last_t = t
-
+    
     while (t - t1) * forward < 0.0:
         # choose h_eff so we land exactly on t1
         h_eff = min(h, abs(t1 - t)) * forward

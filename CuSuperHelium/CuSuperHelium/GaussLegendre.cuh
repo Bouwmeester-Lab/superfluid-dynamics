@@ -250,7 +250,7 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 	{
 		/*checkCuda(cudaMallocAsync(&this->devTimes, (nSteps + 1) * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 85));
 		linspace<<<(nSteps + 1 + 255) / 256, 256, 0, this->stream>>>(this->devTimes, startTime, endTime, nSteps + 1);*/
-
+		this->devTimes.push_back(startTime);
 		appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
 	}
 

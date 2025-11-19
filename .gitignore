@@ -402,6 +402,9 @@ FodyWeavers.xsd
 /CuSuperHelium/CuSuperHelium/temp/frames
 CuSuperHelium/CuSuperHelium/temp/*.h5
 CuSuperHelium/CuSuperHelium/temp/dispersion_test_0.00001.h5
+/CuSuperHelium/CuSuperHelium.App/temp
+/CuSuperHelium/Python/integration/files
+CuSuperHelium/Python/data/*
 /CuSuperHelium/Python/data
 /CuSuperHelium/Python/integration/files/data.h5
 /CuSuperHelium/Python/integration/files/rhs_test.h5

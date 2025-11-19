@@ -7,6 +7,8 @@
 #include "ExportTypes.cuh"
 #include "Derivatives.cuh"
 #include "JacobianCalculator.cuh"
+#include "RealBoundaryIntegralCalculator.cuh"
+#include "GaussLegendre.cuh"
 #include <chrono>
 
 extern "C" 
@@ -44,6 +46,21 @@ extern "C"
 	__declspec(dllexport) int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, int batchSize);
 
 	__declspec(dllexport) int calculatePerturbedStates256(const double* x, const double* y, const double* phi, c_double* Zperturbed, double L, double rho, double kappa, double depth, double epsilon);
+	/// <summary>
+	/// Runs a Gauss-Legendre integration simulation with the given initial state and simulation properties.
+	/// Remember to free the allocated memory for statesOut and timesOut using integrateSimulationGL2_freeMemory!!
+	/// </summary>
+	/// <param name="initialState">Initial state provided by caller</param>
+	/// <param name="statesOut">A double** for storing the states recorded if recording is enabled. If not, the code will return a single 3*N vector representing the final state.</param>
+	/// <param name="statesCount">Number of states of size 3*N saved, if no recording enabled, this will be 1 (the final state).</param>
+	/// <param name="timesOut">A dynamically created array to store all the times recorded.</param>
+	/// <param name="timesCount">Number of times recorded. This is 0 if recording is disabled.</param>
+	/// <param name="simProperties"></param>
+	/// <param name="glCOptions"></param>
+	/// <returns></returns>
+	__declspec(dllexport) int integrateSimulationGL2(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, GaussLegendreOptions* glCOptions, size_t N);
+	__declspec(dllexport) int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut);
+
 	ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium = 150);
 }
 

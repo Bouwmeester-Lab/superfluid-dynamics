@@ -86,7 +86,14 @@ __global__ void add_k_vectors(std_complex* k1, std_complex* k2, std_complex* k3,
 void checkCuda(cudaError_t result);
 void checkCusolver(cusolverStatus_t status);
 
-
+__global__ void linspace(double start, double end, double* out, int steps) 
+{
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < steps) 
+    {
+        out[tid] = start + tid * (end - start) / (steps - 1);
+	}
+}
 
 /// <summary>
 /// Multiplies the coefficients of two complex vectors element-wise

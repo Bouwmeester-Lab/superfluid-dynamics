@@ -113,6 +113,8 @@
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export.cuh" />
     <ClInclude Include="ExportTypes.cuh" />
+    <ClInclude Include="GaussLegendre.cuh" />
+    <ClInclude Include="GLCoefficients.hpp" />
     <ClInclude Include="JacobianCalculator.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
@@ -121,6 +123,7 @@
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
+    <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="Reductions.cuh" />
     <ClInclude Include="RK45.cuh" />
     <ClInclude Include="RK45_Kernels.cuh" />
@@ -130,6 +133,7 @@
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="SolitonPeak.h" />
     <ClInclude Include="ValueLogger.h" />
+    <ClInclude Include="VectorUtilities.cuh" />
     <ClInclude Include="VideoMaking.h" />
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />

@@ -1,5 +1,5 @@
 import ctypes, os, sys
-from ctypes import c_double, c_size_t, c_char_p, c_char, POINTER, create_string_buffer, c_int, Structure
+from ctypes import c_bool, c_double, c_size_t, c_char_p, c_char, POINTER, create_string_buffer, c_int, Structure, byref
 from typing import Self
 import scipy.special as sp
 import numpy as np
@@ -22,6 +22,25 @@ from pathlib import Path
 
 
 # print(paths)
+class CSimulationProperties(Structure):
+        _fields_ = [("L", c_double),
+                    ("rho", c_double),
+                    ("kappa", c_double),
+                    ("depth", c_double)
+                    ]
+class CGaussLegendreProperties(Structure):
+    _fields_ = [("t0", c_double),
+                ("t1", c_double),
+                ("stepSize", c_double),
+                ("newtonTolerance", c_double),
+                ("maxNewtonIterations", c_size_t),
+                ("allowSimplifiedFallback", c_bool),
+                ("returnTrajectory", c_bool),
+                ("armijo_c", c_double),
+                ("backtrack", c_double),
+                ("minAlpha", c_double),
+                ("maxStepsHalves", c_size_t)
+                ]
 
 class SimulationManager:
     def __init__(self, dll_path: str | None = None):
@@ -108,6 +127,7 @@ class SimulationManager:
 
     class CDouble(Structure):
         _fields_ = [("re", c_double), ("im", c_double)]
+    
 
     def calculate_vorticities256_from_vectors(self : Self, Z : NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
@@ -177,6 +197,50 @@ class SimulationManager:
             raise ValueError("Input arrays must have the same length")
         J = np.ones((3*n, 3*n), dtype=np.float64, order='F')*100
         return self.lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, L, rho, kappa, depth, epsilon, n), J
+    
+    def integrate(self : Self, y0 : NDArray, sim_props : CSimulationProperties, gl_props : CGaussLegendreProperties):
+        self.lib.integrateSimulationGL2.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                       POINTER(POINTER(c_double)),
+                                       POINTER(c_size_t),
+                                       POINTER(POINTER(c_double)),
+                                       POINTER(c_size_t),
+                                       CSimulationProperties,
+                                       CGaussLegendreProperties,
+                                       c_size_t)
+        self.lib.integrateSimulationGL2_freeMemory.argtypes = (POINTER(c_double), POINTER(c_double))
+        self.lib.integrateSimulationGL2_freeMemory.restype = int
+                                       
+        self.lib.integrateSimulationGL2.restype = c_int
+
+        n = y0.shape[0] // 3
+        states_ptr  = POINTER(c_double)()
+        states_len  = c_size_t()
+        times_ptr   = POINTER(c_double)()
+        times_len   = c_size_t()
+
+        res = self.lib.integrateSimulationGL2(np.ascontiguousarray(y0), byref(states_ptr), byref(states_len), byref(times_ptr), byref(times_len), sim_props, gl_props, n)
+        try:
+            if res != 0:
+                return res, None, None
+            
+            states = np.ctypeslib.as_array(states_ptr, shape=(states_len.value, y0.shape[0]))
+            times = np.ctypeslib.as_array(times_ptr, shape=(times_len.value ,))
+
+            states_np = np.array(states, copy=True)
+            times_np  = np.array(times, copy=True)
+
+            return res, times_np, states_np
+        except Exception as e:
+            print("Error during integration result processing: ", e)
+            return -1, None, None
+        finally:
+            if not states_ptr and not times_ptr:
+                return res, None, None
+            # empty the allocated memory in C++
+            self.lib.integrateSimulationGL2_freeMemory(states_ptr, times_ptr)
+        
+
+        
 
 # with h5py.File(os.path.join(path, filename), 'w') as f:
 #     dset = f.create_dataset("interface", data=Z, shape=(256, 2), dtype=np.float64)

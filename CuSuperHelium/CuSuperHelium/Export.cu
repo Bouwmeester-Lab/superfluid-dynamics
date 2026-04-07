@@ -1,5 +1,16 @@
 #include "Export.cuh"
 //#include "SimulationFunctions.cuh"
+void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
+{
+	properties.rho = simProperties.rho;
+	properties.kappa = simProperties.kappa;
+	properties.depth = simProperties.depth;
+
+	properties.expansion_order = simProperties.expansion_order;
+	properties.use_expansions = simProperties.use_expansions;
+
+	properties.infinite_depth = simProperties.infinite_depth;
+}
 
 int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps)
 {
@@ -636,11 +647,13 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 {
 	try {
 		ProblemProperties properties;
-		properties.rho = simProperties->rho;
-		properties.kappa = simProperties->kappa;
-		properties.depth = simProperties->depth;
+		copyProperties(*simProperties, properties);
+		std::cout << "Properties copied." << std::endl;
+		std::cout << "Using expansions: " << properties.use_expansions << " with order " << properties.expansion_order << std::endl;
+		
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, simProperties->L);
+		std::cout << "depth: " << properties.depth << ", kappa: " << properties.kappa << ", rho: " << properties.rho << std::endl;
 		// create the options for GL
 		GaussLegendre2Options glOptions = createOptionsFromCOptions(*glCOptions);
 
@@ -710,6 +723,30 @@ int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut)
 	return 0;
 }
 
+template <size_t N>
+int integrateSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4Options* rkOptions)
+{
+	try {
+		ProblemProperties properties;
+		copyProperties(*simProperties, properties);
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, simProperties->L);
+
+
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+}
+
+
+
+int integrateSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N)
+{
+	return 0;
+}
+
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)
 {
 	double L0 = L / (2.0 * PI_d); // characteristic length
@@ -723,3 +760,5 @@ ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, d
 
 	return props;
 }
+
+

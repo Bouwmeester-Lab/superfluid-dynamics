@@ -4,6 +4,9 @@
     <CudaCompile Include="Export.cu">
       <Filter>Export</Filter>
     </CudaCompile>
+    <CudaCompile Include="LightIntensity.cuh">
+      <Filter>Optomechanics</Filter>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Water">
@@ -23,6 +26,9 @@
     </Filter>
     <Filter Include="Gauss Legendre">
       <UniqueIdentifier>{7a673252-b33f-4d69-bca2-5206892e5699}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Optomechanics">
+      <UniqueIdentifier>{69c9c412-39d8-4f66-8622-0cf9ad00306c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -97,5 +103,11 @@
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
+    <ClInclude Include="DelayedIntensityTerm.cuh">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="OptomechanicalVariables.h">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

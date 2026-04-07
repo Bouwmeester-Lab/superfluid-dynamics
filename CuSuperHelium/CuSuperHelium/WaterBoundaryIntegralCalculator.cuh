@@ -15,6 +15,7 @@
 #include "MatrixSolver.cuh"
 #include "AutonomousProblem.h"
 #include "Energies.cuh"
+#include "DelayedIntensityTerm.cuh"
 
 #include "matplotlibcpp.h"
 
@@ -63,7 +64,7 @@ public:
 		std_complex* velocities,
 		ProblemProperties& properties,
 		bool lower) = 0;
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) = 0;
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time = 0.0) = 0;
 	virtual void CalculateEnergy(const DevicePointers& devPointers, cudaStream_t stream)
 	{
 		energyContainer.CalculateEnergy(devPointers, stream); ///< Calculate the energies based on the device pointers containing the state variables
@@ -134,7 +135,7 @@ public:
 		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp,properties.depth,  N, V1, V2, lower, batchSize, properties.infinite_depth);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time = 0.0) override
 	{
 		if (properties.use_expansions) 
 		{
@@ -145,6 +146,60 @@ public:
 			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, batchSize * N);
 		else
 			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N);
+	}
+};
+//
+template <int N>
+class HeliumWithOptomechanicalDrivingProblem : public BoundaryProblem<N, 1>
+{
+	VelocityCalculator<N, 1> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	DelayedIntensityTerm<N> delayedIntensityTerm; ///< Delayed intensity term for modeling the optomechanical driving in the helium boundary problem
+	LightIntensity lightIntensity;
+public:
+	HeliumWithOptomechanicalDrivingProblem(ProblemProperties& properties, OptomechanicalVariables optomechanicalVariables) : BoundaryProblem<N, 1>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)),
+		velocityCalculator(), delayedIntensityTerm(optomechanicalVariables), lightIntensity(optomechanicalVariables)
+	{
+		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
+	}
+
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
+	{
+		createFiniteDepthMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, N, 1, properties.infinite_depth);
+	}
+
+	virtual void CalculateVelocities(const std_complex* Z,
+		const std_complex* Zp,
+		const std_complex* Zpp,
+		std_complex* a,
+		std_complex* aprime,
+		std_complex* V1,
+		std_complex* V2,
+		std_complex* velocities,
+		ProblemProperties& properties,
+		bool lower) override
+	{
+		// create the V1 matrix and V2 diagonal vector
+		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, properties.depth, N, V1, V2, lower, 1, properties.infinite_depth);
+		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
+	}
+
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time = 0.0) override
+	{
+
+		// do all the calculations as it was without the driving or loss terms.
+		if (properties.use_expansions)
+		{
+			compute_rhs_helium_phi_expression_expansion_terms << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, 1 * N, properties.expansion_order);
+			return;
+		}
+		if (properties.kappa != 0.0)
+			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, 1 * N);
+		else
+			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, 1 * N);
+		;
+		/// add the driving terms
+		add_optical_field_drive_terms << <this->blocks, this->threads >> > (result, time, problemPointers.Z, lightIntensity, delayedIntensityTerm.device_view());
+
 	}
 };
 
@@ -176,14 +231,14 @@ public:
 		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time = 0.0) override
 	{
 		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N);
 	}
 };
 
 template<int N, size_t batchSize>
-class BoundaryIntegralCalculator final : public AutonomousProblem<std_complex, 2*N*batchSize>
+class BoundaryIntegralCalculator final : public AutonomousProblem<std_complex, 2*N*batchSize>, public IntegrableProblem<std_complex, 2*N*batchSize>
 {
 public:
 	BoundaryIntegralCalculator(ProblemProperties& problemProperties, BoundaryProblem<N, batchSize>& boundaryProblem);
@@ -193,6 +248,7 @@ public:
 
 	
 	void runTimeStep(const std_complex* initialState, std_complex* rhs);
+	void runTimeStep(const std_complex* initialState, double time, std_complex* rhs);
 	void calculateVorticities(const std_complex* initialState);
 	double* getDevA() ///< Getter for the device pointer to the vorticities array
 	{
@@ -206,6 +262,8 @@ public:
 	} ///< Getter for the device pointer to the Zpp array
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override;
+	virtual void run(std_complex* initialState, double time, std_complex* rhs) override;
+
 
 	// TODO: implement the setStream function to allow for asynchronous operations
 	virtual void setStream(cudaStream_t stream) override
@@ -309,6 +367,12 @@ BoundaryIntegralCalculator<N, batchSize>::~BoundaryIntegralCalculator()
 template<int N, size_t batchSize>
 inline void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex* initialState, std_complex* rhs)
 {
+	runTimeStep(initialState, 0.0, rhs); // Call the overloaded runTimeStep function with a default time value of 0.0
+}
+
+template<int N, size_t batchSize>
+void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex* initialState, double time, std_complex* rhs)
+{
 	// set the right-hand pointers using the rhs pointer, this creates the variables in here to avoid global variables
 	std_complex* const devVelocitiesLower = rhs; // Device pointer for the velocities of the lower fluid
 	std_complex* const devRhsPhi = rhs + batchSize * N; // Device pointer for the right-hand side of the phi equation
@@ -323,7 +387,7 @@ inline void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_comp
 
 	//cudaDeviceSynchronize(); // wait for the solver to finish
 
-	
+
 	//cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
 	std::vector<double> PhiPrime_host(N, 0);
 	std::vector<double> xprime(N, 0.0);
@@ -332,12 +396,12 @@ inline void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_comp
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 	std::vector<double> y(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
 
-	std::vector<cuDoubleComplex> ZPhi_host(2*N, make_cuDoubleComplex(0,0));
+	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));
 	std::vector<cuDoubleComplex> ZPhiPrime_host(2 * N, make_cuDoubleComplex(0, 0)); // Host vectors to store the results of  ZPhiPrime
 	std::vector<double> Phi(N, 0);
 
 	cudaMemcpy(ZPhiPrime_host.data(), devZ, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-	cudaMemcpy(ZPhi_host.data(), devZ, 2*N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the Phi from device to host for debugging or further processing
+	cudaMemcpy(ZPhi_host.data(), devZ, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the Phi from device to host for debugging or further processing
 	cudaMemcpy(PhiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
 
 	for (int i = 0; i < 2 * N; i++)
@@ -367,13 +431,13 @@ inline void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_comp
 	plt::plot(y); // Plot the imaginary part of ZPhi
 	plt::plot(yprime);
 
-	std::vector<cuDoubleComplex> a_host(N, make_cuDoubleComplex(0,0));
-	
+	std::vector<cuDoubleComplex> a_host(N, make_cuDoubleComplex(0, 0));
+
 #endif
 	real_to_complex << <blocks, threads >> > (deva, devaComplex, batchSize * N); // Convert the real vorticities to complex form for velocity calculations
 	//
-	fftDerivative.exec(devaComplex, devaprime, false, 2.0*PI_d / N); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
-	
+	fftDerivative.exec(devaComplex, devaprime, false, 2.0 * PI_d / N); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
+
 	//force_real_only << <blocks, threads >> > (devaprime, N); // Force the imaginary part of the primed vorticities to be zero
 #ifdef DEBUG_DERIVATIVES_3
 	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
@@ -401,8 +465,8 @@ inline void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_comp
 	plt::figure();
 	//plt::plot(x, Phi, { {"label", "Phi'"} });
 	plt::title("a, aprime");
-	plt::plot(x, aHost, {{"label", "a"}});
-	plt::plot(x, aPrimeReal, {{"label", "a prime"}});
+	plt::plot(x, aHost, { {"label", "a"} });
+	plt::plot(x, aPrimeReal, { {"label", "a prime"} });
 	plt::legend();
 #endif
 	//plt::show();
@@ -434,7 +498,7 @@ inline void BoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_comp
 	// 7. the RHS of the X, Y are the velocities above.
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	/*calculatePhiRhs();*/
-	boundaryProblem.CalculateRhsPhi(problemPointers, devRhsPhi, problemProperties); // Calculate the right-hand side of the phi equation
+	boundaryProblem.CalculateRhsPhi(problemPointers, devRhsPhi, problemProperties, time); // Calculate the right-hand side of the phi equation
 
 	// calculate the evolution constants like the energy:
 	//kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
@@ -484,6 +548,12 @@ void BoundaryIntegralCalculator<N, batchSize>::run(std_complex* initialState, st
 {
 	
 	this->runTimeStep(initialState, rhs); // Run the time step calculation
+}
+
+template<int N, size_t batchSize>
+void BoundaryIntegralCalculator<N, batchSize>::run(std_complex* initialState, double time, std_complex* rhs)
+{
+	this->runTimeStep(initialState, time, rhs); // Run the time step calculation with a specified time value
 }
 
 #endif // TIMESTEP_MANAGER_H

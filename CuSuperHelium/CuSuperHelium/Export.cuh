@@ -61,6 +61,9 @@ extern "C"
 	__declspec(dllexport) int integrateSimulationGL2(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, GaussLegendreOptions* glCOptions, size_t N);
 	__declspec(dllexport) int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut);
 
+	__declspec(dllexport) int integrateSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N);
+	__declspec(dllexport) int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut);
+
 	ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium = 150);
 }
 

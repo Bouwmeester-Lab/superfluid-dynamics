@@ -10,6 +10,13 @@ extern "C"
 		double rho;
 		double kappa;
 		double depth;
+
+		// for using expansions
+		bool use_expansions;
+		int expansion_order;
+
+		// infinite_depth?
+		bool infinite_depth = false;
 	};
 	struct GaussLegendreOptions
 	{
@@ -24,6 +31,12 @@ extern "C"
 		double backtrack = 0.5;
 		double minAlpha = 1e-6;
 		size_t maxStepsHalves = 6;
+	};
+	struct RK4SolverOptions {
+		double timeStep;
+		double t0;
+		double t1;
+		bool returnTrajectory = true;
 	};
 
 }

@@ -26,7 +26,10 @@ class CSimulationProperties(Structure):
         _fields_ = [("L", c_double),
                     ("rho", c_double),
                     ("kappa", c_double),
-                    ("depth", c_double)
+                    ("depth", c_double),
+                    ("use_expansions", c_bool),
+                    ("expansion_order", c_int),
+                    ("infinite_depth", c_bool)
                     ]
 class CGaussLegendreProperties(Structure):
     _fields_ = [("t0", c_double),

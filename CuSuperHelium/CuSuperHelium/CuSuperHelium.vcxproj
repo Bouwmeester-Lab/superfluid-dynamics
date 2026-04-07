@@ -108,6 +108,7 @@
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="DataLogger.cuh" />
+    <ClInclude Include="DelayedIntensityTerm.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
@@ -116,9 +117,11 @@
     <ClInclude Include="GaussLegendre.cuh" />
     <ClInclude Include="GLCoefficients.hpp" />
     <ClInclude Include="JacobianCalculator.cuh" />
+    <CudaCompile Include="LightIntensity.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="OdeSolver.h" />
+    <ClInclude Include="OptomechanicalVariables.h" />
     <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />

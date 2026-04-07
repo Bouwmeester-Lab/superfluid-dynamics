@@ -27,6 +27,19 @@ public:
 	virtual void setStream(cudaStream_t stream) = 0;
 };
 
+template <typename T, int N>
+class IntegrableProblem {
+	public:
+	IntegrableProblem()
+	{
+	}
+	virtual ~IntegrableProblem()
+	{
+	}
+	virtual void run(T* initialState, double time, T* rhs) = 0;
+	virtual void setStream(cudaStream_t stream) = 0;
+};
+
 template<typename T, int N, size_t batchSize>
 class BatchedAutonomousProblem
 {

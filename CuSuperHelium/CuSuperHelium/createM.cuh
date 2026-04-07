@@ -13,6 +13,8 @@
 #include "constants.cuh"
 #include <cufft.h>
 #include "utilities.cuh"
+#include "DelayedIntensityTerm.cuh"
+#include "LightIntensity.cuh"
 
 __global__ void createMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho, int n, size_t batchSize);
 __global__ void createFiniteDepthMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h, int n, size_t batchSize, bool infinite_depth = false);
@@ -110,6 +112,17 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
         double vdw = h / 3.0; //  20.447761896665416 *
         //printf("coeff before van der waals term: %.10e\n", vdw);
 		result[i] = vdw * cuda::std::pow(1.0 + Z[i].imag() / h, -3.0) - vdw + 0.5 * V1[i].real() * V1[i].real() + 0.5* V1[i].imag() * V1[i].imag(); // we can try to add the surface tension term
+    }
+}
+
+template <size_t N>
+__global__ void add_optical_field_drive_terms(std_complex* result, const double currentTime, const std_complex* Z, const LightIntensity lightIntensity,  const DelayedIntensityTermDevice<N>& delayedIntensityTerm)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+		double intensity = lightIntensity.compute_intensity(Z[i].imag());
+        result[i] += delayedIntensityTerm.calculate_new_delayed_intensity(currentTime, intensity, i);
+		result[i] += lightIntensity.get_current_intensity_drive_strength() * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
     }
 }
 

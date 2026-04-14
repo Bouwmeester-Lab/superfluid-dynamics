@@ -36,6 +36,9 @@
     <Filter Include="Boundary Integrators">
       <UniqueIdentifier>{31672fc2-4ee7-454f-bd81-1864003083ae}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Ode Integrators">
+      <UniqueIdentifier>{3133c457-5d75-415e-85eb-1b8888e6f57a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -137,6 +140,9 @@
     </ClInclude>
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh">
       <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="RK4_Time_Dependent.cuh">
+      <Filter>Ode Integrators</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

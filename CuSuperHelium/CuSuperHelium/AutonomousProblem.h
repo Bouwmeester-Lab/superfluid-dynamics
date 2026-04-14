@@ -37,6 +37,7 @@ class IntegrableProblem {
 	{
 	}
 	virtual void run(T* initialState, double time, T* rhs) = 0;
+	virtual void commitStep(double time) = 0;
 	virtual void setStream(cudaStream_t stream) = 0;
 };
 

@@ -22,14 +22,15 @@ struct DelayedIntensityTermDevice
         double lightIntensityFelt,
         size_t index)
     {
-        double value =
-            exp(- (currentTime - *prev_time) / variables.Tau) * delayed_intensity[index]
+        return exp(-(currentTime - *prev_time) / variables.Tau) * delayed_intensity[index]
             + lightIntensityFelt;
-
-        delayed_intensity[index] = value;
-        *prev_time = currentTime;
-        return value;
     }
+
+    __device__ void save_value(double value, double time, size_t index)
+    {
+        delayed_intensity[index] = value;
+		*prev_time = time;
+	}
 };
 
 template <size_t N>

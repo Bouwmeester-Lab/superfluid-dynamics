@@ -20,7 +20,8 @@ public:
 
 	double initial_time = 0.0;
 
-
+	double location_x0_mode = 0.0;
+	double sigma_optical_mode = 1.0;
 	// 
 	double Beta;
 	const double hbar = 1.0545718e-34; // Planck's constant over 2pi

@@ -116,13 +116,19 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
 }
 
 template <size_t N>
-__global__ void add_optical_field_drive_terms(std_complex* result, const double currentTime, const std_complex* Z, const LightIntensity lightIntensity,  const DelayedIntensityTermDevice<N>& delayedIntensityTerm)
+static __global__ void add_optical_field_drive_terms(std_complex* result, const double currentTime, const std_complex* Z,  const DelayedIntensityTermDevice<N>& delayedIntensityTerm, OptomechanicalVariables variables, bool saveProgress = false)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
-		double intensity = lightIntensity.compute_intensity(Z[i].imag());
-        result[i] += delayedIntensityTerm.calculate_new_delayed_intensity(currentTime, intensity, i);
-		result[i] += lightIntensity.get_current_intensity_drive_strength() * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
+		double intensity = LightIntensity::compute_intensity(Z[i].imag(), Z[i].real(), variables);
+        double delayedIntensity = delayedIntensityTerm.calculate_new_delayed_intensity(currentTime, intensity, i);
+
+        if (saveProgress) {
+			delayedIntensityTerm.save_value(delayedIntensity, currentTime, i);
+        }
+
+        result[i] += delayedIntensity;
+		result[i] += LightIntensity::get_current_intensity_drive_strength() * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
     }
 }
 

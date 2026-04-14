@@ -9,19 +9,19 @@
 class LightIntensity
 {
 private:
-	OptomechanicalVariables variables;
+	//OptomechanicalVariables variables;
 public:
-	__device__ __host__ LightIntensity(OptomechanicalVariables variables) : variables(variables) {}
+	//__device__ __host__ LightIntensity(OptomechanicalVariables variables) : variables(variables) {}
 	__device__ __host__ LightIntensity() {}
 
-	__device__ __host__ double compute_intensity(double fluid_height) const
+	static __device__ __host__ double compute_intensity(double fluid_height, double x, OptomechanicalVariables variables)
 	{
 		double delta_f = variables.detuning - variables.G * fluid_height;
 
-		return variables.gamma * variables.gamma / 4.0 * variables.max_intensity / (delta_f * delta_f + (variables.gamma / 2) * (variables.gamma / 2));
+		return variables.gamma * variables.gamma / 4.0 * variables.max_intensity / (delta_f * delta_f + (variables.gamma / 2) * (variables.gamma / 2)) * exp(-pow(x - variables.location_x0_mode, 2) / (2 * pow(variables.sigma_optical_mode, 2)));
 	}
 
-	__device__ __host__ inline double get_current_intensity_drive_strength() const
+	static __device__ __host__ inline double get_current_intensity_drive_strength()
 	{
 		return  1.0; // Placeholder for the actual calculation of the current intensity drive strength based on the optomechanical variables.
 	}

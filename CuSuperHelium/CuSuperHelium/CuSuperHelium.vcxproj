@@ -104,6 +104,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AutonomousProblem.h" />
+    <ClInclude Include="BaseBoundaryIntegrator.cuh" />
+    <ClInclude Include="BoundaryProblem.cuh" />
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
@@ -116,6 +118,8 @@
     <ClInclude Include="ExportTypes.cuh" />
     <ClInclude Include="GaussLegendre.cuh" />
     <ClInclude Include="GLCoefficients.hpp" />
+    <ClInclude Include="HeliumBoundaryProblem.cuh" />
+    <ClInclude Include="HeliumWithDrivingBoundaryProblem.cuh" />
     <ClInclude Include="JacobianCalculator.cuh" />
     <CudaCompile Include="LightIntensity.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
@@ -135,14 +139,15 @@
     <ClInclude Include="SimulationOptions.h" />
     <ClInclude Include="SimulationRunner.cuh" />
     <ClInclude Include="SolitonPeak.h" />
+    <ClInclude Include="TimedBoundaryIntegrator.cuh" />
+    <ClInclude Include="TimedBoundaryProblem.cuh" />
     <ClInclude Include="ValueLogger.h" />
     <ClInclude Include="VectorUtilities.cuh" />
     <ClInclude Include="VideoMaking.h" />
     <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
+    <ClInclude Include="WaterBoundaryProblem.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
-  </ItemGroup>
-  <ItemGroup>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

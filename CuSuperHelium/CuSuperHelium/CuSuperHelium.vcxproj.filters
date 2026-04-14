@@ -30,6 +30,12 @@
     <Filter Include="Optomechanics">
       <UniqueIdentifier>{69c9c412-39d8-4f66-8622-0cf9ad00306c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Boundary Problems">
+      <UniqueIdentifier>{a48b9dff-79df-4ba3-bcd1-50ebc1dd27ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Boundary Integrators">
+      <UniqueIdentifier>{31672fc2-4ee7-454f-bd81-1864003083ae}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -37,7 +43,6 @@
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
-    <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
@@ -108,6 +113,30 @@
     </ClInclude>
     <ClInclude Include="OptomechanicalVariables.h">
       <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="TimedBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="WaterBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="HeliumBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="HeliumWithDrivingBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="BaseBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="TimedBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="WaterBoundaryIntegralCalculator.cuh">
+      <Filter>Boundary Integrators</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

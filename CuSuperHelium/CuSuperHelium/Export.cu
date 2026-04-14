@@ -34,7 +34,7 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, doubl
 		properties = adimensionalizeProperties(properties, L);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
 
 		std::vector<std::complex<double>> Z;
 		std::vector<double> Phi;
@@ -107,7 +107,7 @@ int calculateRHS256FromVectors(const double* x, const double* y, const double* p
 		properties = adimensionalizeProperties(properties, L);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
 
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
@@ -186,7 +186,7 @@ int calculateRHSNFromVectors(const double* x, const double* y, const double* phi
 		//std::cout << "Adimensionalized properties. " << std::endl;
 		HeliumBoundaryProblem<N, batchSize> heliumProblem(properties);
 		//std::cout << "Created HeliumBoundaryProblem. " << std::endl;
-		BoundaryIntegralCalculator<N, batchSize> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<N, batchSize> calculator(properties, heliumProblem);
 		//std::cout << "Created BoundaryIntegralCalculator. " << std::endl;
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
@@ -268,7 +268,7 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 		properties = adimensionalizeProperties(properties, L);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
 
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
@@ -406,7 +406,7 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 		{
 			
 			HeliumBoundaryProblem<N, 3 * N> heliumProblem(properties);
-			std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
+			std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
 
 
 			JacobianCalculator<N> jacobianCalculator(std::move(boundaryIntegralCalculatorPtr));
@@ -660,11 +660,11 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 
 		// calculators for the f(y)
 		HeliumBoundaryProblem<N, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
 		RealBoundaryItegralCalculator<N> realCalculator(calculator);
 		// calculators for the jacobian
 		HeliumBoundaryProblem<N, 3 * N> heliumJacProblem(properties);
-		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);
+		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);
 		JacobianCalculator<N> jacobianCalculator(std::move(jacBoundaryIntegralCalculatorPtr));
 
 

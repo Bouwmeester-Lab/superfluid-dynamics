@@ -21,9 +21,9 @@ public:
 		return variables.gamma * variables.gamma / 4.0 * variables.max_intensity / (delta_f * delta_f + (variables.gamma / 2) * (variables.gamma / 2)) * exp(-pow(x - variables.location_x0_mode, 2) / (2 * pow(variables.sigma_optical_mode, 2)));
 	}
 
-	static __device__ __host__ inline double get_current_intensity_drive_strength()
+	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables)
 	{
-		return  1.0; // Placeholder for the actual calculation of the current intensity drive strength based on the optomechanical variables.
+		return  variables.G; // Placeholder for the actual calculation of the current intensity drive strength based on the optomechanical variables.
 	}
 };
 

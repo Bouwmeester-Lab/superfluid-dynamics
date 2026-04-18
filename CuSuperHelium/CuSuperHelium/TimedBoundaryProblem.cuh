@@ -15,6 +15,8 @@ public:
 	virtual ~TimedBoundaryProblem() {}
 
 	virtual void CalculateTimeDependentRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time, bool saveProgress = true) = 0;
+
+	virtual void SetStartingTime(double time) = 0;
 };
 
 #endif // !TIMED_BOUNDARY_PROBLEM_H

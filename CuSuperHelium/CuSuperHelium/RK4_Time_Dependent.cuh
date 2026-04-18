@@ -2,106 +2,460 @@
 #ifndef RK4_TIME_DEPENDENT_H
 
 #include "TimedBoundaryIntegrator.cuh"
-#include "BondaryIntegrator.cuh"
+#include "BaseBoundaryIntegrator.cuh"
 #include "OdeSolver.h"
+#include "cublas_v2.h"
+#include "RK4Options.h"
+#include "DataLogger.cuh"
+#include "ValueLogger.h"
+#include <thrust/device_vector.h>
+#include "VectorUtilities.cuh"
+//struct RK4_Options {
+//	double timeStep = 1e-3;
+//	// Add more options as needed, such as error tolerances for adaptive time stepping
+//};
 
-struct RK4_Options {
-	double timeStep = 1e-3;
-	// Add more options as needed, such as error tolerances for adaptive time stepping
-};;
-
-template <int N, size_t batchSize>
-class RK4TimeDependent : public OdeSolver 
+template <typename T, int N>
+class RungeKuttaStepperBase : public OdeSolver
 {
-private:
-	TimedBoundaryIntegrator<N, batchSize>& integrator;
-	RK4_Options options;
-
-	// initial state
-	std_complex* devInitialState; ///< Device pointer to the initial state array (Z array + phi)
-
-
-	// arrays needed for calculating the stages of RK4
-	std_complex* devK1; ///< Device pointer to the k1 array (RHS for stage 1)
-	std_complex* devK2; ///< Device pointer to the k2 array (RHS for stage 2)
-	std_complex* devK3; ///< Device pointer to the k3 array (RHS for stage 3)
-	std_complex* devK4; ///< Device pointer to the k4 array (RHS for stage 4)
 public:
-	RK4TimeDependent(TimedBoundaryIntegrator<N, batchSize>& integrator) : integrator(integrator) 
+	RungeKuttaStepperBase(TimedProblem<T, N>& timedProblem, double tstep = 1e-2);
+	virtual ~RungeKuttaStepperBase();
+
+	void setTimeStep(double tstep)
 	{
-		cudaMalloc(&devK1, sizeof(std_complex) * 2 * N * batchSize); // Assuming the state consists of Z and phi, each of size N*batchSize
-		cudaMalloc(&devK2, sizeof(std_complex) * 2 * N * batchSize);
-		cudaMalloc(&devK3, sizeof(std_complex) * 2 * N * batchSize);
-		cudaMalloc(&devK4, sizeof(std_complex) * 2 * N * batchSize);
-	}
-	~RK4TimeDependent() 
-	{
-		cudaFree(devK1);
-		cudaFree(devK2);
-		cudaFree(devK3);
-		cudaFree(devK4);
+		timeStep = CastTo<T>(tstep);
+		halfTimeStep = CastTo<T>(tstep * 0.5);
+		sixthTimeStep = CastTo<T>(tstep / 6.0);
 	}
 
+	void initialize(T* devY0, bool onDevice = false);
+	void runStep(int _step);
+	void setOptions(const RK4Options& options)
+	{
+		setTimeStep(options.initial_timestep);
+		this->options = options;
+	}
 	virtual OdeSolverResult runEvolution(double startTime, double endTime) override;
-	void setOptions(const RK4_Options& newOptions) {
-		options = newOptions;
-	}
 
-	void initialize(const std_complex* initialState, bool onDevice) 
+	void setCurrentStream(cudaStream_t stream)
 	{
-		if(onDevice) {
-			devInitialState = const_cast<std_complex*>(initialState); // If the initial state is already on the device, just set the pointer
-			return;
-		}
-		// Allocate memory for the initial state on the device and copy the initial state from the host to the device
-		cudaMalloc(&devInitialState, sizeof(std_complex) * 2 * N * batchSize); // Assuming the state consists of Z and phi, each of size N*batchSize
-		cudaMemcpy(devInitialState, initialState, sizeof(std_complex) * 2 * N * batchSize, cudaMemcpyHostToDevice);
+		this->stream = stream;
 	}
+protected:
+	const int threads = 256;
+	const int blocks = (N + threads - 1) / threads;
+	bool allocatedY0 = false; ///< Flag to indicate if devY0 was allocated by the stepper
+	RK4Options options;
+
+	thrust::device_vector<double> devTimes;
+	thrust::device_vector<cuda::std::array<std_complex, N>> devYs;
+
+	T* k1;
+	T* k2;
+	T* k3;
+	T* k4;
+
+	T* devY0;
+	T* devY1;
+	T* devY2;
+	T* devY3;
+
+	TimedProblem<T, N>& timedProblem; ///< Instance of the TimeStepManager to handle time-stepping operations
+	cublasHandle_t handle; ///< CUBLAS handle for matrix operations
+
+	T timeStep;
+	T halfTimeStep;
+	T sixthTimeStep;
+	std::vector<std::shared_ptr<ValueLogger>> valueLoggers;
+
+	double currentTime = 0.0;
+	cudaStream_t stream = cudaStreamPerThread; // Use the default stream for now, can be customized later
+
+	virtual void step(const int i) = 0;
+public:
+	int copyTimesToHost(double** hostTimes, size_t* countHost);
+	int copyStatesToHost(std_complex** hostStates, size_t* countHost);
 };
 
 
-template<int N, size_t batchSize>
-OdeSolverResult RK4TimeDependent<N, batchSize>::runEvolution(double startTime, double endTime)
+template<typename T, int N>
+int RungeKuttaStepperBase<T, N>::copyTimesToHost(double** hostTimes, size_t* countHost)
 {
-	// Implement the RK4 method here, using the integrator to calculate the rhs at each stage
-	// set the current time in the integrator to the start time
-	integrator.setCurrentTime(startTime);
+	if (this->options.returnTrajectory)
+	{
+		double* t = static_cast<double*>(std::malloc(devTimes.size() * sizeof(double)));
+		if (!t) {
+			return -1; // memory allocation failed
+		}
+		// copy times to host
+		checkCuda(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		*hostTimes = t;
+		*countHost = devTimes.size();
+	}
+	else
+	{
+		// no times were recorded
+		*hostTimes = nullptr;
+		*countHost = 0;
+	}
+	return 0;
+}
 
-	// RK4 is a method that uses multiple stages to calculate the next value
-	// For each stage, we need to calculate the right-hand side (RHS) using the integrator
-	// The basic idea is to take the current state, apply the integrator to get the RHS, and then use that to update the state
-	// RK4 works as follows for a 1st order ODE: dy/dt = f(t, y) with timestep h:
-	// k1 = f(t_n, y_n)
-	// k2 = f(t_n + h/2, y_n + h/2 * k1)
-	// k3 = f(t_n + h/2, y_n + h/2 * k2)
-	// k4 = f(t_n + h, y_n + h * k3)
-	// y_{n+1} = y_n + h/6 * (k1 + 2*k2 + 2*k3 + k4)
+template<typename T, int N>
+int RungeKuttaStepperBase<T, N>::copyStatesToHost(std_complex** hostStates, size_t* countHost)
+{
+	if (this->options.returnTrajectory)
+	{
+		std_complex* s = static_cast<std_complex*>(std::malloc(devYs.size() *  N * sizeof(std_complex)));
+		//double* s = static_cast<double*>(std::malloc(devYs.size() * 3 * N * sizeof(double)));
+		if (!s) {
+			return -1; // memory allocation failed
+		}
+		// copy states to host
+		checkCuda(cudaMemcpyAsync(s, thrust::raw_pointer_cast(devYs.data()), devYs.size() * N * sizeof(std_complex), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		*hostStates = s;
+		*countHost = devYs.size();
+	}
+	else
+	{
+		// no states were recorded so copy the latest state calculated.
+		std_complex* s = static_cast<std_complex*>(std::malloc(N * sizeof(std_complex)));
+		if (!s) {
+			return -1; // memory allocation failed
+		}
+		checkCuda(cudaMemcpyAsync(s, this->devY0, N * sizeof(std_complex), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
 
-	// calculate the number of steps needed to reach the end time
-	size_t numSteps = static_cast<int>(std::ceil(std::abs(endTime - startTime) / options.timeStep));
-	size_t currentStep = 0;
-
-	for(size_t step = 0; step < numSteps; step++) {
-		// calculate k1, k2, k3, k4 using the integrator to get the RHS at each stage
-		// for k1, we allow it to save progress since it's f(t_n, y_n), the RHS for the current state, which we want to save for the next stages, we want to
-		// at this stage, to remember how the RHS looks like for tn, yn.
-		integrator.setSaveProgress(true);
-		// time was set already either before the loop or at the end of the previous iteration, so we can just call run to calculate k1
-		integrator.run(devInitialState, devK1);
-
-		// for k2, k3, k4, we don't want to save progress since they are just intermediate stages and we only want to save the final result at the end of the RK4 step, which is more consistent with the idea of a time step in an ODE solver. Indeed, if we allow saving progress for k2, k3, k4, then the results would change with the intermediate stages of the RK4 method, which is not what we want.
-		integrator.setSaveProgress(false);
-		integrator.setCurrentTime(startTime + options.timeStep / 2.0); // Set time for k2
-		// For k2, we need to update the state to yn + h/2 * k1 before calling the integrator to get the RHS for k2
+		*hostStates = s;
+		*countHost = 1;
+	}
+	return 0;
+}
 
 
-		// Here we would calculate k1, k2, k3, k4 using the integrator to get the RHS at each stage
-		// This would involve calling the integrator's calculateRhs method with the appropriate state and time for each stage
-		// After calculating k1, k2, k3, k4, we would update the state to get the new state at the next time step
-		// We would also need to check for any conditions that might indicate stiffness or other issues that would require us to stop the evolution
+
+
+template <typename T, int N>
+RungeKuttaStepperBase<T, N>::RungeKuttaStepperBase(TimedProblem<T, N>& timedProblem, double tstep) : timedProblem(timedProblem)
+{
+	cublasCreate(&handle);
+	cudaMalloc(&k1, N * sizeof(T)); // allocate memory for k1
+	cudaMalloc(&k2, N * sizeof(T)); // allocate memory for k2
+	cudaMalloc(&k3, N * sizeof(T)); // allocate memory for k3
+	cudaMalloc(&k4, N * sizeof(T)); // allocate memory for k4
+
+	cudaMalloc(&devY1, N * sizeof(T)); // allocate memory for devZphi1
+	cudaMalloc(&devY2, N * sizeof(T)); // allocate memory for devZphi2
+	cudaMalloc(&devY3, N * sizeof(T)); // allocate memory for devZphi3
+
+	setTimeStep(tstep);
+}
+
+template <typename T, int N>
+RungeKuttaStepperBase<T, N>::~RungeKuttaStepperBase()
+{
+	if (allocatedY0)
+		cudaFree(devY0);
+	cudaFree(k1);
+	cudaFree(k2);
+	cudaFree(k3);
+	cudaFree(k4);
+
+	cudaFree(devY1);
+	cudaFree(devY2);
+	cudaFree(devY3);
+	cublasDestroy(handle);
+}
+
+template <typename T, int N>
+void RungeKuttaStepperBase<T, N>::runStep(int _step)
+{
+	timedProblem.setCurrentTime(CastFrom<std_complex>(currentTime)); // set the current time in the autonomous problem
+	timedProblem.setSaveProgress(true);
+	timedProblem.run(devY0, k1); // run the autonomous problem with the initial state devY0 and store the result in k1
+
+	// copyk(1); // copy k1 from the autonomousProblem
+#ifdef DEBUG_RUNGE_KUTTA
+	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+	std::vector<cufftDoubleComplex> k1_host(N);
+	std::vector<cufftDoubleComplex> y_host(N);
+
+	std::vector<double> x(N/2);
+	std::vector<double> y(N/2);
+	std::vector<double> Phi(N/2);
+	std::vector<double> dx(N/2);
+	std::vector<double> dy(N/2);
+	std::vector<double> dPhi(N/2);
+
+	cudaMemcpy(k1_host.data(), k1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy k1 to host for debugging
+	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY0 to host for debugging
+
+	for (int i = 0; i < N/2; i++) {
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		// Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
+
+		dx[i] = x[i] + halfTimeStep.real() * cuCreal(k1_host[i]);
+		dy[i] = y[i] + halfTimeStep.real() * cuCimag(k1_host[i]);
+		// dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
 	}
 
-	return OdeSolverResult();
+	plt::figure();
+	plt::plot(x, y, { {"label", "initial pos"} }); // plot the positions
+	//plt::plot(x, Phi, { {"label", "initial phi"} }); // plot the Phi values
+	plt::plot(dx, dy, { {"label", "perturbed pos"} });
+	//plt::plot(x, dy, { {"label", "k1 y + dy"} });
+	// plt::plot(dx, dPhi, { {"label", "k1 phi + phi"} }); // plot the Phi component of k1
+
+	/*plt::xlabel("x");
+	plt::ylabel("y");*/
+	plt::legend();
+	plt::title("Positions after Runge-Kutta Step");
+
+#endif
+	// x_n+1 = x_n + h*0.5 * v_n -> x_n is a N dimensional vector, h is the time step, v_n is the velocity at time n
+	step(1); // step 1 of the Runge-Kutta method
+
+#ifdef DEBUG_RUNGE_KUTTA
+	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+	cudaMemcpy(y_host.data(), devY1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+
+	for (int i = 0; i < N/2; i++) {
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
+		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
+		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
+		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
+	}
+	plt::figure();
+	plt::plot(x, y, { {"label", "pertubed calculated positions"} }); // plot the positions
+	//plt::plot(x, Phi, { {"label", "pertubed calculated phi"} }); // plot the Phi values
+
+
+#endif
+	timedProblem.setCurrentTime(CastFrom<std_complex>(currentTime) + CastFrom<std_complex>(halfTimeStep)); // set the current time in the autonomous problem to the midpoint of the interval for the second step
+	timedProblem.setSaveProgress(false);
+	timedProblem.run(devY1, k2);
+
+	//copyk(2); // copy k2 from the autonomousProblem
+
+	step(2); // step 2 of the Runge-Kutta method
+
+#ifdef DEBUG_RUNGE_KUTTA
+	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+	cudaMemcpy(y_host.data(), devY2, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+
+	for (int i = 0; i < N/2; i++) {
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
+		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
+		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
+		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
+	}
+
+	plt::plot(x, y, { {"label", "3rd pertubed calculated positions"} }); // plot the positions
+	//plt::plot(x, Phi, { {"label", "3rd pertubed calculated phi"} }); // plot the Phi values
+
+	//plt::legend();
+#endif
+	timedProblem.setCurrentTime(CastFrom<std_complex>(currentTime) + CastFrom<std_complex>(halfTimeStep)); // set the current time in the autonomous problem to the midpoint of the interval for the third step
+	timedProblem.run(devY2, k3);
+
+	//copyk(3); // copy k3 from the autonomousProblem
+
+	step(3);
+
+	timedProblem.setCurrentTime(CastFrom<std_complex>(currentTime) + CastFrom<std_complex>(timeStep)); // set the current time in the autonomous problem to the end of the interval for the fourth step
+	timedProblem.run(devY3, k4);
+
+	//copyk(4); // copy k4 from the autonomousProblem
+
+#ifdef DEBUG_RUNGE_KUTTA
+	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+	cudaMemcpy(y_host.data(), devY3, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+
+	for (int i = 0; i < N; i++) {
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
+		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
+		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
+		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
+	}
+
+	plt::plot(x, y, { {"label", "4th pertubed calculated positions"} }); // plot the positions
+	//plt::plot(x, Phi, { {"label", "4th pertubed calculated phi"} }); // plot the Phi values
+
+	plt::legend();
+#endif
+
+	add_k_vectors << <blocks, threads >> > (k1, k2, k3, k4, k1, N); // add the four vectors together
+
+	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+
+	//std::vector<cufftDoubleComplex> k1_host(2 * N);
+
+	//cudaMemcpy(k1_host.data(), k1, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy k1 to host for debugging
+	//printf("%f h/6\n", cuCreal(sixthTimeStep)); // print the time step for debugging
+	//for(int i = 0; i < 2*N; i++) {
+	//	printf("k[%d] = (%f, %f)\n", i, cuCreal(k1_host[i]), cuCimag(k1_host[i]));
+	//}
+	//std::cin.get(); // wait for user input to continue
+#ifdef DEBUG_RUNGE_KUTTA
+	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+	cudaMemcpy(k1_host.data(), k1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+
+	for (int i = 0; i < N; i++) {
+		x[i] = cuCreal(y_host[i]); // +sixthTimeStep.x * k1_host[i].x;
+		y[i] = cuCimag(y_host[i]);// +sixthTimeStep.x * k1_host[i].y;
+		//Phi[i] = cuCreal(y_host[i + N]);// +sixthTimeStep.x * k1_host[i + N].x; // assuming the second half of the array contains Phi values
+		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
+		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
+		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
+	}
+	plt::figure();
+	plt::plot(x, y, { {"label", "Initial"} }); // plot the positions
+	//plt::plot(x, Phi, { {"label", "Initial phi"} }); // plot the Phi values
+
+#endif
+
+
+
+	step(4); // step 4 of the Runge-Kutta method, which combines the results of the previous steps, it should overwrite devY0 with the final result
+
+#ifdef DEBUG_RUNGE_KUTTA
+	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
+
+	for (int i = 0; i < N; i++) {
+		x[i] = cuCreal(y_host[i]);
+		y[i] = cuCimag(y_host[i]);
+		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
+		dx[i] = sixthTimeStep.real() * cuCreal(k1_host[i]);
+
+		dy[i] = sixthTimeStep.real() * cuCimag(k1_host[i]);
+		//dPhi[i] = sixthTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
+	}
+
+	plt::plot(x, y, { {"label", "Final"} }); // plot the positions
+	//plt::plot(x, Phi, { {"label", "Final phi"} }); // plot the Phi values
+
+	plt::legend();
+
+	plt::figure();
+	plt::plot(dx, { {"label", "dx"} }); // plot the x component of k1
+	plt::plot(dy, { {"label", "dy"} }); // plot the y component of k1
+	//plt::plot(dPhi, { {"label", "dPhi"} }); // plot the Phi component of k1
+	plt::legend();
+
+	plt::show();
+#endif
+	//if (logger.shouldCopy(_step))
+	//	logger.setReadyToCopy(devY0, cudaStreamPerThread, currentTime + CastFrom<T>(timeStep), true); //TODO: make this work with a custom stream.
+	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
+	initialize(devY0, true); // reinitialize the stepper with the initial state which is already on the device
 }
+
+template <typename T, int N>
+void RungeKuttaStepperBase<T, N>::initialize(T* devY0, bool onDevice)
+{
+	if (onDevice)
+	{
+		this->devY0 = devY0; // store the initial state
+		cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY1
+		cudaMemcpy(devY2, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY2
+		cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY3
+	}
+	else {
+		allocatedY0 = true;
+		cudaMalloc(&this->devY0, N * sizeof(T)); // allocate memory for devZphi1
+		cudaMemcpy(this->devY0, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY1
+		cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY1
+		cudaMemcpy(devY2, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY2
+		cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY3
+	}
+	
+	//cudaMemcpy(devZPhi4, devY0, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToDevice); // copy initial state to devZPhi4
+}
+
+
+template<typename T, int N>
+OdeSolverResult RungeKuttaStepperBase<T, N>::runEvolution(double startTime, double endTime)
+{
+	currentTime = startTime;
+	size_t steps = static_cast<size_t>((endTime - startTime) / CastFrom<T>(timeStep));
+	timedProblem.setStartingTime(startTime);
+	for (size_t step = 0; step < steps; step++)
+	{
+		runStep(step);
+		
+//#pragma unroll
+//		for (auto& logger : valueLoggers)
+//		{
+//			if (logger->shouldLog(step))
+//			{
+//				logger->logValue();
+//			}
+//		}
+		if (this->options.returnTrajectory)
+		{
+			this->devTimes.push_back(currentTime);
+			appendToVector<N>(this->devYs, this->devY0, this->stream);
+		}
+		currentTime += CastFrom<T>(timeStep);
+	}
+	if (currentTime >= endTime)
+		return OdeSolverResult::ReachedEndTime;
+}
+
+
+template <typename T, int N>
+class RungeKuttaStepper : public RungeKuttaStepperBase<T, N>
+{
+public:
+	using RungeKuttaStepperBase<T, N>::RungeKuttaStepperBase;
+};
+
+template <int N>
+class RungeKuttaStepper<std_complex, N> : public RungeKuttaStepperBase<std_complex, N>
+{
+public:
+	using RungeKuttaStepperBase<std_complex, N>::RungeKuttaStepperBase;
+protected:
+	virtual void step(const int i) override
+	{
+		cublasStatus_t result;
+		if (i == 1)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<const cuDoubleComplex*>(&this->halfTimeStep), reinterpret_cast<cuDoubleComplex*>(this->k1), 1, reinterpret_cast<cuDoubleComplex*>(this->devY1), 1);
+		}
+		else if (i == 2)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<cuDoubleComplex*>(&this->halfTimeStep), reinterpret_cast<cuDoubleComplex*>(this->k2), 1, reinterpret_cast<cuDoubleComplex*>(this->devY2), 1);
+		}
+		else if (i == 3)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<cuDoubleComplex*>(&this->timeStep), reinterpret_cast<cuDoubleComplex*>(this->k3), 1, reinterpret_cast<cuDoubleComplex*>(this->devY3), 1);
+		}
+		else if (i == 4)
+		{
+			result = cublasZaxpy(this->handle, N, reinterpret_cast<cuDoubleComplex*>(&this->sixthTimeStep), reinterpret_cast<cuDoubleComplex*>(this->k1), 1, reinterpret_cast<cuDoubleComplex*>(this->devY0), 1); // k1 must contain the sum of k1, k2, k3, and k4
+		}
+		else
+		{
+			fprintf(stderr, "Invalid step index: %d\n", i);
+			return;
+		}
+
+
+		if (result != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "cublasZaxpy failed with error code %d\n", result);
+			return;
+		}
+	}
+};
 
 #endif

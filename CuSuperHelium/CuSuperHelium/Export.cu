@@ -747,6 +747,48 @@ int integrateSimulationRK4(double* initialState, double** statesOut, size_t* sta
 	return 0;
 }
 
+template <size_t N>
+int integrateOptomechanicalSimulationRK4_N(double timeStep, double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, OptomechanicalVariables* optoVariables, RK4SolverOptions* rkOptions) {
+	try 
+	{
+		ProblemProperties properties;
+		//OptomechanicalVariables optoVars;
+		copyProperties(*simProperties, properties);
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, simProperties->L);
+
+		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, *optoVariables);
+		TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
+		
+		DataLogger<std_complex, 2 * N> stateLogger;
+
+		const int loggingSteps = 100;
+		stateLogger.setSize(500 / loggingSteps + 1);
+		stateLogger.setStep(loggingSteps);
+
+		RungeKuttaStepper<std_complex, N> stepper(heliumProblem, stateLogger, {}, timeStep);
+		
+		stepper.initialize(initialState, false);
+		stepper.runEvolution(rkOptions->t0, rkOptions->t1);
+		cudaStreamSynchronize(cudaStreamPerThread);
+
+
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+
+	return 0;
+}
+
+int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N)
+{
+	return 0;
+}
+
+
+
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)
 {
 	double L0 = L / (2.0 * PI_d); // characteristic length

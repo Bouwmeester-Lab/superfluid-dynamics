@@ -5,7 +5,7 @@
 #include "TimedBoundaryProblem.cuh"
 
 template<int N, size_t batchSize>
-class TimedBoundaryIntegrator : public BaseBoundaryIntegralCalculator<N, batchSize>
+class TimedBoundaryIntegrator : public BaseBoundaryIntegralCalculator<N, batchSize>, public TimedProblem<std_complex, 2 * N * batchSize>
 {
 	TimedBoundaryProblem<N, batchSize>& timedBoundaryProblem; ///< Reference to the timed boundary problem for calculating the time-dependent part of the rhs
 	
@@ -34,6 +34,21 @@ public:
 		timedBoundaryProblem.CalculateTimeDependentRhsPhi(problemPointers, rhs, this->problemProperties, currentTime, saveProgress);
 	}
 
+	virtual void run(std_complex* initialState, std_complex* rhs) override
+	{
+		BaseBoundaryIntegralCalculator<N, batchSize>::run(initialState, rhs); // Call the base class implementation to run the standard boundary integral calculation
+	}
+
+	virtual void setStream(cudaStream_t stream) override
+	{
+		BaseBoundaryIntegralCalculator<N, batchSize>::setStream(stream); // Set the stream for the base class computations
+	}
+
+	virtual void setStartingTime(double time) override
+	{
+		currentTime = time; // Set the starting time for the simulation
+		timedBoundaryProblem.SetStartingTime(time);
+	}
 };
 
 #endif // !TIMED_BOUNDARY_INTEGRATOR_H

@@ -144,5 +144,8 @@
     <ClInclude Include="RK4_Time_Dependent.cuh">
       <Filter>Ode Integrators</Filter>
     </ClInclude>
+    <ClInclude Include="RK4Options.h">
+      <Filter>Ode Integrators</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

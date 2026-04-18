@@ -5,15 +5,15 @@ struct OptomechanicalVariables
 {
 public:
 	// initial detuning in the experiment
-	double detuning;
+	double detuning = 0.0;
 	// optical linewidth of the resonator
-	double gamma;
+	double gamma = 1.0;
 
 	// optomechanical coupling strength (Hz/m)
-	double G;
+	double G = 1.0;
 
 	// "delayed" strength of the optical effect on the superfluid.
-	double Tau;
+	double Tau = 1.0;
 
 	// max intensity of the optical field
 	double max_intensity;

@@ -22,6 +22,9 @@ struct DelayedIntensityTermDevice
         double lightIntensityFelt,
         size_t index)
     {
+        if(currentTime == *prev_time) {
+            return lightIntensityFelt;
+		}
         return exp(-(currentTime - *prev_time) / variables.Tau) * delayed_intensity[index]
             + lightIntensityFelt;
     }
@@ -56,10 +59,15 @@ public:
 		cudaFree(prev_time);
     }
 
-    DelayedIntensityTermDevice<N> device_view() const
+    DelayedIntensityTermDevice<N> device_view()
     {
         return DelayedIntensityTermDevice<N>{ variables, delayed_intensity, prev_time };
     }
+
+    void setInitialTime(double initial_time)
+    {
+        cudaMemcpy(prev_time, &initial_time, sizeof(double), cudaMemcpyHostToDevice);
+	}
 };
 
 #endif // !DELAYED_INTENSITY_TERM_H

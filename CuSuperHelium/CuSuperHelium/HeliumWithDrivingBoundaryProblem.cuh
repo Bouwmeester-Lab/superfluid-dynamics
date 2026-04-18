@@ -42,7 +42,13 @@ public:
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
 
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time, bool saveProgress = true) override
+	virtual void CalculateTimeDependentRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time, bool saveProgress = true) 
+	{
+		/// add the driving terms
+		add_optical_field_drive_terms << <this->blocks, this->threads >> > (result, time, problemPointers.Z, delayedIntensityTerm.device_view(), variables, saveProgress);
+	}
+
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
 	{
 		// do all the calculations as it was without the driving or loss terms.
 		if (properties.use_expansions)
@@ -54,10 +60,12 @@ public:
 			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, 1 * N);
 		else
 			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, 1 * N);
-		;
-		/// add the driving terms
-		add_optical_field_drive_terms << <this->blocks, this->threads >> > (result, time, problemPointers.Z, delayedIntensityTerm.device_view(), variables, saveProgress);
+	}
 
+	virtual void SetStartingTime(double time) override
+	{
+		// set the starting time for the delayed intensity term, this is used to calculate the delayed intensity term strength in the first iteration of the simulation
+		delayedIntensityTerm.setInitialTime(time);
 	}
 };
 

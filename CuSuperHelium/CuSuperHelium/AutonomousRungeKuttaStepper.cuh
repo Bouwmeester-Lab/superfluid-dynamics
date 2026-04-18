@@ -14,12 +14,9 @@
 #include <stdexcept>
 #include <initializer_list>
 #include "OdeSolver.h"
+#include "RK4Options.h"
 
 namespace plt = matplotlibcpp;
-
-struct RK4Options {
-	double initial_timestep = 1e-2; ///< Time step for the Runge-Kutta method
-};
 
 template <typename T, int N>
 class AutonomousRungeKuttaStepperBase : public OdeSolver

@@ -45,7 +45,7 @@ int drivingHelium()
     const int N = 1024;
 
     ProblemProperties properties;
-    properties.depth = 0.5;
+    properties.depth = 0.1;
     properties.rho = 1;
     properties.use_expansions = false;
     properties.infinite_depth = false;
@@ -62,8 +62,8 @@ int drivingHelium()
     optoVariables.G = -15;
 	optoVariables.Tau = 10000;
 	optoVariables.Beta = 1.0;
-    optoVariables.location_x0_mode = 1.5*PI_d;
-    optoVariables.sigma_optical_mode = 0.2;
+    optoVariables.location_x0_mode = 1.0*PI_d;
+    optoVariables.sigma_optical_mode = 0.8;
 	optoVariables.gamma = 1.0;
 
     HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVariables);
@@ -94,7 +94,7 @@ int drivingHelium()
     for(int i = 0; i < N; i++)
     {
 		X0[i] = 2.0 * CUDART_PI * i / N;
-		Y0[i] = 0.000001*sin(X0[i]);
+		Y0[i] = 0.02*sin(X0[i]);
 
 		Z0[i] = std::complex<double>(X0[i], Y0[i]);
         Phi[i] = 0;

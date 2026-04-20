@@ -45,7 +45,7 @@ public:
 	virtual void CalculateTimeDependentRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time, bool saveProgress = true) 
 	{
 		/// add the driving terms
-		add_optical_field_drive_terms << <this->blocks, this->threads >> > (result, time, problemPointers.Z, delayedIntensityTerm.device_view(), variables, saveProgress);
+		add_optical_field_drive_terms << <this->blocks, this->threads >> > (result, time, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, saveProgress);
 	}
 
 	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override

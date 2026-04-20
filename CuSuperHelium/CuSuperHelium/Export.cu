@@ -12,6 +12,18 @@ void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
 	properties.infinite_depth = simProperties.infinite_depth;
 }
 
+void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, OptomechanicalVariables& opto_variables) 
+{
+	opto_variables.detuning = c_optomechanicalVariables.detuning;
+	opto_variables.gamma = c_optomechanicalVariables.gamma;
+	opto_variables.G = c_optomechanicalVariables.G;
+	opto_variables.Tau = c_optomechanicalVariables.Tau;
+	opto_variables.max_intensity = c_optomechanicalVariables.max_intensity;
+	opto_variables.initial_time = c_optomechanicalVariables.initial_time;
+	opto_variables.location_x0_mode = c_optomechanicalVariables.location_x0_mode;
+	opto_variables.sigma_optical_mode = c_optomechanicalVariables.sigma_optical_mode;
+}
+
 int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps)
 {
 	ProblemProperties properties;
@@ -755,13 +767,17 @@ int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut)
 }
 
 template <size_t N>
-int integrateOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, OptomechanicalVariables* optoVariables, RK4SolverOptions* rkOptions) 
+int integrateOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, COptomechanicalVariables* optoVariables, RK4SolverOptions* rkOptions) 
 {
 	try 
 	{
 		ProblemProperties properties;
 		//OptomechanicalVariables optoVars;
 		copyProperties(*simProperties, properties);
+		OptomechanicalVariables optoVars;
+
+		copyProperties(*optoVariables, optoVars);
+
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, simProperties->L);
 
@@ -788,7 +804,7 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 		//optoVariables.sigma_optical_mode = 0.8;
 		//optoVariables.gamma = 1.0;
 
-		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, *optoVariables);
+		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVars);
 		TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
 
 		/*DataLogger<std_complex, 2 * N> stateLogger;
@@ -818,27 +834,42 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		stepper.initialize(deviceParticleData.devZ, true);
 
+		std::cout << "Starting RK4 evolution from t = " << rkOptions->t0 << " to t = " << rkOptions->t1 << " with time step " << rkOptions->timeStep << std::endl;
+
 		stepper.runEvolution(rkOptions->t0, rkOptions->t1);
+
+		std::cout << "RK4 evolution completed. Copying results to host." << std::endl;
 
 		stepper.copyTimesToHost(timesOut, timesCount);
 
+		std::cout << "Times copied to host. Copying states to host." << std::endl;
 
 		std_complex* hostStates;
 		stepper.copyStatesToHost(&hostStates, statesCount);
 
+		std::cout << "Complex states copied to host. Transforming to output format." << std::endl;
+
 		// transform std::complex to double arrays for output
 		// this must be freed by the caller
-		 double* states = (double*)std::malloc(3 * sizeof(double) * N);
+		 double* states = (double*)std::malloc(3 * (*statesCount) * sizeof(double) * N);
 
-		 for (size_t i = 0; i < N; i++) 
+		 for (size_t j = 0; j < *statesCount; j++) 
 		 {
-			 states[i] = hostStates[i].real();
-			 states[i + N] = hostStates[i].imag();
-			 states[i + 2 * N] = Phi[i];
+			 for (size_t i = 0; i < N; i++)
+			 {
+				 states[j * 3 * N + i] = hostStates[i].real();
+				 states[j * 3 * N + i + N] = hostStates[i].imag();
+				 states[j * 3 * N + i + 2 * N] = Phi[i];
+			 }
 		 }
+
+		 std::cout << "States transformed to output format. Setting output pointers." << std::endl;
 
 		 *statesOut = states;
 		 // free the one created by the stepper
+
+		 std::cout << "Freeing host states memory." << std::endl;
+
 		 std::free(hostStates);
 	}
 	catch (const std::exception& e) {
@@ -849,7 +880,7 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 	return 0;
 }
 
-int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, OptomechanicalVariables* optomechanicalVariables, size_t N)
+int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N)
 {
 	switch (N) {
 		case 32:
@@ -871,6 +902,13 @@ int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOu
 		case 8192:
 			return integrateOptomechanicalSimulationRK4_N<8192>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
 	}
+	return 0;
+}
+
+int integrateOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut)
+{
+	std::free(statesOut);
+	std::free(timesOut);
 	return 0;
 }
 

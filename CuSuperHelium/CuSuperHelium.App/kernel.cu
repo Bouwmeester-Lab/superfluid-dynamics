@@ -87,7 +87,7 @@ int drivingHeliumWithCFunc() {
     rk4_options.t0 = 0.0;
 	rk4_options.t1 = 5.0;
 
-    integrateOptomechanicalSimulationRK4(initialState.data(), &hostStates, &countStatesHost, &hostTimes, &countHost, &simProperties, &rk4_options, &optoVariables, 1024);
+    integrateOptomechanicalSimulationRK4(initialState.data(), &hostStates, &countStatesHost, &hostTimes, &countHost, &simProperties, &rk4_options, &optoVariables, N);
 
     std::vector<double> Phi(N);
 
@@ -396,6 +396,6 @@ int main()
     //modeSum();
 
     drivingHeliumWithCFunc();
-	//drivingHelium();
+	drivingHelium();
     return 0;
 }

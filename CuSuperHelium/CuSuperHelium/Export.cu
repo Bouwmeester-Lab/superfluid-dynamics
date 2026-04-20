@@ -1,4 +1,6 @@
 #include "Export.cuh"
+#include "matplotlibcpp.h"
+namespace plt = matplotlibcpp;
 //#include "SimulationFunctions.cuh"
 void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
 {
@@ -815,6 +817,8 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		RungeKuttaStepper<std_complex, 2 * N> stepper(integrator);
 
+
+		
 		stepper.setOptions(rk4_options);
 
 		std::vector<std::complex<double>> Z0(N);
@@ -840,20 +844,63 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		std::cout << "RK4 evolution completed. Copying results to host." << std::endl;
 
-		stepper.copyTimesToHost(timesOut, timesCount);
+		/*double* hostTimes;
+		size_t countHost;
+
+		std_complex* hostStates;
+		size_t countStatesHost;*/
+
+
+
+		cudaStreamSynchronize(cudaStreamPerThread);
+
+		double* hostTimes;
+		size_t countHost;
+
+		std_complex* hostStates;
+		size_t countStatesHost;
+
+		stepper.copyTimesToHost(&hostTimes, &countHost);
+		stepper.copyStatesToHost(&hostStates, &countStatesHost);
+
+		/*stepper.copyTimesToHost(timesOut, timesCount);
 
 		std::cout << "Times copied to host. Copying states to host." << std::endl;
 
 		std_complex* hostStates;
 		stepper.copyStatesToHost(&hostStates, statesCount);
 
-		std::cout << "Complex states copied to host. Transforming to output format." << std::endl;
+		std::cout << "Complex states copied to host. Transforming to output format." << std::endl;*/
 
 		// transform std::complex to double arrays for output
 		// this must be freed by the caller
-		 double* states = (double*)std::malloc(3 * (*statesCount) * sizeof(double) * N);
+		 double* states = (double*)std::malloc(3 * (countStatesHost) * sizeof(double) * N);
 
-		 for (size_t j = 0; j < *statesCount; j++) 
+		 //std::vector<double> Phi(N);
+
+		 std::vector<double> X0(N, 0);
+		 std::vector<double> Y0(N, 0);
+
+		 for (int i = countStatesHost - 5; i < countStatesHost; i++)
+		 {
+			 for (int j = 0; j < N; j++) {
+				 X0[j] = hostStates[i * 2 * N + j].real();
+				 Y0[j] = hostStates[i * 2 * N + j].imag();
+			 }
+			 plt::plot(X0, Y0);
+		 }
+
+		 for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
+			 for (int j = 0; j < N; j++) {
+				 X0[j] = hostStates[i * 2 * N + j].real();
+				 Y0[j] = hostStates[i * 2 * N + j].imag();
+			 }
+			 plt::plot(X0, Y0);
+		 }
+
+		 plt::show();
+
+		 for (size_t j = 0; j < countStatesHost; j++) 
 		 {
 			 for (size_t i = 0; i < N; i++)
 			 {

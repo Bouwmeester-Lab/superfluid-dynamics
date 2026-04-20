@@ -33,6 +33,7 @@
 #include "SimulationFunctions.cuh"
 #include "HeliumWithDrivingBoundaryProblem.cuh"
 #include "RK4_Time_Dependent.cuh"
+#include "Export.cuh"
 
 namespace plt = matplotlibcpp;
 
@@ -40,12 +41,108 @@ namespace plt = matplotlibcpp;
 cudaError_t setDevice();
 
 
+int drivingHeliumWithCFunc() {
+
+	const int N = 1024;
+
+	std::array<double, 3 * N> initialState; // x, y, phi for each point
+
+    for(size_t i = 0; i < N; i++)
+    {
+        initialState[i] = 2.0 * PI_d * i / N; // x
+        initialState[N + i] = 0.02*sin(initialState[i]); // y
+        initialState[2 * N + i] = 0.0; // phi
+	}
+
+    double* hostStates;
+	size_t countStatesHost;
+
+	double* hostTimes;
+	size_t countHost;
+
+	SimProperties simProperties;
+
+    simProperties.L = 1e-6;
+    simProperties.rho = 150;
+    simProperties.kappa = 0;
+    simProperties.depth = 10e-6;
+	simProperties.use_expansions = false;
+	simProperties.infinite_depth = false;
+
+	COptomechanicalVariables optoVariables;
+
+    optoVariables.detuning = 0.0;
+    optoVariables.max_intensity = 0.1;
+    optoVariables.G = -15;
+    optoVariables.Tau = 10000;
+    optoVariables.location_x0_mode = 1.0 * PI_d;
+    optoVariables.sigma_optical_mode = 0.8;
+    optoVariables.gamma = 1.0;
+
+
+    RK4SolverOptions rk4_options;
+
+	rk4_options.timeStep = 0.01;
+	rk4_options.returnTrajectory = true;
+    rk4_options.t0 = 0.0;
+	rk4_options.t1 = 5.0;
+
+    integrateOptomechanicalSimulationRK4(initialState.data(), &hostStates, &countStatesHost, &hostTimes, &countHost, &simProperties, &rk4_options, &optoVariables, 1024);
+
+    std::vector<double> Phi(N);
+
+    std::vector<double> X0(N, 0);
+    std::vector<double> Y0(N, 0);
+
+    for (int i = countStatesHost - 5; i < countStatesHost; i++)
+    {
+        for (int j = 0; j < N; j++) {
+            X0[j] = hostStates[i * 3 * N + j];
+            Y0[j] = hostStates[i * 3 * N + j + N];
+        }
+        plt::plot(X0, Y0);
+    }
+
+    //int countStatesHost = *statesCount;
+
+    for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
+        for (int j = 0; j < N; j++) {
+            X0[j] = hostStates[i * 3 * N + j];
+            Y0[j] = hostStates[i * 3 * N + j + N];
+        }
+        plt::plot(X0, Y0);
+    }
+
+    //for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
+    //    for (int j = 0; j < N; j++) {
+    //        X0[j] = hostStates[i * 2 * N + j].real();
+    //        Y0[j] = hostStates[i * 2 * N + j].imag();
+    //    }
+    //    plt::plot(X0, Y0);
+    //}
+    ///*for (int i = 0; i < N; i++)
+    //{
+    //    X0[i] = hostStates[i].real();
+    //    Y0[i] = hostStates[i].imag();
+    //}*/
+
+    ////plt::plot(X0, Y0);
+
+
+    plt::show();
+
+    delete hostTimes;
+    delete hostStates;
+
+    return 0;
+}
+
 int drivingHelium() 
 {
     const int N = 1024;
 
     ProblemProperties properties;
-    properties.depth = 0.1;
+    properties.depth = 62.83;
     properties.rho = 1;
     properties.use_expansions = false;
     properties.infinite_depth = false;
@@ -57,7 +154,7 @@ int drivingHelium()
     rk4_options.returnTrajectory = true;
 
 	OptomechanicalVariables optoVariables;
-
+	optoVariables.detuning = 0.0;
     optoVariables.max_intensity = 0.1;
     optoVariables.G = -15;
 	optoVariables.Tau = 10000;
@@ -298,6 +395,7 @@ int main()
     //}
     //modeSum();
 
-    drivingHelium();
+    drivingHeliumWithCFunc();
+	//drivingHelium();
     return 0;
 }

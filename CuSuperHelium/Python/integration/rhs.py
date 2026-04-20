@@ -44,6 +44,24 @@ class CGaussLegendreProperties(Structure):
                 ("minAlpha", c_double),
                 ("maxStepsHalves", c_size_t)
                 ]
+    
+class CRK4Options(Structure):
+    _fields_ = [("timeStep", c_double),
+                ("t0", c_double),
+                ("t1", c_double),
+                ("returnTrajectory", c_bool)
+                ]
+class COptomechanicalProperties(Structure):
+    _fields_ = [("detuning", c_double),
+                ("gamma", c_double),
+                ("G", c_double),
+                ("Tau", c_double),
+                ("max_intensity", c_double),
+                ("initial_time", c_double),
+                ("location_x0_mode", c_double),
+                ("sigma_optical_mode", c_double)
+
+                ]
 
 class SimulationManager:
     def __init__(self, dll_path: str | None = None):
@@ -241,6 +259,48 @@ class SimulationManager:
                 return res, None, None
             # empty the allocated memory in C++
             self.lib.integrateSimulationGL2_freeMemory(states_ptr, times_ptr)
+    def integrate_optomechanical_problem(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties, rk4_props : CRK4Options):
+        self.lib.integrateOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                       POINTER(POINTER(c_double)),
+                                       POINTER(c_size_t),
+                                       POINTER(POINTER(c_double)),
+                                       POINTER(c_size_t),
+                                       CSimulationProperties,                                       
+                                       CRK4Options,
+                                       COptomechanicalProperties,
+                                       c_size_t)
+        
+        self.lib.integrateOptomechanicalSimulationRK4_freeMemory.argtypes = (POINTER(c_double), POINTER(c_double))
+        self.lib.integrateOptomechanicalSimulationRK4_freeMemory.restype = c_int
+        self.lib.integrateOptomechanicalSimulationRK4.restype = c_int
+
+        n = y0.shape[0] // 3
+        states_ptr  = POINTER(c_double)()
+        states_len  = c_size_t()
+        times_ptr   = POINTER(c_double)()
+        times_len   = c_size_t()
+        
+        res = self.lib.integrateOptomechanicalSimulationRK4(np.ascontiguousarray(y0), byref(states_ptr), byref(states_len), byref(times_ptr), byref(times_len), sim_props, rk4_props, opt_props, n)
+
+        try:
+            if res != 0:
+                return res, None, None
+            
+            states = np.ctypeslib.as_array(states_ptr, shape=(states_len.value, y0.shape[0]))
+            times = np.ctypeslib.as_array(times_ptr, shape=(times_len.value ,))
+
+            states_np = np.array(states, copy=True)
+            times_np  = np.array(times, copy=True)
+
+            return res, times_np, states_np
+        except Exception as e:
+            print("Error during integration result processing: ", e)
+            return -1, None, None
+        finally:
+            if not states_ptr and not times_ptr:
+                return res, None, None
+            # empty the allocated memory in C++
+            self.lib.integrateOptomechanicalSimulationRK4_freeMemory(states_ptr, times_ptr)
         
 
         

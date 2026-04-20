@@ -66,7 +66,7 @@ extern "C"
 	__declspec(dllexport) int integrateSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N);
 	__declspec(dllexport) int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut);
 
-	__declspec(dllexport) int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N);
+	__declspec(dllexport) int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N);
 	__declspec(dllexport) int integrateOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut);
 
 	ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium = 150);

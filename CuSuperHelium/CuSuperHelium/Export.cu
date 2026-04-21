@@ -1,6 +1,6 @@
 #include "Export.cuh"
-#include "matplotlibcpp.h"
-namespace plt = matplotlibcpp;
+//#include "matplotlibcpp.h"
+//namespace plt = matplotlibcpp;
 //#include "SimulationFunctions.cuh"
 void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
 {
@@ -854,31 +854,31 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		cudaStreamSynchronize(cudaStreamPerThread);
 
-		double* hostTimes;
+		/*double* hostTimes;
 		size_t countHost;
 
 		std_complex* hostStates;
-		size_t countStatesHost;
+		size_t countStatesHost;*/
 
-		stepper.copyTimesToHost(&hostTimes, &countHost);
-		stepper.copyStatesToHost(&hostStates, &countStatesHost);
+		/*stepper.copyTimesToHost(&hostTimes, &countHost);
+		stepper.copyStatesToHost(&hostStates, &countStatesHost);*/
 
-		/*stepper.copyTimesToHost(timesOut, timesCount);
+		stepper.copyTimesToHost(timesOut, timesCount);
 
 		std::cout << "Times copied to host. Copying states to host." << std::endl;
 
 		std_complex* hostStates;
 		stepper.copyStatesToHost(&hostStates, statesCount);
 
-		std::cout << "Complex states copied to host. Transforming to output format." << std::endl;*/
+		std::cout << "Complex states copied to host. Transforming to output format." << std::endl;
 
 		// transform std::complex to double arrays for output
 		// this must be freed by the caller
-		 double* states = (double*)std::malloc(3 * (countStatesHost) * sizeof(double) * N);
-
+		 double* states = (double*)std::malloc(3 * (*statesCount) * sizeof(double) * N);
+		 size_t countStatesHost = *statesCount;
 		 //std::vector<double> Phi(N);
 
-		 std::vector<double> X0(N, 0);
+		 /*std::vector<double> X0(N, 0);
 		 std::vector<double> Y0(N, 0);
 
 		 for (int i = countStatesHost - 5; i < countStatesHost; i++)
@@ -898,15 +898,15 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 			 plt::plot(X0, Y0);
 		 }
 
-		 plt::show();
+		 plt::show();*/
 
 		 for (size_t j = 0; j < countStatesHost; j++) 
 		 {
 			 for (size_t i = 0; i < N; i++)
 			 {
-				 states[j * 3 * N + i] = hostStates[i].real();
-				 states[j * 3 * N + i + N] = hostStates[i].imag();
-				 states[j * 3 * N + i + 2 * N] = Phi[i];
+				 states[j * 3 * N + i] = hostStates[j*2* N + i].real();
+				 states[j * 3 * N + i + N] = hostStates[j * 2 * N +i].imag();
+				 states[j * 3 * N + i + 2 * N] = hostStates[j * 2 * N + N + i].real();
 			 }
 		 }
 

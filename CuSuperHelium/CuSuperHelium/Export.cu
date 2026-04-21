@@ -24,6 +24,7 @@ void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, Optomec
 	opto_variables.initial_time = c_optomechanicalVariables.initial_time;
 	opto_variables.location_x0_mode = c_optomechanicalVariables.location_x0_mode;
 	opto_variables.sigma_optical_mode = c_optomechanicalVariables.sigma_optical_mode;
+	opto_variables.Beta = c_optomechanicalVariables.beta;
 }
 
 int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps)

@@ -58,6 +58,8 @@ extern "C"
 
 		double location_x0_mode = 0.0;
 		double sigma_optical_mode = 1.0;
+
+		double beta = 1.0;
 	};
 }
 

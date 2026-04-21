@@ -71,10 +71,10 @@ int drivingHeliumWithCFunc() {
 
 	COptomechanicalVariables optoVariables;
 
-    optoVariables.detuning = 0.0;
-    optoVariables.max_intensity = 0.1;
-    optoVariables.G = -15;
-    optoVariables.Tau = 10000;
+    optoVariables.detuning = 0.1;
+    optoVariables.max_intensity = 0.5;
+    optoVariables.G = -1;
+    optoVariables.Tau = 0.1;
     optoVariables.location_x0_mode = 1.0 * PI_d;
     optoVariables.sigma_optical_mode = 0.8;
     optoVariables.gamma = 1.0;
@@ -157,7 +157,7 @@ int drivingHelium()
 	optoVariables.detuning = 0.0;
     optoVariables.max_intensity = 0.1;
     optoVariables.G = -15;
-	optoVariables.Tau = 10000;
+	optoVariables.Tau = 1000.0;
 	optoVariables.Beta = 1.0;
     optoVariables.location_x0_mode = 1.0*PI_d;
     optoVariables.sigma_optical_mode = 0.8;

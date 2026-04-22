@@ -796,6 +796,8 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		rk4_options.initial_timestep = rkOptions->timeStep;
 		rk4_options.returnTrajectory = rkOptions->returnTrajectory;
+		const double t0 = rkOptions->t0;
+		const double t1 = rkOptions->t1;
 
 		//OptomechanicalVariables optoVariables;
 
@@ -839,9 +841,9 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		stepper.initialize(deviceParticleData.devZ, true);
 
-		std::cout << "Starting RK4 evolution from t = " << rkOptions->t0 << " to t = " << rkOptions->t1 << " with time step " << rkOptions->timeStep << std::endl;
+		std::cout << "Starting RK4 evolution from t = " << t0 << " to t = " << t1 << " with time step " << rk4_options.initial_timestep << std::endl;
 
-		stepper.runEvolution(rkOptions->t0, rkOptions->t1);
+		stepper.runEvolution(t0, t1);
 
 		std::cout << "RK4 evolution completed. Copying results to host." << std::endl;
 

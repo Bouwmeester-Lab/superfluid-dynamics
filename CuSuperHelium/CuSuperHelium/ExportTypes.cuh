@@ -60,6 +60,7 @@ extern "C"
 		double sigma_optical_mode = 1.0;
 
 		double beta = 1.0;
+		double damping_strength = 1.0;
 	};
 }
 

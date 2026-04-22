@@ -60,7 +60,8 @@ class COptomechanicalProperties(Structure):
                 ("initial_time", c_double),
                 ("location_x0_mode", c_double),
                 ("sigma_optical_mode", c_double),
-                ("beta", c_double)
+                ("beta", c_double),
+                ("damping_strength", c_double)
 
                 ]
 

@@ -50,7 +50,7 @@ int drivingHeliumWithCFunc() {
     for(size_t i = 0; i < N; i++)
     {
         initialState[i] = 2.0 * PI_d * i / N; // x
-        initialState[N + i] = 0.02*sin(initialState[i]); // y
+        initialState[N + i] = 0.0*sin(initialState[i]); // y
         initialState[2 * N + i] = 0.0; // phi
 	}
 
@@ -65,19 +65,22 @@ int drivingHeliumWithCFunc() {
     simProperties.L = 1e-6;
     simProperties.rho = 150;
     simProperties.kappa = 0;
-    simProperties.depth = 10e-6;
+    simProperties.depth = 15e-9;
 	simProperties.use_expansions = false;
 	simProperties.infinite_depth = false;
 
 	COptomechanicalVariables optoVariables;
 
-    optoVariables.detuning = 0.1;
+	double L0 = simProperties.L / (2.0 * PI_d);
+
+    optoVariables.detuning = -0.8;
     optoVariables.max_intensity = 0.5;
-    optoVariables.G = -1;
-    optoVariables.Tau = 0.1;
+    optoVariables.G = -0.01;
+    optoVariables.Tau = 0.2;
     optoVariables.location_x0_mode = 1.0 * PI_d;
-    optoVariables.sigma_optical_mode = 0.8;
+    optoVariables.sigma_optical_mode = 0.01e-6 / L0 ;
     optoVariables.gamma = 1.0;
+	optoVariables.beta = 0.0001;
 
 
     RK4SolverOptions rk4_options;
@@ -94,7 +97,7 @@ int drivingHeliumWithCFunc() {
     std::vector<double> X0(N, 0);
     std::vector<double> Y0(N, 0);
 
-    for (int i = countStatesHost - 5; i < countStatesHost; i++)
+    for (int i = 0; i < countStatesHost; i++)
     {
         for (int j = 0; j < N; j++) {
             X0[j] = hostStates[i * 3 * N + j];
@@ -105,13 +108,13 @@ int drivingHeliumWithCFunc() {
 
     //int countStatesHost = *statesCount;
 
-    for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
+    /*for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
         for (int j = 0; j < N; j++) {
             X0[j] = hostStates[i * 3 * N + j];
             Y0[j] = hostStates[i * 3 * N + j + N];
         }
         plt::plot(X0, Y0);
-    }
+    }*/
 
     //for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
     //    for (int j = 0; j < N; j++) {

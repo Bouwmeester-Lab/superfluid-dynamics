@@ -31,7 +31,7 @@ public:
 	} ///< Getter for the device pointer to the Zpp array
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override;
-	virtual void calculateRhs(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhs);
+	virtual void calculateRhsPhi(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhs);
 
 
 	// TODO: implement the setStream function to allow for asynchronous operations
@@ -137,7 +137,7 @@ BaseBoundaryIntegralCalculator<N, batchSize>::~BaseBoundaryIntegralCalculator()
 template<int N, size_t batchSize>
 void BaseBoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex* initialState, std_complex* rhs)
 {
-	// set the right-hand pointers using the rhs pointer, this creates the variables in here to avoid global variables
+	// set the right-hand pointers using the rhsPhi pointer, this creates the variables in here to avoid global variables
 	std_complex* const devVelocitiesLower = rhs; // Device pointer for the velocities of the lower fluid
 	std_complex* const devRhsPhi = rhs + batchSize * N; // Device pointer for the right-hand side of the phi equation
 	// set the state variables using the initialState pointer, this creates the variables in here to avoid global variables
@@ -236,7 +236,7 @@ void BaseBoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex
 	//plt::show();
 
 	// std::cin.get(); // Wait for user input to continue
-
+	// this calculates the rhsPhi for X,Y directly
 	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, problemProperties, true); // Calculate the velocities based on the vorticities and matrices
 
 	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, problemProperties, false); // Calculate the velocities for the upper fluid
@@ -260,7 +260,8 @@ void BaseBoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex
 	plt::show(); // Show the plot for the velocities of the lower fluid
 #endif
 	// 7. the RHS of the X, Y are the velocities above.
-	this->calculateRhs(problemPointers, initialState, rhs); // Calculate the right-hand side of the equations based on the current state and velocities
+	// this calculates the RHS of Phi.
+	this->calculateRhsPhi(problemPointers, initialState, devRhsPhi); // Calculate the right-hand side of the equations based on the current state and velocities
 
 	// calculate the evolution constants like the energy:
 	//kineticEnergy.CalculateEnergy(devPhi, devZ, devZp, devVelocitiesLower); // Calculate the kinetic energy based on the current state
@@ -313,11 +314,11 @@ void BaseBoundaryIntegralCalculator<N, batchSize>::run(std_complex* initialState
 }
 
 template<int N, size_t batchSize>
-void BaseBoundaryIntegralCalculator<N, batchSize>::calculateRhs(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhs)
+void BaseBoundaryIntegralCalculator<N, batchSize>::calculateRhsPhi(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhsPhi)
 {
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	/*calculatePhiRhs();*/
-	boundaryProblem.CalculateRhsPhi(problemPointers, rhs, problemProperties); // Calculate the right-hand side of the phi equation
+	boundaryProblem.CalculateRhsPhi(problemPointers, rhsPhi, problemProperties); // Calculate the right-hand side of the phi equation
 }
 
 #endif

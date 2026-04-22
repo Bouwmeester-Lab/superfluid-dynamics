@@ -130,6 +130,7 @@ __global__ void add_optical_field_drive_terms(std_complex* result, double curren
         result[i] += variables.G * lowerVelocities[i].imag() * LightIntensity::compute_x_profile(Z[i].real(), variables); // this is the damping term
         result[i] += variables.Beta * delayedIntensity;
 		result[i] += LightIntensity::get_current_intensity_drive_strength(variables) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
+        //result[i] += 1e8;
     }
 }
 

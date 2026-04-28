@@ -12,6 +12,9 @@
 #include <chrono>
 #include "HeliumWithDrivingBoundaryProblem.cuh"
 #include "RK4_Time_Dependent.cuh"
+#include "AugmentedBoundaryIntegrator.cuh"
+#include "TrajectoryLogger.cuh"
+#include "HeliumDrivenAutonomousProblem.cuh"
 
 extern "C" 
 {
@@ -68,6 +71,12 @@ extern "C"
 
 	__declspec(dllexport) int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N);
 	__declspec(dllexport) int integrateOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut);
+
+	__declspec(dllexport) int integrateAugmentedOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N);
+	__declspec(dllexport) int integrateAugmentedOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut);
+
+	//__declspec(dllexport) int initializeRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N);
+	__declspec(dllexport) int calculateRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N);
 
 	ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium = 150);
 }

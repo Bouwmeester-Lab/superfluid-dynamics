@@ -62,6 +62,11 @@ extern "C"
 		double beta = 1.0;
 		double damping_strength = 1.0;
 	};
+
+	struct COptomechanicalDevArrays 
+	{
+		void* state;
+	};
 }
 
 

@@ -303,6 +303,59 @@ class SimulationManager:
                 return res, None, None
             # empty the allocated memory in C++
             self.lib.integrateOptomechanicalSimulationRK4_freeMemory(states_ptr, times_ptr)
+    def integrate_augmented_optomechanical_problem(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties, rk4_props : CRK4Options):
+        self.lib.integrateAugmentedOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                       POINTER(POINTER(c_double)),
+                                       POINTER(c_size_t),
+                                       POINTER(POINTER(c_double)),
+                                       POINTER(c_size_t),
+                                       CSimulationProperties,                                       
+                                       CRK4Options,
+                                       COptomechanicalProperties,
+                                       c_size_t)
+        
+        self.lib.integrateAugmentedOptomechanicalSimulationRK4_freeMemory.argtypes = (POINTER(c_double), POINTER(c_double))
+        self.lib.integrateAugmentedOptomechanicalSimulationRK4_freeMemory.restype = c_int
+        self.lib.integrateAugmentedOptomechanicalSimulationRK4.restype = c_int
+
+        n = y0.shape[0] // 4 # augmented state has 4 components per spatial point instead of 3: (x, y, phi, and the delayed optical mode intensity)
+        states_ptr  = POINTER(c_double)()
+        states_len  = c_size_t()
+        times_ptr   = POINTER(c_double)()
+        times_len   = c_size_t()
+        
+        res = self.lib.integrateAugmentedOptomechanicalSimulationRK4(np.ascontiguousarray(y0), byref(states_ptr), byref(states_len), byref(times_ptr), byref(times_len), sim_props, rk4_props, opt_props, n)
+
+        try:
+            if res != 0:
+                return res, None, None
+            
+            states = np.ctypeslib.as_array(states_ptr, shape=(states_len.value, y0.shape[0]))
+            times = np.ctypeslib.as_array(times_ptr, shape=(times_len.value ,))
+
+            states_np = np.array(states, copy=True)
+            times_np  = np.array(times, copy=True)
+
+            return res, times_np, states_np
+        except Exception as e:
+            print("Error during integration result processing: ", e)
+            return -1, None, None
+        finally:
+            if not states_ptr and not times_ptr:
+                return res, None, None
+            # empty the allocated memory in C++
+            self.lib.integrateAugmentedOptomechanicalSimulationRK4_freeMemory(states_ptr, times_ptr)
+    def calculate_augmented_rhs(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties):
+        self.lib.calculateRhsAugmentedOptomechanical.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), CSimulationProperties, COptomechanicalProperties, c_size_t)
+        self.lib.calculateRhsAugmentedOptomechanical.restype = c_int
+
+        n = y0.shape[0] // 4 # augmented state has 4 components per spatial point instead of 3: (x, y, phi, and the delayed optical mode intensity)
+        rhs = np.empty_like(y0)
+
+        res = self.lib.calculateRhsAugmentedOptomechanical(np.ascontiguousarray(y0), rhs, sim_props, opt_props, n)
+        if res != 0:
+            raise Exception("Error in calculating augmented RHS")
+        return rhs
         
 
         

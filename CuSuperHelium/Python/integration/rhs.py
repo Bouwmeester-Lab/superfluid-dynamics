@@ -55,7 +55,7 @@ class COptomechanicalProperties(Structure):
     _fields_ = [("detuning", c_double),
                 ("gamma", c_double),
                 ("G", c_double),
-                ("Tau", c_double),
+                ("tau", c_double),
                 ("max_intensity", c_double),
                 ("initial_time", c_double),
                 ("location_x0_mode", c_double),

@@ -76,10 +76,11 @@ int augmentedSystem() {
     
 
     ProblemProperties properties;
-    properties.depth = 62.83;
+    properties.depth = 0.0942478;
     properties.rho = 1;
     properties.use_expansions = false;
     properties.infinite_depth = false;
+    
 
 	HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVariables);
 	std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
@@ -186,7 +187,7 @@ int drivingHeliumWithCFunc() {
     optoVariables.detuning = 0.8;
     optoVariables.max_intensity = 0.5;
     optoVariables.G = 0.0;
-    optoVariables.Tau = 0.2;
+    optoVariables.tau = 0.2;
     optoVariables.location_x0_mode = 1.0 * PI_d;
     optoVariables.sigma_optical_mode = 20e-6 / L0 ;
     optoVariables.gamma = 1.0;
@@ -255,7 +256,7 @@ int drivingHelium()
     const int N = 256;
 
     ProblemProperties properties;
-    properties.depth = 62.83;
+    properties.depth = 9.4247780e-2;
     properties.rho = 1;
     properties.use_expansions = false;
     properties.infinite_depth = false;

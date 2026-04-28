@@ -19,7 +19,7 @@ void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, Optomec
 	opto_variables.detuning = c_optomechanicalVariables.detuning;
 	opto_variables.gamma = c_optomechanicalVariables.gamma;
 	opto_variables.G = c_optomechanicalVariables.G;
-	opto_variables.Tau = c_optomechanicalVariables.Tau;
+	opto_variables.Tau = c_optomechanicalVariables.tau;
 	opto_variables.max_intensity = c_optomechanicalVariables.max_intensity;
 	opto_variables.initial_time = c_optomechanicalVariables.initial_time;
 	opto_variables.location_x0_mode = c_optomechanicalVariables.location_x0_mode;
@@ -786,11 +786,17 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 		properties = adimensionalizeProperties(properties, simProperties->L);
 
 
-		//ProblemProperties properties;
-		//properties.depth = 0.1;
-		//properties.rho = 1;
-		//properties.use_expansions = false;
-		//properties.infinite_depth = false;
+		// print properties for debugging
+		std::cout << "Adimensionalized optomechanical properties. " << std::endl;
+		std::cout << "detuning: " << optoVars.detuning << std::endl;
+		std::cout << "max_intensity: " << optoVars.max_intensity << std::endl;
+		std::cout << "G: " << optoVars.G << std::endl;
+		std::cout << "Tau: " << optoVars.Tau << std::endl;
+		std::cout << "Beta: " << optoVars.Beta << std::endl;
+		std::cout << "location_x0_mode: " << optoVars.location_x0_mode << std::endl;
+		std::cout << "sigma_optical_mode: " << optoVars.sigma_optical_mode << std::endl;
+		std::cout << "gamma: " << optoVars.gamma << std::endl;
+		std::cout << "Damping strength: " << optoVars.DampingStrength << std::endl;
 
 
 		RK4Options rk4_options;
@@ -975,6 +981,11 @@ ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, d
 	props.kappa = props.kappa / surfaceTensionFactor;
 	props.depth = 2.0 * CUDART_PI * props.depth / L;
 	props.rho /= rhoHelium; 
+
+	std::cout << "Adimensionalized properties: " << std::endl;
+	std::cout << "rho: " << props.rho << std::endl;
+	std::cout << "kappa: " << props.kappa << std::endl;
+	std::cout << "depth: " << props.depth << std::endl;
 
 	return props;
 }

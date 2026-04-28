@@ -15,6 +15,8 @@
 #include <initializer_list>
 #include "OdeSolver.h"
 #include "RK4Options.h"
+#include "TrajectoryLogger.cuh"
+#include <memory>
 
 namespace plt = matplotlibcpp;
 
@@ -22,7 +24,7 @@ template <typename T, int N>
 class AutonomousRungeKuttaStepperBase : public OdeSolver
 {
 public:
-	AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers, double tstep = 1e-2);
+	AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, double tstep = 1e-2, std::shared_ptr<TrajectoryLogger<T, N>> logger = nullptr);
 	virtual ~AutonomousRungeKuttaStepperBase();
 	
 	void setTimeStep(double tstep) 
@@ -43,7 +45,9 @@ protected:
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
 	bool allocatedY0 = false; ///< Flag to indicate if devY0 was allocated by the stepper
-	DataLogger<T, N>& logger; ///< Logger for data collection
+	//DataLogger<T, N>& logger; ///< Logger for data collection
+	std::shared_ptr<TrajectoryLogger<T, N>> logger; ///< Logger for trajectory data collection
+
 
 	T* k1;
 	T* k2;
@@ -61,7 +65,6 @@ protected:
 	T timeStep;
 	T halfTimeStep;
 	T sixthTimeStep;
-	std::vector<std::shared_ptr<ValueLogger>> valueLoggers;
 
 	double currentTime = 0.0;
 
@@ -70,7 +73,7 @@ protected:
 };
 
 template <typename T, int N>
-AutonomousRungeKuttaStepperBase<T, N>::AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers, double tstep) : autonomousProblem(autonomousProblem), logger(logger), valueLoggers(_valueLoggers)
+AutonomousRungeKuttaStepperBase<T, N>::AutonomousRungeKuttaStepperBase(AutonomousProblem<T, N>& autonomousProblem, double tstep, std::shared_ptr<TrajectoryLogger<T, N>> logger) : autonomousProblem(autonomousProblem), logger(logger)
 {
 	cublasCreate(&handle);
 	cudaMalloc(&k1, N * sizeof(T)); // allocate memory for k1
@@ -252,7 +255,7 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 
 #endif
 
-	logger.waitForCopy(); // wait for the logger to finish copying data before proceeding
+	//logger.waitForCopy(); // wait for the logger to finish copying data before proceeding
 
 	step(4); // step 4 of the Runge-Kutta method, which combines the results of the previous steps, it should overwrite devY0 with the final result
 
@@ -281,8 +284,8 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 	//plt::plot(dPhi, { {"label", "dPhi"} }); // plot the Phi component of k1
 	plt::legend();
 #endif
-	if(logger.shouldCopy(_step))
-		logger.setReadyToCopy(devY0, cudaStreamPerThread, currentTime + CastFrom<T>(timeStep), true); //TODO: make this work with a custom stream.
+	//if(logger.shouldCopy(_step))
+	//	logger.setReadyToCopy(devY0, cudaStreamPerThread, currentTime + CastFrom<T>(timeStep), true); //TODO: make this work with a custom stream.
 	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
 	initialize(devY0, true); // reinitialize the stepper with the initial state which is already on the device
 }
@@ -405,14 +408,10 @@ OdeSolverResult AutonomousRungeKuttaStepperBase<T, N>::runEvolution(double start
 	{
 		runStep(step);
 		currentTime += CastFrom<T>(timeStep);
-#pragma unroll
-		for (auto& logger : valueLoggers)
-		{
-			if (logger->shouldLog(step))
-			{
-				logger->logValue();
-			}
-		}
+		// log:
+		logger->logTrajectory(currentTime, devY0);
+
+		
 	}
 	if (currentTime >= endTime)
 		return OdeSolverResult::ReachedEndTime;

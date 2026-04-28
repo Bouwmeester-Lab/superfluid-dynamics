@@ -411,8 +411,8 @@ int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, con
     DataLogger<std_complex, 2 * numParticles> stateLogger;
     stateLogger.setSize(numSteps / loggingSteps + 1);
     stateLogger.setStep(loggingSteps);
-
-    TSolver solver(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
+     //TODO: value loggers to update: { kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger }
+    TSolver solver(boundaryIntegrator, dt);
 	solver.setOptions(solverOptions);
     solver.initialize(deviceData.devZ, true);
     //rungeKunta.setTimeStep(dt);

@@ -32,14 +32,124 @@
 #include "SimulationRunner.cuh"
 #include "SimulationFunctions.cuh"
 #include "HeliumWithDrivingBoundaryProblem.cuh"
+#include "HeliumDrivenAutonomousProblem.cuh"
 #include "RK4_Time_Dependent.cuh"
 #include "Export.cuh"
+#include <AugmentedBoundaryIntegrator.cuh>
+#include "TrajectoryLogger.cuh"
 
 namespace plt = matplotlibcpp;
 
 #define j_complex std::complex<double>(0, 1)
 cudaError_t setDevice();
 
+int augmentedSystem() {
+    const int N = 256;
+
+	std::array<std_complex, 3 * N> initialState; // x, y, phi, delayed_I for each point
+
+    OptomechanicalVariables optoVariables;
+    optoVariables.detuning = 0.1;
+    optoVariables.max_intensity = 0.1;
+    optoVariables.G = 0.01;
+    optoVariables.Tau = 0.2;
+    optoVariables.Beta =1.0;
+    optoVariables.location_x0_mode = 1.0 * PI_d;
+    optoVariables.sigma_optical_mode = 0.8;
+    optoVariables.gamma = 0.01;
+    optoVariables.DampingStrength = 0.01;
+
+    for(size_t i = 0; i < N; i++)
+    {
+        initialState[i] =  std_complex((2.0 * CUDART_PI * i )/ N, 0.0); // x,y
+        //initialState[N + i] = 0.0*sin(initialState[i]); // y
+        initialState[N + i] = 0.0; // phi
+        initialState[2 * N + i] = LightIntensity::compute_intensity(initialState[i].imag(), initialState[i].real(), optoVariables); // delayed_I
+    }
+	
+	std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
+    RK4Options rk4_options;
+
+    rk4_options.initial_timestep = 0.01;
+    rk4_options.returnTrajectory = true;
+
+    
+
+    ProblemProperties properties;
+    properties.depth = 62.83;
+    properties.rho = 1;
+    properties.use_expansions = false;
+    properties.infinite_depth = false;
+
+	HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVariables);
+	std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+
+    AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVariables));
+
+	AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, 0.01, logger);
+
+	stepper.setOptions(rk4_options);
+
+	stepper.initialize(initialState.data(), false);
+
+	stepper.runEvolution(0, 5);
+
+
+    std_complex* hostStates;
+    size_t countStatesHost;
+    double* hostTimes;
+    size_t countHost;
+
+
+    cudaStreamSynchronize(cudaStreamPerThread);
+    logger->copyTimesToHost(&hostTimes, &countHost);
+    if(logger->copyStatesToHost(&hostStates, &countStatesHost) == -1)
+    {
+        std::cerr << "Failed to copy states to host" << std::endl;
+        return -1;
+	}
+
+    std::vector<double> Phi(N);
+
+    std::vector<double> X0(N, 0);
+    std::vector<double> Y0(N, 0);
+
+    plt::figure();
+
+
+
+    for (int i = 0; i < countStatesHost; i++)
+    {
+        for (int j = 0; j < N; j++) {
+            X0[j] = hostStates[i * 3 * N + j].real();
+            Y0[j] = hostStates[i * 3 * N + j].imag();
+        }
+        plt::plot(X0, Y0);
+    }
+
+    /*for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
+        for (int j = 0; j < N; j++) {
+            X0[j] = hostStates[i * 3 * N + j].real();
+            Y0[j] = hostStates[i * 3 * N + j].imag();
+        }
+        plt::plot(X0, Y0);
+    }*/
+    /*for (int i = 0; i < N; i++)
+    {
+        X0[i] = hostStates[i].real();
+        Y0[i] = hostStates[i].imag();
+    }*/
+
+    //plt::plot(X0, Y0);
+
+
+    plt::show();
+
+    delete hostTimes;
+    delete hostStates;
+
+	return 0;
+}
 
 int drivingHeliumWithCFunc() {
 
@@ -75,13 +185,13 @@ int drivingHeliumWithCFunc() {
 
     optoVariables.detuning = 0.8;
     optoVariables.max_intensity = 0.5;
-    optoVariables.G = 0.01;
+    optoVariables.G = 0.0;
     optoVariables.Tau = 0.2;
     optoVariables.location_x0_mode = 1.0 * PI_d;
     optoVariables.sigma_optical_mode = 20e-6 / L0 ;
     optoVariables.gamma = 1.0;
 	optoVariables.beta = 0.0001;
-    optoVariables.damping_strength = 0.01;
+    optoVariables.damping_strength = 0.0;
 
     RK4SolverOptions rk4_options;
 
@@ -142,7 +252,7 @@ int drivingHeliumWithCFunc() {
 
 int drivingHelium() 
 {
-    const int N = 1024;
+    const int N = 256;
 
     ProblemProperties properties;
     properties.depth = 62.83;
@@ -157,14 +267,15 @@ int drivingHelium()
     rk4_options.returnTrajectory = true;
 
 	OptomechanicalVariables optoVariables;
-	optoVariables.detuning = 0.0;
+    optoVariables.detuning = 0.1;
     optoVariables.max_intensity = 0.1;
-    optoVariables.G = -15;
-	optoVariables.Tau = 1000.0;
-	optoVariables.Beta = 1.0;
-    optoVariables.location_x0_mode = 1.0*PI_d;
+    optoVariables.G = 0.01;
+    optoVariables.Tau = 0.2;
+    optoVariables.Beta = 1.0;
+    optoVariables.location_x0_mode = 1.0 * PI_d;
     optoVariables.sigma_optical_mode = 0.8;
-	optoVariables.gamma = 1.0;
+    optoVariables.gamma = 0.01;
+    optoVariables.DampingStrength = 0.01;
 
     HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVariables);
     TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
@@ -193,8 +304,8 @@ int drivingHelium()
 
     for(int i = 0; i < N; i++)
     {
-		X0[i] = 2.0 * CUDART_PI * i / N;
-		Y0[i] = 0.02*sin(X0[i]);
+		X0[i] = (2.0 * CUDART_PI * i) / N;
+		Y0[i] = 0.0*sin(X0[i]);
 
 		Z0[i] = std::complex<double>(X0[i], Y0[i]);
         Phi[i] = 0;
@@ -257,7 +368,7 @@ int drivingHelium()
     
     
 
-    for (int i = countStatesHost - 5; i < countStatesHost; i++) 
+    for (int i = 0; i < countStatesHost; i++) 
     {
         for (int j = 0; j < N; j++) {
             X0[j] = hostStates[i * 2 * N + j].real();
@@ -266,13 +377,13 @@ int drivingHelium()
 		plt::plot(X0, Y0);
     }
 
-    for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
+    /*for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
         for (int j = 0; j < N; j++) {
             X0[j] = hostStates[i * 2 * N + j].real();
             Y0[j] = hostStates[i * 2 * N + j].imag();
 		}
 		plt::plot(X0, Y0);
-    }
+    }*/
     /*for (int i = 0; i < N; i++)
     {
 		X0[i] = hostStates[i].real();
@@ -397,8 +508,8 @@ int main()
     //    waveNumber += stepSize;
     //}
     //modeSum();
-
-    drivingHeliumWithCFunc();
+    augmentedSystem();
+    //drivingHeliumWithCFunc();
 	drivingHelium();
     return 0;
 }

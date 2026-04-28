@@ -103,6 +103,8 @@
     <CudaCompile Include="Export.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AugmentedBoundaryIntegrator.cuh" />
+    <ClInclude Include="AugmentedBoundaryProblem.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
@@ -110,6 +112,7 @@
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="DataLogger.cuh" />
+    <ClInclude Include="DelayedIntensityIntegrator.cuh" />
     <ClInclude Include="DelayedIntensityTerm.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
@@ -118,6 +121,7 @@
     <ClInclude Include="ExportTypes.cuh" />
     <ClInclude Include="GaussLegendre.cuh" />
     <ClInclude Include="GLCoefficients.hpp" />
+    <ClInclude Include="HeliumDrivenAutonomousProblem.cuh" />
     <ClInclude Include="HeliumBoundaryProblem.cuh" />
     <ClInclude Include="HeliumWithDrivingBoundaryProblem.cuh" />
     <ClInclude Include="JacobianCalculator.cuh" />
@@ -143,6 +147,7 @@
     <ClInclude Include="SolitonPeak.h" />
     <ClInclude Include="TimedBoundaryIntegrator.cuh" />
     <ClInclude Include="TimedBoundaryProblem.cuh" />
+    <ClInclude Include="TrajectoryLogger.cuh" />
     <ClInclude Include="ValueLogger.h" />
     <ClInclude Include="VectorUtilities.cuh" />
     <ClInclude Include="VideoMaking.h" />

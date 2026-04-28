@@ -49,7 +49,7 @@ extern "C"
 		double G = 1.0;
 
 		// "delayed" strength of the optical effect on the superfluid.
-		double Tau = 1.0;
+		double tau = 1.0;
 
 		// max intensity of the optical field
 		double max_intensity;

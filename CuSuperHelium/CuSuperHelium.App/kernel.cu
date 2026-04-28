@@ -62,7 +62,7 @@ int drivingHeliumWithCFunc() {
 
 	SimProperties simProperties;
 
-    simProperties.L = 1e-6;
+    simProperties.L = 1e-3;
     simProperties.rho = 150;
     simProperties.kappa = 0;
     simProperties.depth = 15e-9;
@@ -73,22 +73,22 @@ int drivingHeliumWithCFunc() {
 
 	double L0 = simProperties.L / (2.0 * PI_d);
 
-    optoVariables.detuning = -0.8;
+    optoVariables.detuning = 0.8;
     optoVariables.max_intensity = 0.5;
-    optoVariables.G = -0.01;
+    optoVariables.G = 0.01;
     optoVariables.Tau = 0.2;
     optoVariables.location_x0_mode = 1.0 * PI_d;
-    optoVariables.sigma_optical_mode = 0.01e-6 / L0 ;
+    optoVariables.sigma_optical_mode = 20e-6 / L0 ;
     optoVariables.gamma = 1.0;
 	optoVariables.beta = 0.0001;
-
+    optoVariables.damping_strength = 0.01;
 
     RK4SolverOptions rk4_options;
 
 	rk4_options.timeStep = 0.01;
 	rk4_options.returnTrajectory = true;
     rk4_options.t0 = 0.0;
-	rk4_options.t1 = 5.0;
+	rk4_options.t1 = 50000;
 
     integrateOptomechanicalSimulationRK4(initialState.data(), &hostStates, &countStatesHost, &hostTimes, &countHost, &simProperties, &rk4_options, &optoVariables, N);
 

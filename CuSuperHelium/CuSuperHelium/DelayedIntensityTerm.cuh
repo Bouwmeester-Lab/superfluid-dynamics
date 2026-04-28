@@ -25,8 +25,9 @@ struct DelayedIntensityTermDevice
         if(currentTime == *prev_time) {
             return lightIntensityFelt;
 		}
-        return exp(-(currentTime - *prev_time) / variables.Tau) * delayed_intensity[index]
-            + lightIntensityFelt;
+		double a = exp(-(currentTime - *prev_time) / variables.Tau);
+        return a * delayed_intensity[index]
+            + variables.Beta * variables.Tau * (1 - a) * lightIntensityFelt;
     }
 
     __device__ void save_value(double value, double time, size_t index)

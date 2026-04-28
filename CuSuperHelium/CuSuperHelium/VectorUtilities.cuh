@@ -4,7 +4,7 @@
 #include <cuda/std/array>
 
 template <typename T, size_t N>
-void appendToVector(thrust::device_vector<cuda::std::array<T, N>>& vec, double* devState, cudaStream_t stream = cudaStreamPerThread) 
+void appendToVector(thrust::device_vector<cuda::std::array<T, N>>& vec, T* devState, cudaStream_t stream = cudaStreamPerThread) 
 {
 	vec.resize(vec.size() + 1);
 	// get the raw pointer to the newly added element

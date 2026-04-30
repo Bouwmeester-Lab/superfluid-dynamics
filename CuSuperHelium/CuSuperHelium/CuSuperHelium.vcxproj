@@ -104,7 +104,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AugmentedBoundaryIntegrator.cuh" />
-    <ClInclude Include="AugmentedBoundaryProblem.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />

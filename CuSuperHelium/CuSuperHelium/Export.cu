@@ -1,5 +1,32 @@
 #include "Export.cuh"
+//#include "matplotlibcpp.h"
+//namespace plt = matplotlibcpp;
 //#include "SimulationFunctions.cuh"
+void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
+{
+	properties.rho = simProperties.rho;
+	properties.kappa = simProperties.kappa;
+	properties.depth = simProperties.depth;
+
+	properties.expansion_order = simProperties.expansion_order;
+	properties.use_expansions = simProperties.use_expansions;
+
+	properties.infinite_depth = simProperties.infinite_depth;
+}
+
+void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, OptomechanicalVariables& opto_variables) 
+{
+	opto_variables.detuning = c_optomechanicalVariables.detuning;
+	opto_variables.gamma = c_optomechanicalVariables.gamma;
+	opto_variables.G = c_optomechanicalVariables.G;
+	opto_variables.Tau = c_optomechanicalVariables.tau;
+	opto_variables.max_intensity = c_optomechanicalVariables.max_intensity;
+	opto_variables.initial_time = c_optomechanicalVariables.initial_time;
+	opto_variables.location_x0_mode = c_optomechanicalVariables.location_x0_mode;
+	opto_variables.sigma_optical_mode = c_optomechanicalVariables.sigma_optical_mode;
+	opto_variables.Beta = c_optomechanicalVariables.beta;
+	opto_variables.DampingStrength = c_optomechanicalVariables.damping_strength;
+}
 
 int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps)
 {
@@ -23,7 +50,7 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, doubl
 		properties = adimensionalizeProperties(properties, L);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
 
 		std::vector<std::complex<double>> Z;
 		std::vector<double> Phi;
@@ -96,7 +123,7 @@ int calculateRHS256FromVectors(const double* x, const double* y, const double* p
 		properties = adimensionalizeProperties(properties, L);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
 
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
@@ -175,7 +202,7 @@ int calculateRHSNFromVectors(const double* x, const double* y, const double* phi
 		//std::cout << "Adimensionalized properties. " << std::endl;
 		HeliumBoundaryProblem<N, batchSize> heliumProblem(properties);
 		//std::cout << "Created HeliumBoundaryProblem. " << std::endl;
-		BoundaryIntegralCalculator<N, batchSize> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<N, batchSize> calculator(properties, heliumProblem);
 		//std::cout << "Created BoundaryIntegralCalculator. " << std::endl;
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
@@ -257,7 +284,7 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 		properties = adimensionalizeProperties(properties, L);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
 
 		//std::vector<std::complex<double>> Z;
 		//std::vector<double> Phi;
@@ -395,7 +422,7 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 		{
 			
 			HeliumBoundaryProblem<N, 3 * N> heliumProblem(properties);
-			std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
+			std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
 
 
 			JacobianCalculator<N> jacobianCalculator(std::move(boundaryIntegralCalculatorPtr));
@@ -636,22 +663,24 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 {
 	try {
 		ProblemProperties properties;
-		properties.rho = simProperties->rho;
-		properties.kappa = simProperties->kappa;
-		properties.depth = simProperties->depth;
+		copyProperties(*simProperties, properties);
+		std::cout << "Properties copied." << std::endl;
+		std::cout << "Using expansions: " << properties.use_expansions << " with order " << properties.expansion_order << std::endl;
+		
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, simProperties->L);
+		std::cout << "depth: " << properties.depth << ", kappa: " << properties.kappa << ", rho: " << properties.rho << std::endl;
 		// create the options for GL
 		GaussLegendre2Options glOptions = createOptionsFromCOptions(*glCOptions);
 
 
 		// calculators for the f(y)
 		HeliumBoundaryProblem<N, 1> heliumProblem(properties);
-		BoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
+		BaseBoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
 		RealBoundaryItegralCalculator<N> realCalculator(calculator);
 		// calculators for the jacobian
 		HeliumBoundaryProblem<N, 3 * N> heliumJacProblem(properties);
-		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);
+		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);
 		JacobianCalculator<N> jacobianCalculator(std::move(jacBoundaryIntegralCalculatorPtr));
 
 
@@ -710,6 +739,461 @@ int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut)
 	return 0;
 }
 
+template <size_t N>
+int integrateSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4Options* rkOptions)
+{
+	try {
+		ProblemProperties properties;
+		copyProperties(*simProperties, properties);
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, simProperties->L);
+
+
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+}
+
+
+
+int integrateSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N)
+{
+	return 0;
+}
+
+int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut)
+{
+	std::free(statesOut);
+	std::free(timesOut);
+	return 0;
+}
+
+template <size_t N>
+int integrateOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, COptomechanicalVariables* optoVariables, RK4SolverOptions* rkOptions) 
+{
+	try 
+	{
+		ProblemProperties properties;
+		//OptomechanicalVariables optoVars;
+		copyProperties(*simProperties, properties);
+		OptomechanicalVariables optoVars;
+
+		copyProperties(*optoVariables, optoVars);
+
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, simProperties->L);
+
+
+		// print properties for debugging
+		std::cout << "Adimensionalized optomechanical properties. " << std::endl;
+		std::cout << "detuning: " << optoVars.detuning << std::endl;
+		std::cout << "max_intensity: " << optoVars.max_intensity << std::endl;
+		std::cout << "G: " << optoVars.G << std::endl;
+		std::cout << "Tau: " << optoVars.Tau << std::endl;
+		std::cout << "Beta: " << optoVars.Beta << std::endl;
+		std::cout << "location_x0_mode: " << optoVars.location_x0_mode << std::endl;
+		std::cout << "sigma_optical_mode: " << optoVars.sigma_optical_mode << std::endl;
+		std::cout << "gamma: " << optoVars.gamma << std::endl;
+		std::cout << "Damping strength: " << optoVars.DampingStrength << std::endl;
+
+
+		RK4Options rk4_options;
+
+		rk4_options.initial_timestep = rkOptions->timeStep;
+		rk4_options.returnTrajectory = rkOptions->returnTrajectory;
+		const double t0 = rkOptions->t0;
+		const double t1 = rkOptions->t1;
+
+		//OptomechanicalVariables optoVariables;
+
+		//optoVariables.max_intensity = 0.1;
+		//optoVariables.G = -15;
+		//optoVariables.Tau = 10000;
+		//optoVariables.Beta = 1.0;
+		//optoVariables.location_x0_mode = 1.0 * PI_d;
+		//optoVariables.sigma_optical_mode = 0.8;
+		//optoVariables.gamma = 1.0;
+
+		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVars);
+		TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
+
+		/*DataLogger<std_complex, 2 * N> stateLogger;
+
+		const int loggingSteps = 100;
+		stateLogger.setSize(500 / loggingSteps + 1);
+		stateLogger.setStep(loggingSteps);*/
+
+		RungeKuttaStepper<std_complex, 2 * N> stepper(integrator);
+
+
+		
+		stepper.setOptions(rk4_options);
+
+		std::vector<std::complex<double>> Z0(N);
+		std::vector<double> Phi(N);
+
+		for(size_t i = 0; i < N; i++)
+		{
+			Z0[i] = std::complex<double>(initialState[i], initialState[i + N]);
+			Phi[i] = initialState[i + 2 * N];
+		}
+
+		ParticleData particleData(Z0, Phi);
+		DeviceParticleData deviceParticleData;
+
+		loadDataToDevice(particleData, deviceParticleData, N);
+		cudaStreamSynchronize(cudaStreamPerThread);
+
+		stepper.initialize(deviceParticleData.devZ, true);
+
+		std::cout << "Starting RK4 evolution from t = " << t0 << " to t = " << t1 << " with time step " << rk4_options.initial_timestep << std::endl;
+
+		stepper.runEvolution(t0, t1);
+
+		std::cout << "RK4 evolution completed. Copying results to host." << std::endl;
+
+		/*double* hostTimes;
+		size_t countHost;
+
+		std_complex* hostStates;
+		size_t countStatesHost;*/
+
+
+
+		cudaStreamSynchronize(cudaStreamPerThread);
+
+		/*double* hostTimes;
+		size_t countHost;
+
+		std_complex* hostStates;
+		size_t countStatesHost;*/
+
+		/*stepper.copyTimesToHost(&hostTimes, &countHost);
+		stepper.copyStatesToHost(&hostStates, &countStatesHost);*/
+
+		stepper.copyTimesToHost(timesOut, timesCount);
+
+		std::cout << "Times copied to host. Copying states to host." << std::endl;
+
+		std_complex* hostStates;
+		stepper.copyStatesToHost(&hostStates, statesCount);
+
+		std::cout << "Complex states copied to host. Transforming to output format." << std::endl;
+
+		// transform std::complex to double arrays for output
+		// this must be freed by the caller
+		 double* states = (double*)std::malloc(3 * (*statesCount) * sizeof(double) * N);
+		 size_t countStatesHost = *statesCount;
+		 //std::vector<double> Phi(N);
+
+		 /*std::vector<double> X0(N, 0);
+		 std::vector<double> Y0(N, 0);
+
+		 for (int i = countStatesHost - 5; i < countStatesHost; i++)
+		 {
+			 for (int j = 0; j < N; j++) {
+				 X0[j] = hostStates[i * 2 * N + j].real();
+				 Y0[j] = hostStates[i * 2 * N + j].imag();
+			 }
+			 plt::plot(X0, Y0);
+		 }
+
+		 for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
+			 for (int j = 0; j < N; j++) {
+				 X0[j] = hostStates[i * 2 * N + j].real();
+				 Y0[j] = hostStates[i * 2 * N + j].imag();
+			 }
+			 plt::plot(X0, Y0);
+		 }
+
+		 plt::show();*/
+
+		 for (size_t j = 0; j < countStatesHost; j++) 
+		 {
+			 for (size_t i = 0; i < N; i++)
+			 {
+				 states[j * 3 * N + i] = hostStates[j*2* N + i].real();
+				 states[j * 3 * N + i + N] = hostStates[j * 2 * N +i].imag();
+				 states[j * 3 * N + i + 2 * N] = hostStates[j * 2 * N + N + i].real();
+			 }
+		 }
+
+		 std::cout << "States transformed to output format. Setting output pointers." << std::endl;
+
+		 *statesOut = states;
+		 // free the one created by the stepper
+
+		 std::cout << "Freeing host states memory." << std::endl;
+
+		 std::free(hostStates);
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+
+	return 0;
+}
+
+int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N)
+{
+	switch (N) {
+		case 32:
+			return integrateOptomechanicalSimulationRK4_N<32>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 64:
+			return integrateOptomechanicalSimulationRK4_N<64>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 128:
+			return integrateOptomechanicalSimulationRK4_N<128>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 256:
+			return integrateOptomechanicalSimulationRK4_N<256>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 512:
+			return integrateOptomechanicalSimulationRK4_N<512>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 1024:
+			return integrateOptomechanicalSimulationRK4_N<1024>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 2048:
+			return integrateOptomechanicalSimulationRK4_N<2048>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 4096:
+			return integrateOptomechanicalSimulationRK4_N<4096>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+		case 8192:
+			return integrateOptomechanicalSimulationRK4_N<8192>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
+	}
+	return 0;
+}
+
+int integrateOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut)
+{
+	std::free(statesOut);
+	std::free(timesOut);
+	return 0;
+}
+
+template <size_t N>
+int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables) 
+{
+	try {
+		ProblemProperties properties;
+		//OptomechanicalVariables optoVars;
+		copyProperties(*simProperties, properties);
+		OptomechanicalVariables optoVars;
+
+		copyProperties(*optomechanicalVariables, optoVars);
+
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, simProperties->L);
+
+		RK4Options rk4_options;
+
+		rk4_options.initial_timestep = rkOptions->timeStep;
+		rk4_options.returnTrajectory = rkOptions->returnTrajectory;
+		const double t0 = rkOptions->t0;
+		const double t1 = rkOptions->t1;
+
+		std::vector<std_complex> cplx_initialState(3*N);
+
+		for(size_t i = 0; i < N; i++)
+		{
+			cplx_initialState[i] = std_complex(initialState[i], initialState[i + N]); // Z
+			cplx_initialState[i +  N] = std_complex(initialState[i + 2 * N], 0); // phi
+			cplx_initialState[i + 2 * N] = std_complex(initialState[i + 3 * N], 0); // delayed intensity
+		}
+
+		std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
+		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars);
+		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+
+		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars));
+
+		AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, rk4_options.initial_timestep, logger);
+
+		stepper.setOptions(rk4_options);
+		stepper.initialize(cplx_initialState.data(), false);
+
+		std::cout << "Starting augmented RK4 evolution from t = " << t0 << " to t = " << t1 << " with time step " << rk4_options.initial_timestep << std::endl;
+		stepper.runEvolution(t0, t1);
+
+		std::cout << "Augmented RK4 evolution completed. Copying results to host." << std::endl;
+		cudaStreamSynchronize(cudaStreamPerThread);
+
+		logger->copyTimesToHost(timesOut, timesCount);
+		std::cout << (*timesCount) << " times copied to host" << "Copying states to host." << std::endl;
+		std_complex* hostStates;
+
+		if (logger->copyStatesToHost(&hostStates, statesCount) == -1) 
+		{
+			std::cerr << "Failed to copy states to host" << std::endl;
+			return -1;
+		}
+		std::cout << (*statesCount) << " complex states copied to host. Transforming to output format." << std::endl;
+		// transform std::complex to double arrays for output
+		double* states = (double*)std::malloc(4 * (*statesCount) * sizeof(double) * N);
+		size_t countStatesHost = *statesCount;
+
+		for (size_t j = 0; j < countStatesHost; j++)
+		{
+			for (size_t i = 0; i < N; i++)
+			{
+				states[j * 4 * N + i] = hostStates[j * 3 * N + i].real();
+				states[j * 4 * N + i + N] = hostStates[j * 3 * N + i].imag();
+				states[j * 4 * N + i + 2 * N] = hostStates[j * 3 * N + N + i].real();
+				states[j * 4 * N + i + 3 * N] = hostStates[j * 3 * N + N + i].real(); // delayed intensity
+			}
+		}
+
+		std::cout << countStatesHost << " states transformed to output format. Setting output pointers." << std::endl;
+
+		*statesOut = states;
+		// free the one created by the stepper
+
+		std::cout << "Freeing host states memory." << std::endl;
+
+		std::free(hostStates);
+
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+	return 0;
+}
+
+int integrateAugmentedOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N)
+{
+	switch (N) {
+		case 32:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<32>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 64:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<64>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 128:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<128>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 256:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<256>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 512:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<512>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 1024:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<1024>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 2048:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<2048>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 4096:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<4096>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+		case 8192:
+			return integrateAugmentedOptomechanicalSimulationRK4_N<8192>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
+	}
+	return -1;
+}
+
+int integrateAugmentedOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut)
+{
+	std::free(statesOut);
+	std::free(timesOut);
+	return 0;
+}
+
+template <size_t N>
+int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables)
+{
+	std_complex* devState;
+	std_complex* devRhs;
+	std_complex* hostRhs;
+	bool error = false;
+	try {
+		ProblemProperties properties;
+		//OptomechanicalVariables optoVars;
+		copyProperties(*simProperties, properties);
+		OptomechanicalVariables optoVars;
+
+		copyProperties(*optomechanicalVariables, optoVars);
+
+		// adimensionalize properties
+		properties = adimensionalizeProperties(properties, simProperties->L);
+
+		std::vector<std_complex> cplx_initialState(3 * N);
+
+		for (size_t i = 0; i < N; i++)
+		{
+			cplx_initialState[i] = std_complex(state[i], state[i + N]); // Z
+			cplx_initialState[i + N] = std_complex(state[i + 2 * N], 0); // phi
+			cplx_initialState[i + 2 * N] = std_complex(state[i + 3 * N], 0); // delayed intensity
+		}
+
+		std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
+		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars);
+		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+
+		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars));
+
+		// copy the state to device
+
+		
+		checkCuda(cudaMalloc(&devState, sizeof(std_complex) * 3 * N));
+		checkCuda(cudaMalloc(&devRhs, sizeof(std_complex) * 3 * N));
+		checkCuda(cudaMemcpy(devState, cplx_initialState.data(), sizeof(std_complex) * 3 * N, cudaMemcpyHostToDevice));
+
+
+		integrator.run(devState, devRhs);
+
+		cudaStreamSynchronize(cudaStreamPerThread);
+		// copy rhs back to host
+		hostRhs = (std_complex*)std::malloc(sizeof(std_complex) * 3 * N);
+		checkCuda(cudaMemcpy(hostRhs, devRhs, sizeof(std_complex) * 3 * N, cudaMemcpyDeviceToHost));
+		// transform to output format
+		for (size_t i = 0; i < N; i++)
+		{
+			rhs[i] = hostRhs[i].real();
+			rhs[i + N] = hostRhs[i].imag();
+			rhs[i + 2 * N] = hostRhs[i + N].real(); // d/dt phi 
+			rhs[i + 3 * N] = hostRhs[i + 2 * N].real(); // d/dt delayed intensity
+		}
+
+	}
+	catch(const std::exception& e) {
+		std::cerr << "Error: " << e.what() << std::endl;
+		// return -1;
+	}
+
+	// free memory allocated, both on host and device
+	if(devState != nullptr) {
+		cudaFree(devState);
+	}
+	if(devRhs != nullptr) {
+		cudaFree(devRhs);
+	}
+	if(hostRhs != nullptr) {
+		std::free(hostRhs);
+	}
+	
+	
+	return error;
+}
+
+int calculateRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N)
+{
+	switch(N) {
+		case 32:
+			return calculateRhsAugmentedOptomechanical_N<32>(state, rhs, simProperties, optomechanicalVariables);
+		case 64:
+			return calculateRhsAugmentedOptomechanical_N<64>(state, rhs, simProperties, optomechanicalVariables);
+		case 128:
+			return calculateRhsAugmentedOptomechanical_N<128>(state, rhs, simProperties, optomechanicalVariables);
+		case 256:
+			return calculateRhsAugmentedOptomechanical_N<256>(state, rhs, simProperties, optomechanicalVariables);
+		case 512:
+			return calculateRhsAugmentedOptomechanical_N<512>(state, rhs, simProperties, optomechanicalVariables);
+		case 1024:
+			return calculateRhsAugmentedOptomechanical_N<1024>(state, rhs, simProperties, optomechanicalVariables);
+		case 2048:
+			return calculateRhsAugmentedOptomechanical_N<2048>(state, rhs, simProperties, optomechanicalVariables);
+		case 4096:
+			return calculateRhsAugmentedOptomechanical_N<4096>(state, rhs, simProperties, optomechanicalVariables);
+		case 8192:
+			return calculateRhsAugmentedOptomechanical_N<8192>(state, rhs, simProperties, optomechanicalVariables);
+	}
+	return -1;
+}
+
+
+
 ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)
 {
 	double L0 = L / (2.0 * PI_d); // characteristic length
@@ -721,5 +1205,12 @@ ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, d
 	props.depth = 2.0 * CUDART_PI * props.depth / L;
 	props.rho /= rhoHelium; 
 
+	/*std::cout << "Adimensionalized properties: " << std::endl;
+	std::cout << "rho: " << props.rho << std::endl;
+	std::cout << "kappa: " << props.kappa << std::endl;
+	std::cout << "depth: " << props.depth << std::endl;*/
+
 	return props;
 }
+
+

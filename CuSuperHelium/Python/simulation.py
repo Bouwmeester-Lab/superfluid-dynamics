@@ -35,7 +35,7 @@ def angular_freq(zeta, _c3, R):
     return zeta * _c3 / R
 
 L = 1e-3
-depth = 50e-9
+depth = 20e-9
 
 def f(y, L):
     return rhs_func(0, y, L, depth)
@@ -50,7 +50,7 @@ def J(y, L):
     return jacobian
 
 r = np.array([2.0*np.pi/N*x for x in range(N)])
-initial_amplitude = 0.001*depth
+initial_amplitude = 0.1*depth
 L0 = L / (2.0 * np.pi)
 g = 3*2.6e-24 / depth**4
 _t0 = np.sqrt(L0 / g)
@@ -66,6 +66,9 @@ def soliton_sech2(x, x0 = 0.75*np.pi, width=0.4):
 
 def bimodal(x, x0, x1, sigma1 = 0.4, sigma2 = 0.4, a1 = 1.0, a2 = 1.0):
     return a1 * gaussian(x, x0, sigma1) + a2 * soliton_sech2(x, x1, sigma2)
+
+def waveform(x, t, x0, k0, omega0, amplitude, sigma):
+    return amplitude * gaussian(x, x0, sigma) * np.cos(k0*x - omega0*t)
 
 
 
@@ -136,27 +139,39 @@ print(f"c3 is {speed:.2e} m/s")
 max_wave_length = 1e-4
 min_wave_length = 1e-6
 
+wn0 = 3e3
+# waveNumbers =wn0 * np.arange(1000, 1050) # np.linspace(1e3, 200000, 20)
+waveNumbers = np.linspace(1e3, 1e8, 20)
+## insert wn0 at the start of the array
+waveNumbers = np.insert(waveNumbers, 0, wn0)
 
-waveNumbers = np.linspace(1e3, 200000, 20)
 waveLengths = 1 / waveNumbers
-periods = 250
+periods = 200
 h = 10
+base_path = f"data/fast/wl_{depth*1e9:.0f}"
+# initial_amplitude = 0.00001 * depth
+# initial_amplitudes = np.linspace(1e-6 * depth, 1e-2 * depth, 20)
+# wl = waveLengths[5] # 2*np.pi / (1.89e5)
+    
 
-initial_amplitudes = np.linspace(1e-6 * depth, 1e-2 * depth, 20)
-wl = waveLengths[5] # 2*np.pi / (1.89e5)
-
-# for wl in waveLengths[5:]: # next one to start with 1.87e-05
-for amplitude in initial_amplitudes[16:]:
-    y0 = setInitialY0(r, wl, amplitude)
+for wl in waveLengths: # next one to start with 1.87e-05
+# for amplitude in initial_amplitudes[16:]:
+    y0 = setInitialY0(r, wl, initial_amplitude)# + setInitialY0(2*r, wl, initial_amplitude/2.0)
+    y0[:N] = r
+    y0[N:2*N] = 0.0 * np.cos(r) * initial_amplitude / (wl / (2.0 * np.pi))  # set initial amplitude
+    # y0[2*N:3*N] = 0.0 * y0[2*N:3*N]  # set potential to zero
+    # plt.plot(r, y0[N:2*N], label=f"Initial Amplitude {initial_amplitude:.2e} m")
+    # plt.plot(r, y0[2*N:3*N], label=f"Initial Potential {initial_amplitude:.2e} m")
+    # plt.show()
     t1 = wl / speed * periods
     L0 = wl / (2.0 * np.pi)
     _t0 = np.sqrt(L0 / g)
     h = 0.005 * wl / speed / _t0
-    print(f"Simulating wave length {wl:.2e} m for time {t1:.2e} s, equivalent to {t1/_t0:.2e} nondim time, with a max step size of {h:.2f} nondim. Initial amplitude {amplitude:.2e} m")
+    print(f"Simulating wave length {wl:.2e} m for time {t1:.2e} s, equivalent to {t1/_t0:.2e} nondim time, with a max step size of {h:.2f} nondim. Initial amplitude {initial_amplitude:.2e} m")
     simProperties = rhs.CSimulationProperties(
         L = wl,
         depth = depth,
-        rho = 145,
+        rho = 150,
         kappa = 0,
     )
     gaussLegendreOptions = rhs.CGaussLegendreProperties(
@@ -170,11 +185,11 @@ for amplitude in initial_amplitudes[16:]:
         armijo_c = 1e-4,
         backtrack = 0.5,
         minAlpha = 1e-6,
-        maxStepsHalves = 20
+        maxStepsHalves = 40
     )
 
-    if os.path.exists(f"data/fixed/simulation_ia_{amplitude:.2e}m.h5"):
-        T, Y, Y0, L_loaded, depth_loaded, N_loaded, t0_loaded, t1_loaded, initial_amplitude_loaded, g_loaded = loadSimulationFile(f"data/fixed/simulation_ia_{amplitude:.2e}m.h5")
+    if os.path.exists(f"{base_path}/simulation_wl_{wl:.2e}m.h5"):
+        T, Y, Y0, L_loaded, depth_loaded, N_loaded, t0_loaded, t1_loaded, initial_amplitude_loaded, g_loaded = loadSimulationFile(f"{base_path}/simulation_wl_{wl:.2e}m.h5")
         if(t1 / _t0 <= t1_loaded):
             print(f"  Simulation already exists with sufficient time {t1_loaded:.2e} s, skipping.")
             continue
@@ -188,11 +203,11 @@ for amplitude in initial_amplitudes[16:]:
             # T_new, Y_new = gl.integrate_gl2(lambda y: f(y, wl),  lambda y: J(y, wl), Y[-1, :], t1_loaded, t1 / _t0, h, show_progress = True, max_step_halves=20)
             Tcon = np.concatenate((T, T_new))
             Ycon = np.concatenate((Y, Y_new))
-            saveSimulationFile(f"data/fixed/simulation_ia_{amplitude:.2e}m.h5", Tcon, Ycon, y0, wl, depth, t0, t1 / _t0, amplitude, g)
+            saveSimulationFile(f"{base_path}/simulation_wl_{wl:.2e}m.h5", Tcon, Ycon, y0, wl, depth, t0, t1 / _t0, initial_amplitude, g)
     else:
         res, T, Y = simManager.integrate(y0, simProperties, gaussLegendreOptions)
         if res != 0:
-            print(f"  Error during integration.")
+            print(f"Error during integration.")
             continue
         # T, Y = gl.integrate_gl2(lambda y: f(y, wl),  lambda y: J(y, wl), y0, t0, t1 / _t0, h, show_progress = True, max_step_halves=20)
-        saveSimulationFile(f"data/fixed/simulation_ia_{amplitude:.2e}m.h5", T, Y, y0, wl, depth, t0, t1 / _t0, amplitude, g)
+        saveSimulationFile(f"{base_path}/simulation_wl_{wl:.2e}m.h5", T, Y, y0, wl, depth, t0, t1 / _t0, initial_amplitude, g)

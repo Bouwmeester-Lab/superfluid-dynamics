@@ -36,7 +36,7 @@ __global__ void convertToRealRhsKernel(const std_complex* complexRHS, double* re
 template <size_t N>
 class RealBoundaryItegralCalculator final : public AutonomousProblem<double, 3 * N> 
 {
-	BoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator;
+	BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator;
 	cudaStream_t stream = cudaStreamPerThread;
 
 	std_complex* devComplexState = nullptr;
@@ -49,7 +49,7 @@ public:
 	virtual void run(double* initialState, double* rhs) override;
 	virtual void setStream(cudaStream_t stream) override;
 
-	RealBoundaryItegralCalculator(BoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator);
+	RealBoundaryItegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator);
 	~RealBoundaryItegralCalculator();
 };
 
@@ -75,7 +75,7 @@ void RealBoundaryItegralCalculator<N>::setStream(cudaStream_t stream)
 }
 
 template<size_t N>
-RealBoundaryItegralCalculator<N>::RealBoundaryItegralCalculator(BoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator) : boundaryIntegralCalculator(boundaryIntegralCalculator)
+RealBoundaryItegralCalculator<N>::RealBoundaryItegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator) : boundaryIntegralCalculator(boundaryIntegralCalculator)
 {
 	checkCuda(cudaMalloc(&devComplexState, 2 * N * sizeof(std_complex)), __func__, __FILE__, __LINE__);
 	checkCuda(cudaMalloc(&devComplexRHS, 2 * N * sizeof(std_complex)), __func__, __FILE__, __LINE__);

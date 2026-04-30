@@ -15,6 +15,9 @@
 #include "RK45.cuh"
 #include "SimulationOptions.h"
 #include "ExportTypes.cuh"
+#include "HeliumBoundaryProblem.cuh"
+#include "WaterBoundaryProblem.cuh"
+//#include "H"
 
 namespace plt = matplotlibcpp;
 
@@ -54,9 +57,9 @@ public:
 template <int N, size_t batchSize>
 struct VolumeFluxFunctor {
 private:
-    BoundaryIntegralCalculator<N, batchSize>& integralCalculator;
+    BaseBoundaryIntegralCalculator<N, batchSize>& integralCalculator;
 public:
-    VolumeFluxFunctor(BoundaryIntegralCalculator<N, batchSize>& integralCalculator) : integralCalculator(integralCalculator)
+    VolumeFluxFunctor(BaseBoundaryIntegralCalculator<N, batchSize>& integralCalculator) : integralCalculator(integralCalculator)
     {
 
     }
@@ -382,7 +385,7 @@ int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, con
    // std::vector<double> loggedSteps(numSteps / loggingSteps + 1, 0);
 
     /*HeliumBoundaryProblem<numParticles> boundaryProblem(properties);*/
-    BoundaryIntegralCalculator<numParticles, batchSize> boundaryIntegrator(properties, boundaryProblem);
+    BaseBoundaryIntegralCalculator<numParticles, batchSize> boundaryIntegrator(properties, boundaryProblem);
 
     // energy, constant functors
     KineticEnergyFunctor<numParticles, batchSize> kineticEnergy(boundaryProblem);
@@ -408,8 +411,8 @@ int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, con
     DataLogger<std_complex, 2 * numParticles> stateLogger;
     stateLogger.setSize(numSteps / loggingSteps + 1);
     stateLogger.setStep(loggingSteps);
-
-    TSolver solver(boundaryIntegrator, stateLogger, {kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger}, dt);
+     //TODO: value loggers to update: { kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger }
+    TSolver solver(boundaryIntegrator, dt);
 	solver.setOptions(solverOptions);
     solver.initialize(deviceData.devZ, true);
     //rungeKunta.setTimeStep(dt);

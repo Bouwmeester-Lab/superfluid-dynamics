@@ -69,7 +69,7 @@ __global__ void createVelocityMatrices(const std_complex* Z, const std_complex* 
 	}
 }
 
-__global__ void createHeliumVelocityMatrices(const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int N, std_complex* const out1, std_complex* const out2, bool lower, size_t batchSize)
+__global__ void createHeliumVelocityMatrices(const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int N, std_complex* const out1, std_complex* const out2, bool lower, size_t batchSize, bool infinite_depth = false)
 {
 	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
 	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -85,7 +85,8 @@ __global__ void createHeliumVelocityMatrices(const std_complex* const Z, const s
 			// we are in the diagonal:
 
 			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * Zpp[k + b*N] / (cuda::std::pow(Zp[k + b*N], 2.0)));
-			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(std_complex(0, Z[k + b*N].imag() + h)));
+			if (!infinite_depth)
+				out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(std_complex(0, Z[k + b*N].imag() + h)));
 			if (lower)
 			{
 				out1[indx] += 1.0 / (2.0 * Zp[k + b*N]);
@@ -99,7 +100,8 @@ __global__ void createHeliumVelocityMatrices(const std_complex* const Z, const s
 		else
 		{
 			out1[indx] = multiply_by_i(-1.0 / (4.0 * CUDART_PI) * cotangent_green_function(Z[k+b*N], Z[j + b*N]));
-			out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(0.5 * (Z[k + b*N] - cuda::std::conj(Z[j + b*N])) + std_complex(0, h)));
+			if(!infinite_depth)
+				out1[indx] += multiply_by_i(1.0 / (4.0 * CUDART_PI) * cot(0.5 * (Z[k + b*N] - cuda::std::conj(Z[j + b*N])) + std_complex(0, h)));
 		}
 	}
 }

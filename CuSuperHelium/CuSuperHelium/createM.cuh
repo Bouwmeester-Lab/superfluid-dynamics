@@ -13,9 +13,11 @@
 #include "constants.cuh"
 #include <cufft.h>
 #include "utilities.cuh"
+#include "DelayedIntensityTerm.cuh"
+#include "LightIntensity.cuh"
 
 __global__ void createMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho, int n, size_t batchSize);
-__global__ void createFiniteDepthMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h, int n, size_t batchSize);
+__global__ void createFiniteDepthMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h, int n, size_t batchSize, bool infinite_depth = false);
 
 /// <summary>
 /// Computes the RHS of Phi on the GPU using the expression: -(1+rho) * Im(Z) + 0.5 * abs(V1)^2 + 0.5 * rho * abs(V2)^2. - rho * V1 dot V2
@@ -59,7 +61,7 @@ __global__ void createMKernel(double* A, const std_complex* const Z, const std_c
     }
 }
 
-__global__ void createFiniteDepthMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int n, size_t batchSize)
+__global__ void createFiniteDepthMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int n, size_t batchSize, bool infinite_depth)
 {
     const int j = blockIdx.y * blockDim.y + threadIdx.y; // row
     const int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -72,12 +74,18 @@ __global__ void createFiniteDepthMKernel(double* A, const std_complex* const Z, 
         if (k == j)
         {
             // we are on the diagonal:
-            A[indx] = 0.5 + 0.25 / PI_d * (Zpp[k + b*n] / Zp[k + b*n]).imag() - 0.25 / PI_d * cot(std_complex(0, Z[k + b*n].imag()+h)).imag(); // imaginary part
+            A[indx] = 0.5 + 0.25 / PI_d * (Zpp[k + b*n] / Zp[k + b*n]).imag(); // imaginary part
+			if (!infinite_depth) // finite depth correction if needed
+                A[indx] -= 0.25 / PI_d * cot(std_complex(0, Z[k + b * n].imag() + h)).imag(); // finite depth correction
         }
         else
         {
-            std_complex cotTerm = 0.5*(Z[k + b*n] - cuda::std::conj(Z[j + b*n]))+std_complex(0, h);
-            A[indx] = 0.25 / PI_d * (Zp[k + b*n] * cotangent_green_function(Z[k + b*n], Z[j + b*n])).imag() - 0.25/PI_d * cot(cotTerm).imag();
+            A[indx] = 0.25 / PI_d * (Zp[k + b*n] * cotangent_green_function(Z[k + b*n], Z[j + b*n])).imag();
+            if (!infinite_depth) 
+            {
+                std_complex cotTerm = 0.5 * (Z[k + b * n] - cuda::std::conj(Z[j + b * n])) + std_complex(0, h);
+                A[indx] -= 0.25 / PI_d * cot(cotTerm).imag();
+            }                
         }
     }
 }
@@ -101,9 +109,85 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
-        double vdw = 20.447761896665416 * h / 3.0;
+        double vdw = h / 3.0; //  20.447761896665416 *
         //printf("coeff before van der waals term: %.10e\n", vdw);
 		result[i] = vdw * cuda::std::pow(1.0 + Z[i].imag() / h, -3.0) - vdw + 0.5 * V1[i].real() * V1[i].real() + 0.5* V1[i].imag() * V1[i].imag(); // we can try to add the surface tension term
+    }
+}
+
+template <size_t N>
+__global__ void add_optical_field_drive_terms(std_complex* result, double currentTime, const std_complex* Z, const std_complex* lowerVelocities, DelayedIntensityTermDevice<N> delayedIntensityTerm, OptomechanicalVariables variables, bool saveProgress = false)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+		double intensity = LightIntensity::compute_intensity(Z[i].imag(), Z[i].real(), variables);
+
+        double delayedIntensity = delayedIntensityTerm.calculate_new_delayed_intensity(currentTime, intensity, i);
+
+        if (saveProgress) {
+			delayedIntensityTerm.save_value(delayedIntensity, currentTime, i);
+        }
+        result[i] += variables.DampingStrength * lowerVelocities[i].imag(); // this is the damping term
+        result[i] += variables.Beta * delayedIntensity;
+		result[i] += LightIntensity::get_current_intensity_drive_strength(variables) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
+        //result[i] += 1e8;
+    }
+}
+
+template <size_t N>
+__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        double intensity = LightIntensity::compute_intensity(Z[i].imag(), Z[i].real(), variables);
+
+        result[i] += variables.DampingStrength * lowerVelocities[i].imag(); // this is the damping term
+        result[i] += LightIntensity::get_current_intensity_drive_strength(variables) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
+        //result[i] += 1e8;
+    }
+}
+
+template <size_t N>
+__global__ void add_delayed_intensity_phi_rhs(std_complex* result, const std_complex* delayed, OptomechanicalVariables variables)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) 
+    {
+		result[i] += delayed[i] +1e3; // add the delayed intensity contribution to the RHS of the phi equation. This is the term that accounts for the past contribution of the optical field to the superfluid dynamics.
+    }
+}
+
+template <size_t N>
+__global__ void calculate_intensity_delayed_rhs(std_complex* result, const std_complex*Z, const std_complex* delayed, OptomechanicalVariables variables)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        double intensity = LightIntensity::compute_intensity(Z[i].imag(), Z[i].real(), variables);
+		result[i] = variables.Beta * intensity - 1.0 / variables.Tau * delayed[i]; // RHS of the delayed intensity term in the augmented system. Removes explicit time dependence.
+    }
+}
+
+__global__ void compute_rhs_helium_phi_expression_expansion_terms(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N, int order = 2)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        //double vdw = 20.447761896665416 * h / 3.0;
+        double kinetic_contribution = 0.5 * V1[i].real() * V1[i].real() + 0.5 * V1[i].imag() * V1[i].imag();
+		double vdw = 0.0;
+        switch (order)
+        {
+        case 3:
+			vdw += -10.0/3.0 * cuda::std::pow(Z[i].imag(), 3.0) / (h * h);
+        case 2:
+            vdw += 2.0 * cuda::std::pow(Z[i].imag(), 2.0) / h;
+        case 1:
+            vdw += -Z[i].imag();
+        default:
+            break;
+        }
+        double prefactor = 1.0; // 20.447761896665416;
+        //printf("coeff before van der waals term: %.10e\n", vdw);
+        result[i] = prefactor * vdw + kinetic_contribution; // we can try to add the surface tension term
     }
 }
 

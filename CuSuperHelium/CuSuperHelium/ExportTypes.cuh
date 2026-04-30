@@ -10,6 +10,13 @@ extern "C"
 		double rho;
 		double kappa;
 		double depth;
+
+		// for using expansions
+		bool use_expansions;
+		int expansion_order;
+
+		// infinite_depth?
+		bool infinite_depth = false;
 	};
 	struct GaussLegendreOptions
 	{
@@ -25,7 +32,41 @@ extern "C"
 		double minAlpha = 1e-6;
 		size_t maxStepsHalves = 6;
 	};
+	struct RK4SolverOptions {
+		double timeStep;
+		double t0;
+		double t1;
+		bool returnTrajectory = true;
+	};
+	struct COptomechanicalVariables 
+	{
+		// initial detuning in the experiment
+		double detuning = 0.0;
+		// optical linewidth of the resonator
+		double gamma = 1.0;
 
+		// optomechanical coupling strength (Hz/m)
+		double G = 1.0;
+
+		// "delayed" strength of the optical effect on the superfluid.
+		double tau = 1.0;
+
+		// max intensity of the optical field
+		double max_intensity;
+
+		double initial_time = 0.0;
+
+		double location_x0_mode = 0.0;
+		double sigma_optical_mode = 1.0;
+
+		double beta = 1.0;
+		double damping_strength = 1.0;
+	};
+
+	struct COptomechanicalDevArrays 
+	{
+		void* state;
+	};
 }
 
 

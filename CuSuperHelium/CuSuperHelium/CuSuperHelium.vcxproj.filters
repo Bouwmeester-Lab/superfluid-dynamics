@@ -147,9 +147,6 @@
     <ClInclude Include="RK4Options.h">
       <Filter>Ode Integrators</Filter>
     </ClInclude>
-    <ClInclude Include="AugmentedBoundaryProblem.cuh">
-      <Filter>Boundary Problems</Filter>
-    </ClInclude>
     <ClInclude Include="AugmentedBoundaryIntegrator.cuh">
       <Filter>Boundary Integrators</Filter>
     </ClInclude>

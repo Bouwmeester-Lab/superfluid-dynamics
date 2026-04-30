@@ -4,6 +4,9 @@
     <CudaCompile Include="Export.cu">
       <Filter>Export</Filter>
     </CudaCompile>
+    <CudaCompile Include="LightIntensity.cuh">
+      <Filter>Optomechanics</Filter>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Water">
@@ -24,6 +27,18 @@
     <Filter Include="Gauss Legendre">
       <UniqueIdentifier>{7a673252-b33f-4d69-bca2-5206892e5699}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Optomechanics">
+      <UniqueIdentifier>{69c9c412-39d8-4f66-8622-0cf9ad00306c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Boundary Problems">
+      <UniqueIdentifier>{a48b9dff-79df-4ba3-bcd1-50ebc1dd27ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Boundary Integrators">
+      <UniqueIdentifier>{31672fc2-4ee7-454f-bd81-1864003083ae}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Ode Integrators">
+      <UniqueIdentifier>{3133c457-5d75-415e-85eb-1b8888e6f57a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -31,7 +46,6 @@
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
-    <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
@@ -97,5 +111,53 @@
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
+    <ClInclude Include="DelayedIntensityTerm.cuh">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="OptomechanicalVariables.h">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="TimedBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="WaterBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="HeliumBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="HeliumWithDrivingBoundaryProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="BaseBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="TimedBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="WaterBoundaryIntegralCalculator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="RK4_Time_Dependent.cuh">
+      <Filter>Ode Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="RK4Options.h">
+      <Filter>Ode Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="AugmentedBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="HeliumDrivenAutonomousProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="DelayedIntensityIntegrator.cuh">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="TrajectoryLogger.cuh">
+      <Filter>Ode Integrators</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -27,6 +27,43 @@ public:
 	virtual void setStream(cudaStream_t stream) = 0;
 };
 
+template <typename T, int N>
+class TimedProblem {
+protected:
+	bool saveProgress = true;
+	double currentTime = 0.0;
+public:
+	virtual void run(T* initialState, T* rhs) = 0;
+	void setCurrentTime(double time) {
+		currentTime = time;
+	}
+	virtual void setStartingTime(double time) {
+		currentTime = time;
+	}
+	void setSaveProgress(bool save)
+	{
+		saveProgress = save;
+	}
+	virtual void setStream(cudaStream_t stream) = 0;
+
+	virtual ~TimedProblem() {
+	}
+};
+
+template <typename T, int N>
+class IntegrableProblem {
+	public:
+	IntegrableProblem()
+	{
+	}
+	virtual ~IntegrableProblem()
+	{
+	}
+	virtual void run(T* initialState, double time, T* rhs) = 0;
+	virtual void commitStep(double time) = 0;
+	virtual void setStream(cudaStream_t stream) = 0;
+};
+
 template<typename T, int N, size_t batchSize>
 class BatchedAutonomousProblem
 {

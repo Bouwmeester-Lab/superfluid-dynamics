@@ -17,7 +17,7 @@ from matplotlib.widgets import Slider
 from scipy.linalg import null_space
 from scipy.interpolate import interp1d
 
-simManager = rhs.SimulationManager(r"C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
+simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
 
 alpha_hammaker = 2.6e-24
 

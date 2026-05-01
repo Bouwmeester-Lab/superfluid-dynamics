@@ -1,5 +1,7 @@
 import sys
 from pathlib import Path
+
+from matplotlib.animation import FuncAnimation
 python_dir = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(python_dir))
 
@@ -15,13 +17,13 @@ from matplotlib.widgets import Slider
 from scipy.linalg import null_space
 from scipy.interpolate import interp1d
 
-simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
+simManager = rhs.SimulationManager(r"C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
 
 alpha_hammaker = 2.6e-24
 
 N = 64
 t0 = 0.0
-t1 = 60000
+t1 = 10 #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
 
 sim_props = rhs.CSimulationProperties(
         L = 1e-3,
@@ -35,13 +37,13 @@ L0 = sim_props.L / (2.0 * np.pi)
 optomechanical_props = rhs.COptomechanicalProperties(
     detuning = 0.1,
     gamma = 0.01,
-    G = -0.5,
+    G = -1e-6,
     tau = 1.0,
     max_intensity = 0.01,
     initial_time = 0.0,
     location_x0_mode = np.pi * 1.0,
     sigma_optical_mode =  20e-6 / L0,
-    beta =  0.5,
+    beta =  1.0,
     damping_strength = 0.0
 )
 
@@ -129,6 +131,8 @@ def plot_phase_diagram(value, change_func, ax_pd, ax_ts, label="Detuning", n_arr
     
     ax_ts.plot(T_new*_t0 *1e6, values_y, label=f"{label}={value:.3e}", lw=lw)
 
+    return T_new, Y_new
+
 # xdot = np.gradient(values, T_new)
 ## make a subplot with the 3 phase diagrams for (y, ydot), (phi, phi_dot), (d, d_dot)
 fig, axes = plt.subplots(2, 1, figsize=(15, 5))
@@ -141,8 +145,14 @@ change_damping = lambda damping: setattr(optomechanical_props, "damping_strength
 change_depth = lambda depth: setattr(sim_props, "depth", depth)
 
 depths = np.array([ 10, 20 ])*1e-9
+
+times = []
+interfaces = []
+
 for depth in depths:
-    plot_phase_diagram(depth, change_depth, axes[0], axes[1], label="Depth")
+    T, Y = plot_phase_diagram(depth, change_depth, axes[0], axes[1], label="Depth")
+    times.append(T)
+    interfaces.append(Y)
 
 axes[0].set_xlabel(r"$y(x_0 = \pi)$ m")
 axes[0].set_ylabel(r"$\dot{y}(x_0 = \pi)$ m/s")
@@ -161,5 +171,35 @@ axes[1].legend()
 # axes[2].set_xlabel(r"$d(x_0 = \pi)$")
 # axes[2].set_ylabel(r"$\dot{d}(x_0 = \pi)$")
 # axes[2].set_title("Phase Diagram for d at x0 = pi")
+
+### figure for the surface of the superfluid:
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4), sharey=True, sharex=True)
+
+time_text = fig.suptitle(f"t = {times[0][0]:.4f}")
+
+line1, = ax1.plot(interfaces[0][0, :N], interfaces[0][0, N:2*N], lw=0.8)
+line2, = ax2.plot(interfaces[1][0, :N], interfaces[1][0, N:2*N], lw=0.8)
+
+data_axes = [(ax1, line1, interfaces[0], depths[0]), (ax2, line2, interfaces[1], depths[1])]
+
+def init():
+    for ax, line, Y, depth in data_axes:
+        ax.set_title(f"Depth = {depth*1e9:.0f} nm")
+        ax.set_xlim(Y[0, 0], Y[0, N-1])
+        ax.set_ylim(Y[:, N:2*N].min(), Y[:, N:2*N].max())
+
+def update(frame):
+    time_text.set_text(f"t = {times[0][frame]:.4f} us")
+    for ax, line, Y, depth in data_axes:
+        # ax.clear()
+        line.set_data(Y[frame, :N], Y[frame, N:2*N])
+        # ax.plot(Y[frame, :N], Y[frame, N:2*N])
+        # ax.set_title(f"Depth = {depth*1e9:.0f} nm")
+        # ax.set_xlim(Y[0, 0], Y[0, N-1])
+        # ax.set_ylim(Y[:, N:2*N].min(), Y[:, N:2*N].max())
+    return data_axes[0][1], data_axes[1][1], time_text
+
+init()
+anim = FuncAnimation(fig, update, frames=len(times[0]), interval=30, blit=False)
 
 plt.show()

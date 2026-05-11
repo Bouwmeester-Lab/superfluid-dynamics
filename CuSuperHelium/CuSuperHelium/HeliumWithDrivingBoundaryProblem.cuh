@@ -46,7 +46,7 @@ public:
 	{
 		/// add the driving terms
 		/// TODO: N here witll break when using batches.
-		add_optical_field_drive_terms<N><<<this->blocks, this->threads>>> (result, time, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, saveProgress);
+		add_optical_field_drive_terms<N><<<this->blocks, this->threads>>> (result, time, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, properties, saveProgress);
 	}
 
 	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override

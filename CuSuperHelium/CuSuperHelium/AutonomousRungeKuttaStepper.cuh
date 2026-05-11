@@ -16,6 +16,7 @@
 #include "OdeSolver.h"
 #include "RK4Options.h"
 #include "TrajectoryLogger.cuh"
+#include <indicators/progress_bar.hpp>
 #include <memory>
 
 namespace plt = matplotlibcpp;
@@ -42,6 +43,21 @@ public:
 	}
 	virtual OdeSolverResult runEvolution(double startTime, double endTime) override;
 protected:
+	indicators::ProgressBar bar{
+		indicators::option::BarWidth{50},
+		indicators::option::Start{"["},
+		indicators::option::Fill{"="},
+		indicators::option::Lead{">"},
+		indicators::option::Remainder{" "},
+		indicators::option::End{"]"},
+		indicators::option::PostfixText{"Running integration"},
+		indicators::option::ForegroundColor{indicators::Color::green},
+		indicators::option::ShowPercentage{true},
+		indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}},
+		indicators::option::ShowElapsedTime{true},
+		indicators::option::ShowRemainingTime{true},
+	};
+
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
 	bool allocatedY0 = false; ///< Flag to indicate if devY0 was allocated by the stepper
@@ -403,15 +419,18 @@ OdeSolverResult AutonomousRungeKuttaStepperBase<T, N>::runEvolution(double start
 {
 	currentTime = startTime;
 	size_t steps = static_cast<size_t>((endTime - startTime) / CastFrom<T>(timeStep));
-
+	bar.set_progress(0); // reset progress bar
 	for(size_t step = 0; step < steps; step++)
 	{
 		runStep(step);
 		currentTime += CastFrom<T>(timeStep);
 		// log:
 		logger->logTrajectory(currentTime, devY0);
-
 		
+		if ((step * 100) / steps > bar.current()) 
+		{
+			bar.tick();
+		}		
 	}
 	if (currentTime >= endTime)
 		return OdeSolverResult::ReachedEndTime;

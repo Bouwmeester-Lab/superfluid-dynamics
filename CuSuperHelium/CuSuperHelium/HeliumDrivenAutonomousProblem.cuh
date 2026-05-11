@@ -21,7 +21,7 @@ public:
 	{
 		HeliumBoundaryProblem<N, batchSize>::CalculateRhsPhi(problemPointers, result, properties); // Call the base class implementation to calculate the right-hand side for the potential function on the boundary
 		// add the driving terms that do not depend on time explecitly:
-		add_optical_field_drive_terms_no_time_depence<N*batchSize><<<this->blocks, this->threads>>> (result, problemPointers.Z, problemPointers.VelocitiesLower, variables);
+		add_optical_field_drive_terms_no_time_depence<N*batchSize><<<this->blocks, this->threads>>> (result, problemPointers.Z, problemPointers.VelocitiesLower, variables, properties);
 		
 	}
 };

@@ -25,12 +25,6 @@ public:
 	// 
 	double Beta;
 	double DampingStrength = 0.01;
-	const double hbar = 1.0545718e-34; // Planck's constant over 2pi
 
-	
-
-	__device__ __host__ double calculateDelayedIntensityTermStrength() {
-		return 0.0;
-	}
 };
 #endif // !OPTOMECHANICAL_VARIABLES_H

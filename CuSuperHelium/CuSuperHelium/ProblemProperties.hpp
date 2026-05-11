@@ -5,6 +5,8 @@
 struct ProblemProperties
 {
 public:
+	double L = 1.0;
+
 	double rho = 1.0;
 	double U = 0.0;
 	double kappa = 0.0;
@@ -21,6 +23,12 @@ public:
 
 	// for ignoring depth
 	bool infinite_depth = false;
+
+	// base units
+	double base_length = 1.0;
+	double base_time = 1.0;
+	double base_energy = 1.0;
+	double base_acceleration = 1.0;
 };
 
 #endif // !PROBLEM_PROPERTIES_H

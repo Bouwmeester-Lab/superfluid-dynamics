@@ -4,6 +4,7 @@
 //#include "SimulationFunctions.cuh"
 void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
 {
+	properties.L = simProperties.L;
 	properties.rho = simProperties.rho;
 	properties.kappa = simProperties.kappa;
 	properties.depth = simProperties.depth;
@@ -784,7 +785,9 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, simProperties->L);
-
+		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
+		// transfoms SI units to adimensional units for the RK4 options
+		auto rk4SolverOptions = adimensionalizeRK4SolverOptions(*rkOptions, properties);
 
 		// print properties for debugging
 		std::cout << "Adimensionalized optomechanical properties. " << std::endl;
@@ -801,10 +804,10 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		RK4Options rk4_options;
 
-		rk4_options.initial_timestep = rkOptions->timeStep;
-		rk4_options.returnTrajectory = rkOptions->returnTrajectory;
-		const double t0 = rkOptions->t0;
-		const double t1 = rkOptions->t1;
+		rk4_options.initial_timestep = rk4SolverOptions.timeStep;
+		rk4_options.returnTrajectory = rk4SolverOptions.returnTrajectory;
+		const double t0 = rk4SolverOptions.t0;
+		const double t1 = rk4SolverOptions.t1;
 
 		//OptomechanicalVariables optoVariables;
 
@@ -980,15 +983,22 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 
 		copyProperties(*optomechanicalVariables, optoVars);
 
+		std::cout << "Optomechanical properties before adimensionalization: " << std::endl;
+		std::cout << "detuning: " << optoVars.detuning << std::endl;
+
+
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, simProperties->L);
+		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
+		// transfoms SI units to adimensional units for the RK4 options
+		auto rk4SolverOptions = adimensionalizeRK4SolverOptions(*rkOptions, properties);
 
 		RK4Options rk4_options;
 
-		rk4_options.initial_timestep = rkOptions->timeStep;
-		rk4_options.returnTrajectory = rkOptions->returnTrajectory;
-		const double t0 = rkOptions->t0;
-		const double t1 = rkOptions->t1;
+		rk4_options.initial_timestep = rk4SolverOptions.timeStep;
+		rk4_options.returnTrajectory = rk4SolverOptions.returnTrajectory;
+		const double t0 = rk4SolverOptions.t0;
+		const double t1 = rk4SolverOptions.t1;
 
 		std::vector<std_complex> cplx_initialState(3*N);
 
@@ -1107,6 +1117,7 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties, simProperties->L);
+		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
 
 		std::vector<std_complex> cplx_initialState(3 * N);
 
@@ -1194,15 +1205,31 @@ int calculateRhsAugmentedOptomechanical(double* state, double* rhs, SimPropertie
 
 
 
-ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium)
+RK4SolverOptions adimensionalizeRK4SolverOptions(RK4SolverOptions options, ProblemProperties properties)
 {
-	double L0 = L / (2.0 * PI_d); // characteristic length
-	double g = 3 * 2.6e-24 / std::pow(props.depth, 4);
-	double _t0 = std::sqrt(L0 / g);
-	double surfaceTensionFactor = rhoHelium * L0 * L0 * L0 / (_t0 * _t0);
+	options.t0 /= properties.base_time;
+	options.t1 /= properties.base_time;
+	options.timeStep /= properties.base_time;
 
+	return options;
+}
+
+ProblemProperties adimensionalizeProperties(ProblemProperties props, double rhoHelium)
+{
+	// calculate base units
+	props.base_length = props.L / (2.0 * PI_d); // characteristic length
+	props.base_acceleration = 3 * alpha_hamaker_d / std::pow(props.depth, 4);
+	props.base_time = std::sqrt(props.base_length / props.base_acceleration);
+	props.base_energy = 3.0 * rhoHelium * alpha_hamaker_d * std::pow(props.base_length, 4) / std::pow(props.depth, 4);
+
+	double surfaceTensionFactor = rhoHelium * props.base_length * props.base_length * props.base_length / (props.base_time * props.base_time);
+
+	// adimensionalize properties
 	props.kappa = props.kappa / surfaceTensionFactor;
-	props.depth = 2.0 * CUDART_PI * props.depth / L;
+	props.depth = props.depth / props.base_length;
+
+	
+
 	props.rho /= rhoHelium; 
 
 	/*std::cout << "Adimensionalized properties: " << std::endl;
@@ -1211,6 +1238,30 @@ ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, d
 	std::cout << "depth: " << props.depth << std::endl;*/
 
 	return props;
+}
+
+OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVariables optomechanicalVariables, ProblemProperties properties, double rhoHelium)
+{
+	// adimensionalize optomechanical variables
+	// gamma is a frequency , so it gets multiplied by time
+	optomechanicalVariables.gamma *= properties.base_time;
+	// detuning is also a frequency
+	optomechanicalVariables.detuning *= properties.base_time;
+	// G is a coupling strength (Hz / m), so it gets multiplied by time and base_length
+	optomechanicalVariables.G *= properties.base_time * properties.base_length;
+	// Tau is a time delay, so it gets divided by base_time
+	optomechanicalVariables.Tau /= properties.base_time;
+
+	// location_x0_mode is a length, so it gets divided by base_length
+	optomechanicalVariables.location_x0_mode /= properties.base_length;
+	// sigma_optical_mode is also a length, so it gets divided by base_length
+	optomechanicalVariables.sigma_optical_mode /= properties.base_length;
+
+	double hbar_adim = hbar_d / properties.base_energy / properties.base_time;
+	optomechanicalVariables.Beta *= hbar_adim * optomechanicalVariables.G / optomechanicalVariables.Tau;
+	// TODO: deal with max_intensity and Beta
+
+	return optomechanicalVariables;
 }
 
 

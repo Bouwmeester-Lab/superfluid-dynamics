@@ -15,6 +15,7 @@
 #include "utilities.cuh"
 #include "DelayedIntensityTerm.cuh"
 #include "LightIntensity.cuh"
+#include "ProblemProperties.hpp"
 
 __global__ void createMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho, int n, size_t batchSize);
 __global__ void createFiniteDepthMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h, int n, size_t batchSize, bool infinite_depth = false);
@@ -116,7 +117,7 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
 }
 
 template <size_t N>
-__global__ void add_optical_field_drive_terms(std_complex* result, double currentTime, const std_complex* Z, const std_complex* lowerVelocities, DelayedIntensityTermDevice<N> delayedIntensityTerm, OptomechanicalVariables variables, bool saveProgress = false)
+__global__ void add_optical_field_drive_terms(std_complex* result, double currentTime, const std_complex* Z, const std_complex* lowerVelocities, DelayedIntensityTermDevice<N> delayedIntensityTerm, OptomechanicalVariables variables, ProblemProperties properties, bool saveProgress = false)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -129,20 +130,20 @@ __global__ void add_optical_field_drive_terms(std_complex* result, double curren
         }
         result[i] += variables.DampingStrength * lowerVelocities[i].imag(); // this is the damping term
         result[i] += variables.Beta * delayedIntensity;
-		result[i] += LightIntensity::get_current_intensity_drive_strength(variables) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
+		result[i] += LightIntensity::get_current_intensity_drive_strength(variables, properties) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
         //result[i] += 1e8;
     }
 }
 
 template <size_t N>
-__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables)
+__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, ProblemProperties properties)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
         double intensity = LightIntensity::compute_intensity(Z[i].imag(), Z[i].real(), variables);
 
         result[i] += variables.DampingStrength * lowerVelocities[i].imag(); // this is the damping term
-        result[i] += LightIntensity::get_current_intensity_drive_strength(variables) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
+        result[i] += LightIntensity::get_current_intensity_drive_strength(variables, properties) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
         //result[i] += 1e8;
     }
 }
@@ -153,7 +154,7 @@ __global__ void add_delayed_intensity_phi_rhs(std_complex* result, const std_com
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) 
     {
-		result[i] += delayed[i] +1e3; // add the delayed intensity contribution to the RHS of the phi equation. This is the term that accounts for the past contribution of the optical field to the superfluid dynamics.
+		result[i] += delayed[i]; // add the delayed intensity contribution to the RHS of the phi equation. This is the term that accounts for the past contribution of the optical field to the superfluid dynamics.
     }
 }
 

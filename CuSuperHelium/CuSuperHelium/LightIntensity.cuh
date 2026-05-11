@@ -5,6 +5,8 @@
 
 #include "cuda_runtime.h"
 #include "OptomechanicalVariables.h"
+#include "constants.cuh"
+#include "ProblemProperties.hpp"
 
 class LightIntensity
 {
@@ -21,16 +23,16 @@ public:
 
 	static __device__ __host__ double compute_intensity(double fluid_height, double x, OptomechanicalVariables variables)
 	{
-		double delta_f = variables.detuning - variables.G * fluid_height;
+		double delta_f = variables.detuning + variables.G * fluid_height;
 
-		return variables.gamma * variables.gamma / 4.0 * variables.max_intensity / (delta_f * delta_f + (variables.gamma / 2) * (variables.gamma / 2)) * compute_x_profile(x, variables);
+		return 0.25 * cuda::std::pow(variables.gamma, 2.0) * variables.max_intensity / ( cuda::std::pow(delta_f, 2.0) + cuda::std::pow(variables.gamma / 2, 2.0)) * compute_x_profile(x, variables);
 	}
 
 	
 
-	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables)
+	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables, ProblemProperties properties)
 	{
-		return  variables.G; // Placeholder for the actual calculation of the current intensity drive strength based on the optomechanical variables.
+		return hbar_d / (properties.base_energy * properties.base_time) * variables.G; // G is in a.u. of frequency per length. So hbar gets converted adimensionalized this way.
 	}
 };
 

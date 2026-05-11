@@ -78,6 +78,8 @@ extern "C"
 	//__declspec(dllexport) int initializeRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N);
 	__declspec(dllexport) int calculateRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N);
 
-	ProblemProperties adimensionalizeProperties(ProblemProperties props, double L, double rhoHelium = 150);
+	RK4SolverOptions adimensionalizeRK4SolverOptions(RK4SolverOptions options, ProblemProperties properties);
+	ProblemProperties adimensionalizeProperties(ProblemProperties props, double rhoHelium = 150);
+	OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVariables optomechanicalVariables, ProblemProperties properties, double rhoHelium = 150);
 }
 

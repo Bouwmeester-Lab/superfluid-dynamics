@@ -46,9 +46,10 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, doubl
 		properties.rho = rho;
 		properties.kappa = kappa;
 		properties.depth = depth;
+		properties.L = L;
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, L);
+		properties = adimensionalizeProperties(properties);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
 		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
@@ -119,9 +120,10 @@ int calculateRHS256FromVectors(const double* x, const double* y, const double* p
 		properties.rho = rho;
 		properties.kappa = kappa;
 		properties.depth = depth;
+		properties.L = L;
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, L);
+		properties = adimensionalizeProperties(properties);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
 		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
@@ -197,9 +199,10 @@ int calculateRHSNFromVectors(const double* x, const double* y, const double* phi
 		properties.rho = rho;
 		properties.kappa = kappa;
 		properties.depth = depth;
+		properties.L = L;
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, L);
+		properties = adimensionalizeProperties(properties);
 		//std::cout << "Adimensionalized properties. " << std::endl;
 		HeliumBoundaryProblem<N, batchSize> heliumProblem(properties);
 		//std::cout << "Created HeliumBoundaryProblem. " << std::endl;
@@ -280,9 +283,10 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 		properties.rho = rho;
 		properties.kappa = kappa;
 		properties.depth = depth;
+		properties.L = L;
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, L);
+		properties = adimensionalizeProperties(properties);
 
 		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
 		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
@@ -398,9 +402,10 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 		properties.rho = rho;
 		properties.kappa = kappa;
 		properties.depth = depth;
+		properties.L = L;
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, L);
+		properties = adimensionalizeProperties(properties);
 
 		
 
@@ -669,7 +674,7 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 		std::cout << "Using expansions: " << properties.use_expansions << " with order " << properties.expansion_order << std::endl;
 		
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, simProperties->L);
+		properties = adimensionalizeProperties(properties);
 		std::cout << "depth: " << properties.depth << ", kappa: " << properties.kappa << ", rho: " << properties.rho << std::endl;
 		// create the options for GL
 		GaussLegendre2Options glOptions = createOptionsFromCOptions(*glCOptions);
@@ -747,7 +752,7 @@ int integrateSimulationRK4_N(double* initialState, double** statesOut, size_t* s
 		ProblemProperties properties;
 		copyProperties(*simProperties, properties);
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, simProperties->L);
+		properties = adimensionalizeProperties(properties);
 
 
 	}
@@ -784,7 +789,7 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 		copyProperties(*optoVariables, optoVars);
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, simProperties->L);
+		properties = adimensionalizeProperties(properties);
 		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
 		// transfoms SI units to adimensional units for the RK4 options
 		auto rk4SolverOptions = adimensionalizeRK4SolverOptions(*rkOptions, properties);
@@ -988,7 +993,7 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, simProperties->L);
+		properties = adimensionalizeProperties(properties);
 		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
 		// transfoms SI units to adimensional units for the RK4 options
 		auto rk4SolverOptions = adimensionalizeRK4SolverOptions(*rkOptions, properties);
@@ -1116,7 +1121,7 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 		copyProperties(*optomechanicalVariables, optoVars);
 
 		// adimensionalize properties
-		properties = adimensionalizeProperties(properties, simProperties->L);
+		properties = adimensionalizeProperties(properties);
 		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
 
 		std::vector<std_complex> cplx_initialState(3 * N);
@@ -1232,10 +1237,10 @@ ProblemProperties adimensionalizeProperties(ProblemProperties props, double rhoH
 
 	props.rho /= rhoHelium; 
 
-	/*std::cout << "Adimensionalized properties: " << std::endl;
+	std::cout << "Adimensionalized properties: " << std::endl;
 	std::cout << "rho: " << props.rho << std::endl;
 	std::cout << "kappa: " << props.kappa << std::endl;
-	std::cout << "depth: " << props.depth << std::endl;*/
+	std::cout << "depth: " << props.depth << std::endl;
 
 	return props;
 }
@@ -1258,7 +1263,7 @@ OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVar
 	optomechanicalVariables.sigma_optical_mode /= properties.base_length;
 
 	double hbar_adim = hbar_d / properties.base_energy / properties.base_time;
-	optomechanicalVariables.Beta *= hbar_adim * optomechanicalVariables.G / optomechanicalVariables.Tau;
+	optomechanicalVariables.Beta *= hbar_adim * optomechanicalVariables.G / (optomechanicalVariables.Tau) / (cuda::std::pow(optomechanicalVariables.sigma_optical_mode, 2.0) * properties.rho);
 	// TODO: deal with max_intensity and Beta
 
 	return optomechanicalVariables;

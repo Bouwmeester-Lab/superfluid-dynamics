@@ -23,7 +23,7 @@ public:
 
 	static __device__ __host__ double compute_intensity(double fluid_height, double x, OptomechanicalVariables variables)
 	{
-		double delta_f = variables.detuning + variables.G * fluid_height;
+		double delta_f = variables.detuning - variables.G * fluid_height;
 
 		return 0.25 * cuda::std::pow(variables.gamma, 2.0) * variables.max_intensity / ( cuda::std::pow(delta_f, 2.0) + cuda::std::pow(variables.gamma / 2, 2.0)) * compute_x_profile(x, variables);
 	}
@@ -32,7 +32,7 @@ public:
 
 	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables, ProblemProperties properties)
 	{
-		return hbar_d / (properties.base_energy * properties.base_time) * variables.G; // G is in a.u. of frequency per length. So hbar gets converted adimensionalized this way.
+		return hbar_d / (properties.base_energy * properties.base_time * properties.rho) * variables.G / cuda::std::pow(variables.sigma_optical_mode, 2.0); // G is in a.u. of frequency per length. So hbar gets converted adimensionalized this way.
 	}
 };
 

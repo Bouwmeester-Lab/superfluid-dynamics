@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from tokenize import group
 
 from matplotlib.animation import FuncAnimation
 python_dir = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ import os
 from matplotlib.widgets import Slider
 from scipy.linalg import null_space
 from scipy.interpolate import interp1d
+from scipy.fft import fft, fftfreq, fftshift
 
 def interpolate(x, y, x0):
     f = interp1d(x, y, fill_value="extrapolate")
@@ -24,20 +26,20 @@ def interpolate(x, y, x0):
 ### everything in SI units, all conversion to non-dimensional units is done in the C++ code, so we can just use real units here and not worry about it.
 detuning = 0.5e6
 gamma = 1e6
-sigma = 50e-6
-G = -20e6 * 1e9
+
+G = 20e6 * 1e9
 tau = 1/18e3
 x0 = 0.5e-3
 L = 1e-3
-depth = 5e-9
+depth = 15e-9
 alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
 simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
 
-N = 1024//2
+N = 2**10
 t0 = 0.0
-t1 = 8000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
-timeStep = 0.1e-6 # in us
+t1 = 60000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+timeStep = 0.6e-6 # in us
 beta = 1e6 # adimensional, this is just a ratio.
 
 sim_props = rhs.CSimulationProperties(
@@ -52,13 +54,15 @@ sim_props = rhs.CSimulationProperties(
 L0 = sim_props.L / (2.0 * np.pi)
 g = 3*alpha_hamaker / sim_props.depth**4
 _t0 = np.sqrt(L0 / g)
+sigma = 30e-6 # in m, size of the beam waist
+print(f"Sigma: {sigma:.3e} m")
 
 optomechanical_props = rhs.COptomechanicalProperties(
     detuning = detuning, # in SI units Hz
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 1.0, # 100*P0 / base_power,
+    max_intensity = 90, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
@@ -72,7 +76,7 @@ rk4_props = rhs.CRK4Options(
     returnTrajectory = True,
 )
 
-detunings = np.array([-1, -0.1, 0.1, 1]) * detuning
+detunings = np.array([ 1]) * detuning
 
 r = np.array([2.0*np.pi/N*x for x in range(N)])
 
@@ -87,7 +91,9 @@ fig, axes = plt.subplots(2, 1, figsize=(15, 5))
 ax_pd = axes[0]
 ax_time = axes[1]
 
-fig2, ax2 = plt.subplots(1, 1, figsize=(15, 5))
+fig2, axes2 = plt.subplots(2, 1, figsize=(15, 5))
+ax_spatial_fft = axes2[0]
+ax_last_interface = axes2[1]
 
  
 
@@ -110,8 +116,53 @@ def plot_phase_diagram(values_y, T, base_time, ax_pd, ax_ts, label="Detuning", n
             ),
         )
     ax_ts.plot(T * base_time * 1e6, values_y, label=f"{label}", lw=lw)
+def plot_spatial_fft(values_y, ax, label=""):
+    k = fftfreq(len(values_y), d=L/N*1e3)
+    Y = fft(values_y)
+
+    ## shift the zero frequency component to the center of the spectrum
+    k = fftshift(k)
+    Y = fftshift(Y)
+
+    ax.plot(k, np.abs(Y), label=label)
+    
+def save_results(filename, T, Y, sim_props, optomechanical_props, rk4_props):
+    with h5py.File(filename, "w") as f:
+        f.create_dataset("T", data=T)
+        f.create_dataset("Y", data=Y)
+        ## save the properties as attributes
+        group_sim_props = f.create_group("sim_props")
+        for name, _ in  sim_props._fields_:
+            group_sim_props.attrs[name] = getattr(sim_props, name)
+        group_optomechanical_props = f.create_group("optomechanical_props")
+        for name, _ in optomechanical_props._fields_:
+            group_optomechanical_props.attrs[name] = getattr(optomechanical_props, name)
+        group_rk4_props = f.create_group("rk4_props")
+        for name, _ in rk4_props._fields_:
+            group_rk4_props.attrs[name] = getattr(rk4_props, name)
+
+def load_results(filename):
+    if not os.path.exists(filename):
+        return None
+    with h5py.File(filename, "r") as f:
+        T = np.array(f["T"])
+        Y = np.array(f["Y"])
+        sim_props = rhs.CSimulationProperties(**f["sim_props"].attrs)
+        optomechanical_props = rhs.COptomechanicalProperties(**f["optomechanical_props"].attrs)
+        rk4_props = rhs.CRK4Options(**f["rk4_props"].attrs)
+        return T, Y, sim_props, optomechanical_props, rk4_props
 
 for det in detunings:
+    ### load file if it exists, otherwise run the simulation and save the results
+    filename = f"results_detuning_{det:.3e}.h5"
+    results = load_results(filename)
+    if results is not None:
+        T_new, Y_new, sim_props, optomechanical_props, rk4_props = results
+        print(f"Loaded results for detuning={det:.3e} Hz from file.")
+        Y0 = Y_new[-1, :]
+        rk4_props.t0 = T_new[-1]
+        rk4_props.t1 = rk4_props.t0 + (t1 - t0)
+
     optomechanical_props.detuning = det
     print(f"Integrating for detuning={det:.3e} Hz")
     res, T_new, Y_new = simManager.integrate_augmented_optomechanical_problem(Y0, sim_props, optomechanical_props, rk4_props)
@@ -124,12 +175,13 @@ for det in detunings:
     values_d = np.zeros_like(T_new)
 
     for i, t in enumerate(T_new):
-        values_y[i] = L0 * interpolate(Y_new[i, :N], Y_new[i, N:2*N], x0)
-        values_phi[i] = interpolate(Y_new[i, :N], Y_new[i, 2*N:3*N], x0)
-        values_d[i] = interpolate(Y_new[i, :N], Y_new[i, 3*N:4*N], x0)
+        values_y[i] = L0 * interpolate(Y_new[i, :N], Y_new[i, N:2*N], x0/L0)
+        values_phi[i] = interpolate(Y_new[i, :N], Y_new[i, 2*N:3*N], x0/L0)
+        values_d[i] = interpolate(Y_new[i, :N], Y_new[i, 3*N:4*N], x0/L0)
     plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Detuning = {det:.3e} Hz", n_arrows=10, lw=1.5)
-    ax2.plot(Y_new[-1, :N], Y_new[-1, N:2*N], label=f"Last Interface - Detuning = {det:.3e} Hz", lw=1.5)
-
+    plot_spatial_fft(Y_new[-1, N:2*N]*L0, ax_spatial_fft, label=f"Spatial FFT - Detuning = {det:.3e} Hz")
+    ax_last_interface.plot(Y_new[-1, :N]*L0, Y_new[-1, N:2*N]*L0, label=f"Last Interface - Detuning = {det:.3e} Hz", lw=1.5)
+    save_results(f"results_detuning_{det:.3e}.h5", T_new, Y_new, sim_props, optomechanical_props, rk4_props)
 
 # plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Depth = {depth:.3e}", n_arrows=10, lw=1.5)
 axes[0].set_xlabel(r"$y(x_0 = \pi)$ m")
@@ -142,4 +194,13 @@ axes[1].set_ylabel(r"$y(x_0 = \pi)$ m")
 axes[1].set_title("Time Series for y at x0 = pi")
 axes[1].legend()
 
+ax_last_interface.set_xlabel(r"$x$ (m)")
+ax_last_interface.set_ylabel(r"$y(x)$ (m)")
+ax_last_interface.set_title("Last Interface for y at different Detunings")
+ax_last_interface.legend()
+
+
+ax_spatial_fft.set_xlabel("1/$\lambda$ (1/mm)")
+ax_spatial_fft.set_ylabel("FFT Amplitude")
+ax_spatial_fft.set_title("Spatial FFT of y(x)")
 plt.show()

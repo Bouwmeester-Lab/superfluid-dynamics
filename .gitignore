@@ -415,3 +415,4 @@ CuSuperHelium/Python/data/*
 /CuSuperHelium/CuSuperHelium.App/temp/dispersion_test_6.28319e-02.h5
 /CuSuperHelium/CuSuperHelium.App/temp/dispersion_test_8.42488e-04.h5
 /CuSuperHelium/CuSuperHelium.App/temp/dispersion_test_8.97598e-05.h5
+*.h5

@@ -24,7 +24,7 @@ def interpolate(x, y, x0):
     return f(x0)
 
 ### everything in SI units, all conversion to non-dimensional units is done in the C++ code, so we can just use real units here and not worry about it.
-detuning = 0.5e6
+detuning = -1e4
 gamma = 1e6
 
 G = 20e6 * 1e9
@@ -38,14 +38,14 @@ simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\
 
 N = 2**10
 t0 = 0.0
-t1 = 60000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+t1 = 100000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
 timeStep = 0.6e-6 # in us
 beta = 1e6 # adimensional, this is just a ratio.
 
 sim_props = rhs.CSimulationProperties(
         L = L,
         depth = depth,
-        rho = 150,
+        rho = 90,
         kappa = 0,
         use_expansions = False,
         infinite_depth = False
@@ -62,7 +62,7 @@ optomechanical_props = rhs.COptomechanicalProperties(
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 90, # 100*P0 / base_power,
+    max_intensity = 50, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
@@ -125,21 +125,66 @@ def plot_spatial_fft(values_y, ax, label=""):
     Y = fftshift(Y)
 
     ax.plot(k, np.abs(Y), label=label)
+
+def check_bounds_for_time(Told, Tnew):
+    """
+    Checks if the new time array Tnew extends the old array correctly:
+    - Tnew should start where Told left off, i.e. Tnew[0] should be approximately equal to Told[-1]
+    """
+    if Told[-1] > Tnew[0]:
+        raise ValueError("Tnew does not start where Told left off.")
+    return True
     
 def save_results(filename, T, Y, sim_props, optomechanical_props, rk4_props):
-    with h5py.File(filename, "w") as f:
-        f.create_dataset("T", data=T)
-        f.create_dataset("Y", data=Y)
+    with h5py.File(filename, "a") as f:
+        Yshape = Y.shape
+        Yshape = list(Yshape)
+        Yshape[0] = None
+        Yshape = tuple(Yshape)
+        
+        print(f"Saving results to {filename} with T shape {T.shape} and Y shape {Yshape}")
+        ## check if the dataset exists:
+        if "T" in f and "Y" in f:
+            print("Datasets already exist, appending data if needed.")
+            T_existing = f["T"]
+            Y_existing = f["Y"]
+            oldN = T_existing.shape[0]
+            newN = T.shape[0]
+            if check_bounds_for_time(T_existing, T):
+                ## append data to existing datasets
+                T_existing.resize((T_existing.shape[0] + T.shape[0],))
+                T_existing[oldN:oldN+newN] = T
+                Y_existing.resize((Y_existing.shape[0] + Y.shape[0], Y_existing.shape[1]))
+                Y_existing[oldN:oldN+newN, :] = Y
+        else:
+            f.create_dataset("T", data=T, maxshape=(None,))
+            f.create_dataset("Y", data=Y, maxshape=Yshape)
         ## save the properties as attributes
-        group_sim_props = f.create_group("sim_props")
+        ## check if th group exists:
+        if "sim_props" in f:
+            print("sim_props group already exists, overwriting attributes.")
+            group_sim_props = f["sim_props"]
+        else:
+            group_sim_props = f.create_group("sim_props")
         for name, _ in  sim_props._fields_:
             group_sim_props.attrs[name] = getattr(sim_props, name)
-        group_optomechanical_props = f.create_group("optomechanical_props")
+        if "optomechanical_props" in f:
+            print("optomechanical_props group already exists, overwriting attributes.")
+            group_optomechanical_props = f["optomechanical_props"]
+        else:
+            group_optomechanical_props = f.create_group("optomechanical_props")
         for name, _ in optomechanical_props._fields_:
             group_optomechanical_props.attrs[name] = getattr(optomechanical_props, name)
-        group_rk4_props = f.create_group("rk4_props")
-        for name, _ in rk4_props._fields_:
-            group_rk4_props.attrs[name] = getattr(rk4_props, name)
+        if "rk4_props" in f:
+            print("rk4_props group already exists, overwriting attributes.")
+            group_rk4_props = f["rk4_props"]
+            ## if the time bounds have changed, update them:
+            if group_rk4_props.attrs["t1"] < rk4_props.t1:
+                group_rk4_props.attrs["t1"] = rk4_props.t1
+        else:
+            group_rk4_props = f.create_group("rk4_props")
+            for name, _ in rk4_props._fields_:
+                group_rk4_props.attrs[name] = getattr(rk4_props, name)
 
 def load_results(filename):
     if not os.path.exists(filename):
@@ -158,11 +203,24 @@ for det in detunings:
     results = load_results(filename)
     if results is not None:
         T_new, Y_new, sim_props, optomechanical_props, rk4_props = results
+        L0 = sim_props.L / (2.0 * np.pi)
+        g = 3*alpha_hamaker / sim_props.depth**4
+        _t0 = np.sqrt(L0 / g)
         print(f"Loaded results for detuning={det:.3e} Hz from file.")
         Y0 = Y_new[-1, :]
-        rk4_props.t0 = T_new[-1]
-        rk4_props.t1 = rk4_props.t0 + (t1 - t0)
 
+        t0_existing = rk4_props.t0
+        t1_existing = rk4_props.t1
+
+        if t1_existing < t1:
+            ## extend the simulation from t1_existing to t1
+            rk4_props.t0 = t1_existing
+            rk4_props.t1 = t1
+            print(f"Extending simulation from t={t1_existing:.3e} s to t={t1:.3e} s for detuning={det:.3e} Hz")
+        else:
+            print(f"Existing simulation already covers the desired time range for detuning={det:.3e} Hz, skipping integration.")
+
+            continue
     optomechanical_props.detuning = det
     print(f"Integrating for detuning={det:.3e} Hz")
     res, T_new, Y_new = simManager.integrate_augmented_optomechanical_problem(Y0, sim_props, optomechanical_props, rk4_props)

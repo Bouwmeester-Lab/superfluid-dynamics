@@ -24,28 +24,28 @@ def interpolate(x, y, x0):
     return f(x0)
 
 ### everything in SI units, all conversion to non-dimensional units is done in the C++ code, so we can just use real units here and not worry about it.
-detuning = -1e4
-gamma = 1e6
+detuning = -2e6
+gamma = 12e6 ## 12 Mhz
 
 G = 20e6 * 1e9
-tau = 1/18e3
-x0 = 0.5e-3
-L = 1e-3
-depth = 15e-9
+tau = 150e-6
+
+L = 250e-6
+depth = 12.5e-9
 alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
 simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
 
-N = 2**10
+N = 2**8
 t0 = 0.0
-t1 = 100000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
-timeStep = 0.6e-6 # in us
-beta = 1e6 # adimensional, this is just a ratio.
+t1 = 1500e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+timeStep = 0.5e-6 # in us
+beta = 1e6# adimensional, this is just a ratio.
 
 sim_props = rhs.CSimulationProperties(
         L = L,
         depth = depth,
-        rho = 90,
+        rho = 150,
         kappa = 0,
         use_expansions = False,
         infinite_depth = False
@@ -54,7 +54,8 @@ sim_props = rhs.CSimulationProperties(
 L0 = sim_props.L / (2.0 * np.pi)
 g = 3*alpha_hamaker / sim_props.depth**4
 _t0 = np.sqrt(L0 / g)
-sigma = 30e-6 # in m, size of the beam waist
+sigma = 20e-6 # in m, size of the beam waist
+sigma_thermal = 20e-6
 print(f"Sigma: {sigma:.3e} m")
 
 optomechanical_props = rhs.COptomechanicalProperties(
@@ -62,12 +63,13 @@ optomechanical_props = rhs.COptomechanicalProperties(
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 50, # 100*P0 / base_power,
+    max_intensity = 10, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
+    sigma_thermal_mode = sigma_thermal, # in SI units m
     beta =  beta,
-    damping_strength = 0.0
+    damping_strength = -1.0e-8
 )
 rk4_props = rhs.CRK4Options(
     timeStep = timeStep,
@@ -75,6 +77,8 @@ rk4_props = rhs.CRK4Options(
     t1 = t1,
     returnTrajectory = True,
 )
+
+x0 = optomechanical_props.location_x0_mode
 
 detunings = np.array([ 1]) * detuning
 
@@ -207,7 +211,7 @@ for det in detunings:
         g = 3*alpha_hamaker / sim_props.depth**4
         _t0 = np.sqrt(L0 / g)
         print(f"Loaded results for detuning={det:.3e} Hz from file.")
-        Y0 = Y_new[-1, :]
+        Y0 = np.array(Y_new[-1, :])
 
         t0_existing = rk4_props.t0
         t1_existing = rk4_props.t1

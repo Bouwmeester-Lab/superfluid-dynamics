@@ -60,6 +60,7 @@ class COptomechanicalProperties(Structure):
                 ("initial_time", c_double),
                 ("location_x0_mode", c_double),
                 ("sigma_optical_mode", c_double),
+                ("sigma_thermal_mode", c_double),
                 ("beta", c_double),
                 ("damping_strength", c_double)
 
@@ -324,7 +325,7 @@ class SimulationManager:
         times_ptr   = POINTER(c_double)()
         times_len   = c_size_t()
         
-        res = self.lib.integrateAugmentedOptomechanicalSimulationRK4(np.ascontiguousarray(y0), byref(states_ptr), byref(states_len), byref(times_ptr), byref(times_len), sim_props, rk4_props, opt_props, n)
+        res = self.lib.integrateAugmentedOptomechanicalSimulationRK4(y0, byref(states_ptr), byref(states_len), byref(times_ptr), byref(times_len), sim_props, rk4_props, opt_props, n)
 
         try:
             if res != 0:

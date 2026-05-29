@@ -9,7 +9,7 @@ public:
 	// optical linewidth of the resonator
 	double gamma = 1.0;
 
-	// optomechanical coupling strength (Hz/m)
+	// optomechanical coupling strength (Hz/m) // absolute value!
 	double G = 1.0;
 
 	// "delayed" strength of the optical effect on the superfluid.
@@ -21,7 +21,10 @@ public:
 	double initial_time = 0.0;
 
 	double location_x0_mode = 0.0;
+	// width of the optical mode used for frequency shift
 	double sigma_optical_mode = 1.0;
+	// width of the thermal mode used for effect of the delayed optical force on the superfluid
+	double sigma_thermal_mode = 1.0;
 	// 
 	double Beta;
 	double DampingStrength = 0.01;

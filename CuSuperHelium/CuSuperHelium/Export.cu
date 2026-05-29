@@ -25,6 +25,7 @@ void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, Optomec
 	opto_variables.initial_time = c_optomechanicalVariables.initial_time;
 	opto_variables.location_x0_mode = c_optomechanicalVariables.location_x0_mode;
 	opto_variables.sigma_optical_mode = c_optomechanicalVariables.sigma_optical_mode;
+	opto_variables.sigma_thermal_mode = c_optomechanicalVariables.sigma_thermal_mode;
 	opto_variables.Beta = c_optomechanicalVariables.beta;
 	opto_variables.DampingStrength = c_optomechanicalVariables.damping_strength;
 }
@@ -1015,10 +1016,12 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 		}
 
 		std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
-		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars);
+		std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
+
+		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
 		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
 
-		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars));
+		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, lightIntensity));
 
 		AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, rk4_options.initial_timestep, logger);
 
@@ -1134,10 +1137,12 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 		}
 
 		std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
-		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars);
+		std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
+
+		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
 		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
 
-		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars));
+		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, lightIntensity));
 
 		// copy the state to device
 
@@ -1261,9 +1266,10 @@ OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVar
 	optomechanicalVariables.location_x0_mode /= properties.base_length;
 	// sigma_optical_mode is also a length, so it gets divided by base_length
 	optomechanicalVariables.sigma_optical_mode /= properties.base_length;
+	optomechanicalVariables.sigma_thermal_mode /= properties.base_length;
 
 	double hbar_adim = hbar_d / properties.base_energy / properties.base_time;
-	optomechanicalVariables.Beta *= hbar_adim * optomechanicalVariables.G / (optomechanicalVariables.Tau) / (cuda::std::pow(optomechanicalVariables.sigma_optical_mode, 2.0) * properties.rho);
+	optomechanicalVariables.Beta *= hbar_adim * optomechanicalVariables.G / (optomechanicalVariables.Tau) / (cuda::std::pow(optomechanicalVariables.sigma_thermal_mode, 2.0) * properties.rho);
 	// TODO: deal with max_intensity and Beta
 
 	return optomechanicalVariables;

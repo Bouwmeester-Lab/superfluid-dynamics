@@ -95,6 +95,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ComplexFunctionsTests.cuh" />
+    <ClInclude Include="IntegrationPathEquivalenceTests.cuh" />
     <ClInclude Include="MatrixMTests.cuh" />
     <ClInclude Include="ODESolverTests.cuh" />
   </ItemGroup>

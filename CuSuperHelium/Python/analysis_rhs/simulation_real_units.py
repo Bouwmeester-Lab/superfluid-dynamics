@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from time import sleep
 from tokenize import group
 
 from matplotlib.animation import FuncAnimation
@@ -18,30 +19,45 @@ from matplotlib.widgets import Slider
 from scipy.linalg import null_space
 from scipy.interpolate import interp1d
 from scipy.fft import fft, fftfreq, fftshift
+import json
 
 def interpolate(x, y, x0):
     f = interp1d(x, y, fill_value="extrapolate")
     return f(x0)
 
+path = r"C:\Users\emore\OneDrive\Bouwmeester Group\data\calibration\converted_data.json"
+folder = "data\\tau\\damping"
+detunings = []
+
+### open the json file and read the data
+with open(path, "r") as f:
+    data = json.load(f)
+    for key, value in data.items():
+        if value["power_mV"] == 380:
+            detunings.append(-1*value["detuning_mhz"]*1e6)
+
 ### everything in SI units, all conversion to non-dimensional units is done in the C++ code, so we can just use real units here and not worry about it.
-detuning = -2e6
+detuning = 2e6
 gamma = 12e6 ## 12 Mhz
+pin = 6.7e-6 # in W
+
+
 
 G = 20e6 * 1e9
-tau = 150e-6
+tau = 55e-6
 
-L = 250e-6
-depth = 12.5e-9
+L = 100e-6
+depth = 15e-9
 alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
-simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
+
 
 N = 2**8
 t0 = 0.0
-t1 = 1500e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
-timeStep = 0.5e-6 # in us
+t1 = 2500e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+timeStep = 0.1e-6 # in us
 beta = 1e6# adimensional, this is just a ratio.
-
+damping_strength = -1.0e1
 sim_props = rhs.CSimulationProperties(
         L = L,
         depth = depth,
@@ -54,8 +70,8 @@ sim_props = rhs.CSimulationProperties(
 L0 = sim_props.L / (2.0 * np.pi)
 g = 3*alpha_hamaker / sim_props.depth**4
 _t0 = np.sqrt(L0 / g)
-sigma = 20e-6 # in m, size of the beam waist
-sigma_thermal = 20e-6
+sigma = 10e-6 # in m, size of the beam waist
+sigma_thermal = 10e-6
 print(f"Sigma: {sigma:.3e} m")
 
 optomechanical_props = rhs.COptomechanicalProperties(
@@ -63,13 +79,13 @@ optomechanical_props = rhs.COptomechanicalProperties(
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 10, # 100*P0 / base_power,
+    max_intensity = 200, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
     sigma_thermal_mode = sigma_thermal, # in SI units m
     beta =  beta,
-    damping_strength = -1.0e-8
+    damping_strength = damping_strength
 )
 rk4_props = rhs.CRK4Options(
     timeStep = timeStep,
@@ -80,7 +96,7 @@ rk4_props = rhs.CRK4Options(
 
 x0 = optomechanical_props.location_x0_mode
 
-detunings = np.array([ 1]) * detuning
+detunings = np.array(detunings)
 
 r = np.array([2.0*np.pi/N*x for x in range(N)])
 
@@ -200,10 +216,11 @@ def load_results(filename):
         optomechanical_props = rhs.COptomechanicalProperties(**f["optomechanical_props"].attrs)
         rk4_props = rhs.CRK4Options(**f["rk4_props"].attrs)
         return T, Y, sim_props, optomechanical_props, rk4_props
-
+simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
 for det in detunings:
+    
     ### load file if it exists, otherwise run the simulation and save the results
-    filename = f"results_detuning_{det:.3e}.h5"
+    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}.h5"
     results = load_results(filename)
     if results is not None:
         T_new, Y_new, sim_props, optomechanical_props, rk4_props = results
@@ -243,7 +260,7 @@ for det in detunings:
     plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Detuning = {det:.3e} Hz", n_arrows=10, lw=1.5)
     plot_spatial_fft(Y_new[-1, N:2*N]*L0, ax_spatial_fft, label=f"Spatial FFT - Detuning = {det:.3e} Hz")
     ax_last_interface.plot(Y_new[-1, :N]*L0, Y_new[-1, N:2*N]*L0, label=f"Last Interface - Detuning = {det:.3e} Hz", lw=1.5)
-    save_results(f"results_detuning_{det:.3e}.h5", T_new, Y_new, sim_props, optomechanical_props, rk4_props)
+    save_results(filename, T_new, Y_new, sim_props, optomechanical_props, rk4_props)
 
 # plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Depth = {depth:.3e}", n_arrows=10, lw=1.5)
 axes[0].set_xlabel(r"$y(x_0 = \pi)$ m")

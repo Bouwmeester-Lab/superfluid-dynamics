@@ -50,7 +50,7 @@ protected:
 		indicators::option::Lead{">"},
 		indicators::option::Remainder{" "},
 		indicators::option::End{"]"},
-		indicators::option::PostfixText{"Running integration"},
+		indicators::option::PostfixText{"Running integration for " + std::to_string(N) + " variables"},
 		indicators::option::ForegroundColor{indicators::Color::green},
 		indicators::option::ShowPercentage{true},
 		indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}},

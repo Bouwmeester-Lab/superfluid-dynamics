@@ -93,18 +93,13 @@ TEST(ODE_Solvers, RK4)
 	double dt = 0.001;
 	int steps = 10000;
 	int loggingSteps = 100; // log every 1000 steps
-	DataLogger<cuDoubleComplex, N> stateLogger;
-	stateLogger.setSize(steps / loggingSteps);
-	stateLogger.setStep(loggingSteps);
 
+	std::shared_ptr<TrajectoryLogger<cuDoubleComplex, N>> logger = std::make_shared<TrajectoryLogger<cuDoubleComplex, N>>();
 
-	AutonomousRungeKuttaStepper<cuDoubleComplex, N> stepper(problem, stateLogger, {}, dt);
+	AutonomousRungeKuttaStepper<cuDoubleComplex, N> stepper(problem, dt, logger);
 	stepper.initialize(devInitialState, true);
-	for(int i = 0; i < steps; ++i) 
-	{
-		stepper.runStep(i);
-	}
-	cudaDeviceSynchronize();
+	
+	stepper.runEvolution(0.0, dt * steps);
 	// Copy the results back to the host
 	cuDoubleComplex* results = new cuDoubleComplex[N];
 	cudaMemcpy(results, devInitialState, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);

@@ -30,7 +30,7 @@ public:
 		lightShape.sigma = variables.sigma_optical_mode;
 		intensity->compute_weights<GaussianDistribution>(problemPointers.Z, variables, lightShape);
 		// calculate the frequency shift due to the optomechanical shift
-		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables);
+		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables, properties);
 
 		add_optical_field_drive_terms_no_time_depence<N*batchSize><<<this->blocks, this->threads>>> (result, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, variables, properties);
 

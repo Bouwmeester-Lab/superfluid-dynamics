@@ -10,6 +10,7 @@
 #include "OptomechanicalVariables.h"
 #include "constants.cuh"
 #include "ProblemProperties.hpp"
+#include "ProblemProperties.hpp"
 
 
 
@@ -21,7 +22,7 @@ struct GaussianDistribution
 	__host__ __device__ double operator()(double x) const
 	{
 		const double z = (x - x0) / sigma;
-		return 1.0/(sqrt(2.0*PI_d * sigma * sigma)) * exp(-0.5 * z * z);
+		return 1.0/(sqrt(2.0*PI_d * sigma * sigma)) * exp(-0.5 * z * z); // this uses the normalized version (area = 1.0) so that the integral converges.
 	}
 };
 
@@ -39,13 +40,15 @@ struct FrequencyShiftCombination
 	const std_complex* Z;
 	OptomechanicalVariables variables;
 	const double* weights;
+	const double dx;
 
-	__host__ FrequencyShiftCombination(const std_complex* Z, OptomechanicalVariables variables, const double* weights) : Z(Z), variables(variables), weights(weights) {}
-	
+	__host__ FrequencyShiftCombination(const std_complex* Z, OptomechanicalVariables variables, const double* weights, double dx) : Z(Z), variables(variables), weights(weights), dx(dx) {}
+
 	__device__ double operator()(int idx) const
 	{
-		return - variables.G * weights[idx] * Z[idx].imag(); // the weights represent the spatial profile of the optical mode,
+		return - variables.G * weights[idx] * Z[idx].imag() * dx; // the weights represent the spatial profile of the optical mode,
 		// and Z[idx].imag() is the height of the superfluid at that point. The product gives the contribution to the frequency shift from that point.
+		// make sure the weights converge to 1 when summed up.
 	}
 };
 
@@ -58,7 +61,9 @@ private:
 
 	void* tempStorage = nullptr; // temporary storage for CUB reduction
 	size_t tempStorageBytes = 0; // size of the temporary storage
-	cudaStream_t stream; // CUDA stream for asynchronous operations
+	cudaStream_t stream = cudaStreamPerThread; // CUDA stream for asynchronous operations
+
+	bool allocated = false; // flag to track if memory has been allocated
 public:
 	//__device__ __host__ LightIntensity(OptomechanicalVariables variables) : variables(variables) {}
 	__host__ LightIntensity() {}
@@ -66,6 +71,12 @@ public:
 	~LightIntensity() 
 	{
 		free();
+	}
+
+	void inline guardAgainstNotAllocated() {
+		if (!allocated) {
+			throw std::runtime_error("Memory not allocated. Call allocate(N) before using this function.");
+		}
 	}
 
 	void free() {
@@ -87,11 +98,13 @@ public:
 		this->N = N;
 		cudaMalloc(&weights, N * sizeof(double));
 		cudaMalloc(&frequency_shift_result, sizeof(double));
+		allocated = true;
 	}
 
 	template <typename T>
 	void compute_weights(const std_complex* Z, OptomechanicalVariables variables, T shape)
 	{
+		guardAgainstNotAllocated();
 		const int threadsPerBlock = 256;
 		const int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
 		_compute_weights<T><<<blocksPerGrid, threadsPerBlock>>>(weights, N, Z, shape);
@@ -113,12 +126,13 @@ public:
 		return frequency_shift_result;
 	}
 
-	double* compute_frequency_shift(const std_complex* Z, OptomechanicalVariables variables)
+	double* compute_frequency_shift(const std_complex* Z, OptomechanicalVariables variables, ProblemProperties properties)
 	{
+		guardAgainstNotAllocated();
 		thrust::counting_iterator<int> countingIterator(0);
 
 		// create a transform iterator that applies the FrequencyShiftCombination functor
-		FrequencyShiftCombination frequencyShiftCombination(Z, variables, weights);
+		FrequencyShiftCombination frequencyShiftCombination(Z, variables, weights, 2.0*PI_d / static_cast<double>(N));
 
 		auto transformIterator = thrust::make_transform_iterator(countingIterator, frequencyShiftCombination);
 
@@ -134,12 +148,14 @@ public:
 
 		cudaFreeAsync(this->tempStorage, stream);
 
+		this->tempStorage = nullptr; // reset tempStorage pointer after freeing
+
 		return frequency_shift_result;
 	}
 
-	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables, ProblemProperties properties)
+	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables, double sigma, ProblemProperties properties)
 	{
-		return hbar_d / (properties.base_energy * properties.base_time * properties.rho) * variables.G / cuda::std::pow(variables.sigma_optical_mode, 2.0); // G is in a.u. of frequency per length. So hbar gets converted adimensionalized this way.
+		return hbar_d / (properties.base_energy * properties.base_time * properties.rho) * variables.G / cuda::std::pow(sigma, 2.0); // G is in a.u. of frequency per length. So hbar gets converted adimensionalized this way.
 	}
 };
 

@@ -15,6 +15,22 @@ void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
 	properties.infinite_depth = simProperties.infinite_depth;
 }
 
+void printOptomechanicalVariables(OptomechanicalVariables& variables)
+{
+	std::cout << "detuning: " << variables.detuning << std::endl;
+	std::cout << "max_intensity: " << variables.max_intensity << std::endl;
+	std::cout << "gamma: " << variables.gamma << std::endl;
+
+	std::cout << "G: " << variables.G << std::endl;
+	std::cout << "tau: " << variables.Tau << std::endl;
+	std::cout << "x0 mode: " << variables.location_x0_mode << std::endl;
+	std::cout << "sigma optical mode: " << variables.sigma_optical_mode << std::endl;
+	std::cout << "sigma thermal mode: " << variables.sigma_thermal_mode << std::endl;
+
+	std::cout << "beta: " << variables.Beta << std::endl;
+	std::cout << "damping: " << variables.DampingStrength << std::endl;
+}
+
 void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, OptomechanicalVariables& opto_variables) 
 {
 	opto_variables.detuning = c_optomechanicalVariables.detuning;
@@ -797,15 +813,7 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		// print properties for debugging
 		std::cout << "Adimensionalized optomechanical properties. " << std::endl;
-		std::cout << "detuning: " << optoVars.detuning << std::endl;
-		std::cout << "max_intensity: " << optoVars.max_intensity << std::endl;
-		std::cout << "G: " << optoVars.G << std::endl;
-		std::cout << "Tau: " << optoVars.Tau << std::endl;
-		std::cout << "Beta: " << optoVars.Beta << std::endl;
-		std::cout << "location_x0_mode: " << optoVars.location_x0_mode << std::endl;
-		std::cout << "sigma_optical_mode: " << optoVars.sigma_optical_mode << std::endl;
-		std::cout << "gamma: " << optoVars.gamma << std::endl;
-		std::cout << "Damping strength: " << optoVars.DampingStrength << std::endl;
+		printOptomechanicalVariables(optoVars);
 
 
 		RK4Options rk4_options;
@@ -825,7 +833,7 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 		//optoVariables.sigma_optical_mode = 0.8;
 		//optoVariables.gamma = 1.0;
 
-		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVars);
+		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVars, std::make_unique<LightIntensity>());
 		TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
 
 		/*DataLogger<std_complex, 2 * N> stateLogger;
@@ -978,6 +986,8 @@ int integrateOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* t
 	return 0;
 }
 
+
+
 template <size_t N>
 int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables) 
 {
@@ -990,12 +1000,16 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 		copyProperties(*optomechanicalVariables, optoVars);
 
 		std::cout << "Optomechanical properties before adimensionalization: " << std::endl;
-		std::cout << "detuning: " << optoVars.detuning << std::endl;
+		printOptomechanicalVariables(optoVars);
 
 
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties);
 		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
+
+		std::cout << "Optomechanical properties after adimensionalization: " << std::endl;
+		printOptomechanicalVariables(optoVars);
+
 		// transfoms SI units to adimensional units for the RK4 options
 		auto rk4SolverOptions = adimensionalizeRK4SolverOptions(*rkOptions, properties);
 
@@ -1021,7 +1035,7 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
 		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
 
-		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, lightIntensity));
+		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
 
 		AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, rk4_options.initial_timestep, logger);
 
@@ -1054,8 +1068,8 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			{
 				states[j * 4 * N + i] = hostStates[j * 3 * N + i].real();
 				states[j * 4 * N + i + N] = hostStates[j * 3 * N + i].imag();
-				states[j * 4 * N + i + 2 * N] = hostStates[j * 3 * N + N + i].real();
-				states[j * 4 * N + i + 3 * N] = hostStates[j * 3 * N + N + i].real(); // delayed intensity
+				states[j * 4 * N + i + 2 * N] = hostStates[j * 3 * N + N + i].real(); // phi
+				states[j * 4 * N + i + 3 * N] = hostStates[j * 3 * N + 2 * N + i].real(); // delayed intensity
 			}
 		}
 
@@ -1142,11 +1156,11 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
 		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
 
-		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, lightIntensity));
+		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
 
 		// copy the state to device
 
-		
+		checkCuda(setDevice());
 		checkCuda(cudaMalloc(&devState, sizeof(std_complex) * 3 * N));
 		checkCuda(cudaMalloc(&devRhs, sizeof(std_complex) * 3 * N));
 		checkCuda(cudaMemcpy(devState, cplx_initialState.data(), sizeof(std_complex) * 3 * N, cudaMemcpyHostToDevice));
@@ -1166,7 +1180,7 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 			rhs[i + 2 * N] = hostRhs[i + N].real(); // d/dt phi 
 			rhs[i + 3 * N] = hostRhs[i + 2 * N].real(); // d/dt delayed intensity
 		}
-
+		checkCuda(cudaDeviceSynchronize());
 	}
 	catch(const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
@@ -1183,7 +1197,7 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 	if(hostRhs != nullptr) {
 		std::free(hostRhs);
 	}
-	
+	checkCuda(cudaDeviceSynchronize());
 	
 	return error;
 }
@@ -1259,6 +1273,7 @@ OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVar
 	optomechanicalVariables.detuning *= properties.base_time;
 	// G is a coupling strength (Hz / m), so it gets multiplied by time and base_length
 	optomechanicalVariables.G *= properties.base_time * properties.base_length;
+	
 	// Tau is a time delay, so it gets divided by base_time
 	optomechanicalVariables.Tau /= properties.base_time;
 
@@ -1268,8 +1283,7 @@ OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVar
 	optomechanicalVariables.sigma_optical_mode /= properties.base_length;
 	optomechanicalVariables.sigma_thermal_mode /= properties.base_length;
 
-	double hbar_adim = hbar_d / properties.base_energy / properties.base_time;
-	optomechanicalVariables.Beta *= hbar_adim * optomechanicalVariables.G / (optomechanicalVariables.Tau) / (cuda::std::pow(optomechanicalVariables.sigma_thermal_mode, 2.0) * properties.rho);
+	
 	// TODO: deal with max_intensity and Beta
 
 	return optomechanicalVariables;

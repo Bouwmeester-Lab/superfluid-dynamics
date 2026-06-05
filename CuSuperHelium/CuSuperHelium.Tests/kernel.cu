@@ -7,6 +7,7 @@
 #include "MatrixMTests.cuh"
 #include "ODESolverTests.cuh"
 #include "ComplexFunctionsTests.cuh"
+#include "IntegrationPathEquivalenceTests.cuh"
 
 int main(int argc, char** argv) {
     // Optional: CUDA setup check

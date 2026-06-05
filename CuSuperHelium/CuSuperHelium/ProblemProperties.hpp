@@ -1,5 +1,5 @@
 #pragma once
-#ifndef PROBLEM_PROPERTIES_H
+#if !defined(PROBLEM_PROPERTIES_H)
 #define PROBLEM_PROPERTIES_H
 
 struct ProblemProperties

@@ -4,17 +4,19 @@
 #include "AutonomousProblem.h"
 #include "constants.cuh"
 #include "OptomechanicalVariables.h"
+#include "ProblemProperties.hpp"
 
 template <int N, size_t batchSize>
 class DelayedIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N* batchSize>
 {
 private:
+	ProblemProperties& properties;
 	OptomechanicalVariables& variables;
 	std::shared_ptr<LightIntensity> intensity;
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 public:
-	DelayedIntensityIntegrator(OptomechanicalVariables& variables, std::shared_ptr<LightIntensity> intensity) : variables(variables), intensity(intensity)
+	DelayedIntensityIntegrator(OptomechanicalVariables& variables, ProblemProperties& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
 	{
 	}
 
@@ -29,7 +31,7 @@ public:
 		// we need to calculate the rhs of the delayed intesity: d/dt DelayedIntensity = beta * (I(real(Z), imag(Z)) - DelayedIntensity) where I is the intensity of the optical mode
 		calculate_intensity_delayed_rhs<N* batchSize><<<this->blocks, this->threads>>>(devRhsDelayedIntensity, devFrequencyShift, devZ, devDelayedIntensity, variables);
 		// add the delayed intensity term to the rhs of phi:
-		add_delayed_intensity_phi_rhs<N* batchSize><<<this->blocks, this->threads>>>(devRhsPhi,devDelayedIntensity, variables);
+		add_delayed_intensity_phi_rhs<N* batchSize><<<this->blocks, this->threads>>>(devRhsPhi,devDelayedIntensity, variables, properties);
 
 	}
 

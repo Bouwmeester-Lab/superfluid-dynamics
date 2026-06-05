@@ -14,11 +14,14 @@ class HeliumWithOptomechanicalDrivingProblem : public TimedBoundaryProblem<N, 1>
 	DelayedIntensityTerm<N> delayedIntensityTerm; ///< Delayed intensity term for modeling the optomechanical driving in the helium boundary problem
 	OptomechanicalVariables variables; ///< Optomechanical variables for configuring the optomechanical driving in the helium boundary problem
 
+	std::unique_ptr<LightIntensity> intensity;
+	GaussianDistribution lightShape;
 public:
-	HeliumWithOptomechanicalDrivingProblem(ProblemProperties& properties, OptomechanicalVariables optomechanicalVariables) : TimedBoundaryProblem<N, 1>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)),
-		velocityCalculator(), delayedIntensityTerm(optomechanicalVariables), variables(optomechanicalVariables)
+	HeliumWithOptomechanicalDrivingProblem(ProblemProperties& properties, OptomechanicalVariables optomechanicalVariables, std::unique_ptr<LightIntensity> lightIntensity) : TimedBoundaryProblem<N, 1>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)),
+		velocityCalculator(), delayedIntensityTerm(optomechanicalVariables), variables(optomechanicalVariables), intensity(std::move(lightIntensity))
 	{
 		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
+		intensity->allocate(N);
 	}
 
 	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
@@ -46,7 +49,15 @@ public:
 	{
 		/// add the driving terms
 		/// TODO: N here witll break when using batches.
-		add_optical_field_drive_terms<N><<<this->blocks, this->threads>>> (result, time, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, properties, saveProgress);
+		// calculate the weights of the optical field, based on its shape:
+		lightShape.x0 = variables.location_x0_mode;
+		lightShape.sigma = variables.sigma_optical_mode;
+		intensity->compute_weights<GaussianDistribution>(problemPointers.Z, variables, lightShape);
+		// calculate the frequency shift due to the optomechanical shift
+		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables, properties);
+		
+
+		add_optical_field_drive_terms<N><<<this->blocks, this->threads>>> (result, time, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, properties, saveProgress);
 	}
 
 	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override

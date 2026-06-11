@@ -106,6 +106,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AugmentedBoundaryIntegrator.cuh" />
+    <ClInclude Include="AugmentedIntensityBoundaryIntegrator.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
@@ -124,6 +125,7 @@
     <ClInclude Include="GLCoefficients.hpp" />
     <ClInclude Include="HeliumDrivenAutonomousProblem.cuh" />
     <ClInclude Include="HeliumBoundaryProblem.cuh" />
+    <ClInclude Include="HeliumRampedIntensityAutonomousProblem.cuh" />
     <ClInclude Include="HeliumWithDrivingBoundaryProblem.cuh" />
     <ClInclude Include="JacobianCalculator.cuh" />
     <CudaCompile Include="LightIntensity.cuh" />

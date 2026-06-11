@@ -29,5 +29,8 @@ public:
 	double Beta;
 	double DampingStrength = 0.01;
 
+	bool ramp_intensity = false;
+	double ramp_rate = 1.0;
+
 };
 #endif // !OPTOMECHANICAL_VARIABLES_H

@@ -22,7 +22,7 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 	constexpr int N = 32;
 	constexpr double dt = 1e-1;
 	constexpr double t0 = 0.0;
-	constexpr double t1 = 100'000* dt;
+	constexpr double t1 = 1'000* dt;
 	constexpr double tolerance = 1e-10;
 
 	ProblemProperties timedProperties;

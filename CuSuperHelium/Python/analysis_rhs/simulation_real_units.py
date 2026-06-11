@@ -38,13 +38,13 @@ with open(path, "r") as f:
 
 ### everything in SI units, all conversion to non-dimensional units is done in the C++ code, so we can just use real units here and not worry about it.
 detuning = 2e6
-gamma = 12e6 ## 12 Mhz
+gamma = 15e6 ## 12 Mhz
 pin = 6.7e-6 # in W
 
 
 
 G = 35e6 * 1e9
-tau = 25e-6
+tau = 55e-6
 
 L = 100e-6
 depth = 15e-9
@@ -54,10 +54,10 @@ alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
 N = 2**8
 t0 = 0.0
-t1 = 25000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+t1 = 65000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
 timeStep = 0.1e-6 # in us
 beta = 1e6# adimensional, this is just a ratio.
-damping_strength = -1.0e1
+damping_strength = -2.50e0
 sim_props = rhs.CSimulationProperties(
         L = L,
         depth = depth,
@@ -70,8 +70,8 @@ sim_props = rhs.CSimulationProperties(
 L0 = sim_props.L / (2.0 * np.pi)
 g = 3*alpha_hamaker / sim_props.depth**4
 _t0 = np.sqrt(L0 / g)
-sigma = 10e-6 # in m, size of the beam waist
-sigma_thermal = 10e-6
+sigma = 20e-6 # in m, size of the beam waist
+sigma_thermal = 20e-6
 print(f"Sigma: {sigma:.3e} m")
 
 optomechanical_props = rhs.COptomechanicalProperties(
@@ -79,7 +79,7 @@ optomechanical_props = rhs.COptomechanicalProperties(
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 150, # 100*P0 / base_power,
+    max_intensity = 380, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
@@ -217,10 +217,10 @@ def load_results(filename):
         rk4_props = rhs.CRK4Options(**f["rk4_props"].attrs)
         return T, Y, sim_props, optomechanical_props, rk4_props
 simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
-for i, det in enumerate(detunings):
+for i, det in enumerate(detunings[2:3]):
     
     ### load file if it exists, otherwise run the simulation and save the results
-    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}.h5"
+    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}.h5"
     results = load_results(filename)
     if results is not None:
         T_new, Y_new, sim_props, optomechanical_props, rk4_props = results

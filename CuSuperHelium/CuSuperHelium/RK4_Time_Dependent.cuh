@@ -400,12 +400,12 @@ OdeSolverResult RungeKuttaStepperBase<T, N>::runEvolution(double startTime, doub
 //				logger->logValue();
 //			}
 //		}
+		currentTime = startTime + (step + 1) * CastFrom<T>(timeStep);
 		if (this->options.returnTrajectory)
 		{
 			this->devTimes.push_back(currentTime);
 			appendToVector<N>(this->devYs, this->devY0, this->stream);
 		}
-		currentTime += CastFrom<T>(timeStep);
 	}
 	if (currentTime >= endTime)
 		return OdeSolverResult::ReachedEndTime;

@@ -136,18 +136,32 @@ __global__ void add_optical_field_drive_terms(std_complex* result, double curren
     }
 }
 
+
 template <size_t N>
-__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, ProblemProperties properties)
+__device__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const double prefix, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, ProblemProperties properties)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
         double intensity = LightIntensity::compute_intensity(*frequency_shift, Z[i].real(), variables) * LightIntensity::compute_x_profile(Z[i].real(), variables.location_x0_mode, variables.sigma_optical_mode);
 
         result[i] += variables.DampingStrength * lowerVelocities[i].imag(); // this is the damping term
-        result[i] += LightIntensity::get_current_intensity_drive_strength(variables, variables.sigma_optical_mode, properties) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
+        result[i] += prefix * LightIntensity::get_current_intensity_drive_strength(variables, variables.sigma_optical_mode, properties) * intensity; // add the current intensity as well, since the delayed term only accounts for the past contribution
         //result[i] += 1e8;
     }
 }
+
+template <size_t N>
+__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const std_complex* devPrefix, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, ProblemProperties properties) 
+{
+	add_optical_field_drive_terms_no_time_depence<N>(result, (*devPrefix).real(), frequency_shift, Z, lowerVelocities, variables, properties);
+}
+
+template <size_t N>
+__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, ProblemProperties properties)
+{
+	add_optical_field_drive_terms_no_time_depence<N>(result, 1.0, frequency_shift, Z, lowerVelocities, variables, properties);
+}
+
 
 template <size_t N>
 __global__ void add_delayed_intensity_phi_rhs(std_complex* result, const std_complex* delayed, OptomechanicalVariables variables, ProblemProperties properties)
@@ -159,6 +173,12 @@ __global__ void add_delayed_intensity_phi_rhs(std_complex* result, const std_com
     }
 }
 
+//template <size_t N>
+__global__ void set_growth_intensity_rate(std_complex* rhs_intensity, const double ramp_rate) 
+{
+    rhs_intensity[0] = std_complex(ramp_rate, 0.0); // set the growth rate of the intensity to the specified ramp rate.
+}
+
 template <size_t N>
 __global__ void calculate_intensity_delayed_rhs(std_complex* result, const double* frequency_shift, const std_complex*Z, const std_complex* delayed, OptomechanicalVariables variables)
 {
@@ -166,6 +186,16 @@ __global__ void calculate_intensity_delayed_rhs(std_complex* result, const doubl
     if (i < N) {
         double intensity = LightIntensity::compute_intensity(*frequency_shift, Z[i].real(), variables) * LightIntensity::compute_x_profile(Z[i].real(), variables.location_x0_mode, variables.sigma_thermal_mode);
 		result[i] = (intensity - delayed[i]) / variables.Tau; // RHS of the delayed intensity term in the augmented system. Removes explicit time dependence.
+    }
+}
+
+template <size_t N>
+__global__ void calculate_ramped_intensity_delayed_rhs(std_complex* result, const std_complex* rampedIntensity, const double* frequency_shift, const std_complex* Z, const std_complex* delayed, OptomechanicalVariables variables)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        double intensity = (*rampedIntensity).real() * LightIntensity::compute_intensity(*frequency_shift, Z[i].real(), variables) * LightIntensity::compute_x_profile(Z[i].real(), variables.location_x0_mode, variables.sigma_thermal_mode);
+        result[i] = (intensity - delayed[i]) / variables.Tau; // RHS of the delayed intensity term in the augmented system. Removes explicit time dependence.
     }
 }
 

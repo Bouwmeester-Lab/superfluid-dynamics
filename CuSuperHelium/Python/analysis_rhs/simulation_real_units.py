@@ -26,7 +26,7 @@ def interpolate(x, y, x0):
     return f(x0)
 
 path = r"C:\Users\emore\OneDrive\Bouwmeester Group\data\calibration\converted_data.json"
-folder = "data\\tau\\damping"
+folder = "data\\tau\\damping\\ramp"
 detunings = []
 
 ### open the json file and read the data
@@ -50,11 +50,14 @@ L = 100e-6
 depth = 15e-9
 alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
+ramp_intensity = True
+ramp_rate = 500 / (50000e-6) # in number of photons per second
 
+print(f"Ramp rate: {ramp_rate:.3f} photons/s")
 
 N = 2**8
 t0 = 0.0
-t1 = 65000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+t1 = 80000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
 timeStep = 0.1e-6 # in us
 beta = 1e6# adimensional, this is just a ratio.
 damping_strength = -2.50e0
@@ -79,13 +82,15 @@ optomechanical_props = rhs.COptomechanicalProperties(
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 380, # 100*P0 / base_power,
+    max_intensity = 1.0, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
     sigma_thermal_mode = sigma_thermal, # in SI units m
     beta =  beta,
-    damping_strength = damping_strength
+    damping_strength = damping_strength,
+    ramp_intensity = ramp_intensity,
+    ramp_rate = ramp_rate
 )
 rk4_props = rhs.CRK4Options(
     timeStep = timeStep,
@@ -106,6 +111,9 @@ pot = np.zeros_like(r) # np.ones_like(r) *  0.01 * soliton_sech2(r, x0=np.pi, si
 delayed = np.zeros_like(r)
 
 Y0 = np.concatenate((r, ampl, pot, delayed))
+
+if ramp_intensity:
+    Y0 = np.concatenate((Y0, np.array([0.0])))
 
 fig, axes = plt.subplots(2, 1, figsize=(15, 5))
 ax_pd = axes[0]
@@ -220,7 +228,7 @@ simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\
 for i, det in enumerate(detunings[2:3]):
     
     ### load file if it exists, otherwise run the simulation and save the results
-    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}.h5"
+    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}_ramp_{ramp_rate:.3e}.h5"
     results = load_results(filename)
     if results is not None:
         T_new, Y_new, sim_props, optomechanical_props, rk4_props = results

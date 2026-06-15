@@ -46,18 +46,18 @@ pin = 6.7e-6 # in W
 G = 35e6 * 1e9
 tau = 55e-6
 
-L = 100e-6
-depth = 15e-9
+L = 150e-6
+depth = 10e-9
 alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
 ramp_intensity = True
-ramp_rate = 500 / (50000e-6) # in number of photons per second
+ramp_rate = -1000 / (50000e-6) # in number of photons per second
 
 print(f"Ramp rate: {ramp_rate:.3f} photons/s")
 
 N = 2**8
 t0 = 0.0
-t1 = 80000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+t1 = 120000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
 timeStep = 0.1e-6 # in us
 beta = 1e6# adimensional, this is just a ratio.
 damping_strength = -2.50e0
@@ -228,7 +228,7 @@ simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\
 for i, det in enumerate(detunings[2:3]):
     
     ### load file if it exists, otherwise run the simulation and save the results
-    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}_ramp_{ramp_rate:.3e}.h5"
+    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}_ramp_{np.abs(ramp_rate):.3e}.h5"
     results = load_results(filename)
     if results is not None:
         T_new, Y_new, sim_props, optomechanical_props, rk4_props = results

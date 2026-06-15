@@ -110,6 +110,10 @@
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
+    <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
+    <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh" />
+    <ClInclude Include="Common\CudaChecks.cuh" />
+    <ClInclude Include="Common\VectorKernels.cuh" />
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
@@ -130,8 +134,11 @@
     <ClInclude Include="JacobianCalculator.cuh" />
     <CudaCompile Include="LightIntensity.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
+    <ClInclude Include="Math\ComplexMath.cuh" />
+    <ClInclude Include="Math\FftKernels.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="OdeSolver.h" />
+    <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh" />
     <ClInclude Include="OptomechanicalVariables.h" />
     <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />

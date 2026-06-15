@@ -39,6 +39,12 @@
     <Filter Include="Ode Integrators">
       <UniqueIdentifier>{3133c457-5d75-415e-85eb-1b8888e6f57a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Boundary Kernels">
+      <UniqueIdentifier>{97df3fb5-1ff6-4f97-84ca-00a892f7b416}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math">
+      <UniqueIdentifier>{bc1f2bdf-400f-4ee3-8e07-9cc3534c53c3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -164,6 +170,27 @@
     </ClInclude>
     <ClInclude Include="HeliumRampedIntensityAutonomousProblem.cuh">
       <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryKernels\MatrixKernels.cuh">
+      <Filter>Boundary Kernels</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh">
+      <Filter>Boundary Kernels</Filter>
+    </ClInclude>
+    <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\CudaChecks.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\VectorKernels.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\ComplexMath.cuh">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\FftKernels.cuh">
+      <Filter>Math</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "BoundaryProblem.cuh"
-#include "utilities.cuh"
-#include "createM.cuh"
+#include "BoundaryKernels/MatrixKernels.cuh"
+#include "BoundaryKernels/PhiRhsKernels.cuh"
 
 template<int N, size_t batchSize>
 class WaterBoundaryProblem : public BoundaryProblem<N, batchSize>

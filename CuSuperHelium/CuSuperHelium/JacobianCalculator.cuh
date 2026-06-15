@@ -5,7 +5,7 @@
 #include "AutonomousProblem.h"
 #include <memory>
 #include "constants.cuh"
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
 #include <utility>
 
 __global__ void createInitialBatchedZ(const std_complex* __restrict__ initialState, std_complex* __restrict__ ZBatched, double eps, size_t N)

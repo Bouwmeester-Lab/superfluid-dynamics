@@ -3,7 +3,7 @@
 #define TRAJECTORY_LOGGER_H
 
 #include <thrust/device_vector.h>
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
 
 template <typename T, size_t N>
 class TrajectoryLogger

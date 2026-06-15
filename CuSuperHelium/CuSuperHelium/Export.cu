@@ -44,6 +44,9 @@ void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, Optomec
 	opto_variables.sigma_thermal_mode = c_optomechanicalVariables.sigma_thermal_mode;
 	opto_variables.Beta = c_optomechanicalVariables.beta;
 	opto_variables.DampingStrength = c_optomechanicalVariables.damping_strength;
+
+	opto_variables.ramp_intensity = c_optomechanicalVariables.ramp_intensity;
+	opto_variables.ramp_rate = c_optomechanicalVariables.ramp_rate; // (intensity / seconds)
 }
 
 int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps)
@@ -1020,67 +1023,136 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 		const double t0 = rk4SolverOptions.t0;
 		const double t1 = rk4SolverOptions.t1;
 
-		std::vector<std_complex> cplx_initialState(3*N);
-
-		for(size_t i = 0; i < N; i++)
-		{
-			cplx_initialState[i] = std_complex(initialState[i], initialState[i + N]); // Z
-			cplx_initialState[i +  N] = std_complex(initialState[i + 2 * N], 0); // phi
-			cplx_initialState[i + 2 * N] = std_complex(initialState[i + 3 * N], 0); // delayed intensity
-		}
-
-		std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
 		std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
 
-		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
-		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
-
-		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
-
-		AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, rk4_options.initial_timestep, logger);
-
-		stepper.setOptions(rk4_options);
-		stepper.initialize(cplx_initialState.data(), false);
-
-		std::cout << "Starting augmented RK4 evolution from t = " << t0 << " to t = " << t1 << " with time step " << rk4_options.initial_timestep << std::endl;
-		stepper.runEvolution(t0, t1);
-
-		std::cout << "Augmented RK4 evolution completed. Copying results to host." << std::endl;
-		cudaStreamSynchronize(cudaStreamPerThread);
-
-		logger->copyTimesToHost(timesOut, timesCount);
-		std::cout << (*timesCount) << " times copied to host" << "Copying states to host." << std::endl;
-		std_complex* hostStates;
-
-		if (logger->copyStatesToHost(&hostStates, statesCount) == -1) 
+		if (optoVars.ramp_intensity)
 		{
-			std::cerr << "Failed to copy states to host" << std::endl;
-			return -1;
-		}
-		std::cout << (*statesCount) << " complex states copied to host. Transforming to output format." << std::endl;
-		// transform std::complex to double arrays for output
-		double* states = (double*)std::malloc(4 * (*statesCount) * sizeof(double) * N);
-		size_t countStatesHost = *statesCount;
+			std::vector<std_complex> cplx_initialState(3 * N + 1);
 
-		for (size_t j = 0; j < countStatesHost; j++)
-		{
 			for (size_t i = 0; i < N; i++)
 			{
-				states[j * 4 * N + i] = hostStates[j * 3 * N + i].real();
-				states[j * 4 * N + i + N] = hostStates[j * 3 * N + i].imag();
-				states[j * 4 * N + i + 2 * N] = hostStates[j * 3 * N + N + i].real(); // phi
-				states[j * 4 * N + i + 3 * N] = hostStates[j * 3 * N + 2 * N + i].real(); // delayed intensity
+				cplx_initialState[i] = std_complex(initialState[i], initialState[i + N]); // Z
+				cplx_initialState[i + N] = std_complex(initialState[i + 2 * N], 0); // phi
+				cplx_initialState[i + 2 * N] = std_complex(initialState[i + 3 * N], 0); // delayed intensity
 			}
+			cplx_initialState[3 * N] = std_complex(initialState[4 * N], 0); // scalar ramped intensity
+
+			std::shared_ptr<TrajectoryLogger<std_complex, 3 * N + 1>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N + 1>>();
+			HeliumRampedIntensityAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
+			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+			AugmentedIntensityBoundaryIntegrator<N, 1> integrator(
+				std::move(boundaryIntegralCalculator),
+				std::make_unique<DelayedRampedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
+
+			AutonomousRungeKuttaStepper<std_complex, 3 * N + 1> stepper(integrator, rk4_options.initial_timestep, logger);
+
+			stepper.setOptions(rk4_options);
+			stepper.initialize(cplx_initialState.data(), false);
+
+			std::cout << "Starting ramped augmented RK4 evolution from t = " << t0 << " to t = " << t1 << " with time step " << rk4_options.initial_timestep << std::endl;
+			stepper.runEvolution(t0, t1);
+
+			std::cout << "Ramped augmented RK4 evolution completed. Copying results to host." << std::endl;
+			cudaStreamSynchronize(cudaStreamPerThread);
+
+			logger->copyTimesToHost(timesOut, timesCount);
+			std::cout << (*timesCount) << " times copied to host" << "Copying states to host." << std::endl;
+			std_complex* hostStates;
+
+			if (logger->copyStatesToHost(&hostStates, statesCount) == -1)
+			{
+				std::cerr << "Failed to copy states to host" << std::endl;
+				return -1;
+			}
+			std::cout << (*statesCount) << " complex states copied to host. Transforming to output format." << std::endl;
+
+			double* states = (double*)std::malloc((4 * N + 1) * (*statesCount) * sizeof(double));
+			size_t countStatesHost = *statesCount;
+
+			for (size_t j = 0; j < countStatesHost; j++)
+			{
+				const size_t hostOffset = j * (3 * N + 1);
+				const size_t outputOffset = j * (4 * N + 1);
+
+				for (size_t i = 0; i < N; i++)
+				{
+					states[outputOffset + i] = hostStates[hostOffset + i].real();
+					states[outputOffset + i + N] = hostStates[hostOffset + i].imag();
+					states[outputOffset + i + 2 * N] = hostStates[hostOffset + N + i].real(); // phi
+					states[outputOffset + i + 3 * N] = hostStates[hostOffset + 2 * N + i].real(); // delayed intensity
+				}
+				states[outputOffset + 4 * N] = hostStates[hostOffset + 3 * N].real(); // scalar ramped intensity
+			}
+
+			std::cout << countStatesHost << " ramped states transformed to output format. Setting output pointers." << std::endl;
+
+			*statesOut = states;
+
+			std::cout << "Freeing host states memory." << std::endl;
+
+			std::free(hostStates);
 		}
+		else
+		{
+			std::vector<std_complex> cplx_initialState(3 * N);
 
-		std::cout << countStatesHost << " states transformed to output format. Setting output pointers." << std::endl;
+			for (size_t i = 0; i < N; i++)
+			{
+				cplx_initialState[i] = std_complex(initialState[i], initialState[i + N]); // Z
+				cplx_initialState[i + N] = std_complex(initialState[i + 2 * N], 0); // phi
+				cplx_initialState[i + 2 * N] = std_complex(initialState[i + 3 * N], 0); // delayed intensity
+			}
 
-		*statesOut = states;
-		// free the one created by the stepper
+			std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
+			HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
+			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+			AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
 
-		std::cout << "Freeing host states memory." << std::endl;
+			AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, rk4_options.initial_timestep, logger);
 
-		std::free(hostStates);
+			stepper.setOptions(rk4_options);
+			stepper.initialize(cplx_initialState.data(), false);
+
+			std::cout << "Starting augmented RK4 evolution from t = " << t0 << " to t = " << t1 << " with time step " << rk4_options.initial_timestep << std::endl;
+			stepper.runEvolution(t0, t1);
+
+			std::cout << "Augmented RK4 evolution completed. Copying results to host." << std::endl;
+			cudaStreamSynchronize(cudaStreamPerThread);
+
+			logger->copyTimesToHost(timesOut, timesCount);
+			std::cout << (*timesCount) << " times copied to host" << "Copying states to host." << std::endl;
+			std_complex* hostStates;
+
+			if (logger->copyStatesToHost(&hostStates, statesCount) == -1)
+			{
+				std::cerr << "Failed to copy states to host" << std::endl;
+				return -1;
+			}
+			std::cout << (*statesCount) << " complex states copied to host. Transforming to output format." << std::endl;
+			// transform std::complex to double arrays for output
+			double* states = (double*)std::malloc(4 * (*statesCount) * sizeof(double) * N);
+			size_t countStatesHost = *statesCount;
+
+			for (size_t j = 0; j < countStatesHost; j++)
+			{
+				for (size_t i = 0; i < N; i++)
+				{
+					states[j * 4 * N + i] = hostStates[j * 3 * N + i].real();
+					states[j * 4 * N + i + N] = hostStates[j * 3 * N + i].imag();
+					states[j * 4 * N + i + 2 * N] = hostStates[j * 3 * N + N + i].real(); // phi
+					states[j * 4 * N + i + 3 * N] = hostStates[j * 3 * N + 2 * N + i].real(); // delayed intensity
+				}
+			}
+
+			std::cout << countStatesHost << " states transformed to output format. Setting output pointers." << std::endl;
+
+			*statesOut = states;
+			// free the one created by the stepper
+
+			std::cout << "Freeing host states memory." << std::endl;
+
+			std::free(hostStates);
+		}
 
 	}
 	catch (const std::exception& e) {
@@ -1283,7 +1355,9 @@ OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVar
 	optomechanicalVariables.sigma_optical_mode /= properties.base_length;
 	optomechanicalVariables.sigma_thermal_mode /= properties.base_length;
 
-	
+	// ramp rate is intensity per second, so it gets multiplied by base_time:
+	optomechanicalVariables.ramp_rate *= properties.base_time;
+
 	// TODO: deal with max_intensity and Beta
 
 	return optomechanicalVariables;

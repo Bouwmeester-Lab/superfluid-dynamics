@@ -423,7 +423,7 @@ OdeSolverResult AutonomousRungeKuttaStepperBase<T, N>::runEvolution(double start
 	for(size_t step = 0; step < steps; step++)
 	{
 		runStep(step);
-		currentTime += CastFrom<T>(timeStep);
+		currentTime = startTime + (step + 1) * CastFrom<T>(timeStep);
 		// log:
 		logger->logTrajectory(currentTime, devY0);
 		

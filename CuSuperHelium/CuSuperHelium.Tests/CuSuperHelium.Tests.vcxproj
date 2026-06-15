@@ -14,24 +14,26 @@
     <ProjectGuid>{EA8EAE49-5FD7-4279-9F0C-323D387ADF8D}</ProjectGuid>
     <RootNamespace>CuSuperHelium_Tests</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <CudaToolkitDir>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3\</CudaToolkitDir>
+    <CudaBuildCustomizationsDir>$(CudaToolkitDir)extras\visual_studio_integration\MSBuildExtensions\</CudaBuildCustomizationsDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 12.9.props" />
+    <Import Project="$(CudaBuildCustomizationsDir)CUDA 13.3.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -44,8 +46,8 @@
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;D:\repos\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\vcpkg\packages\gtest_x64-windows\include;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/</IncludePath>
-    <LibraryPath>C:\vcpkg\packages\gtest_x64-windows\lib;$(LibraryPath);$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\lib\x64;C:\Users\emore\anaconda3\libs;C:\ProgramData\anaconda3\libs</LibraryPath>
+    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;D:\repos\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\vcpkg\packages\gtest_x64-windows\include;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/</IncludePath>
+    <LibraryPath>C:\vcpkg\packages\gtest_x64-windows\lib;$(LibraryPath);$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(CudaToolkitLibDir);C:\Users\emore\anaconda3\libs;C:\ProgramData\anaconda3\libs</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -64,6 +66,7 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <AdditionalOptions>-Xcompiler /Zc:preprocessor -Xcompiler /bigobj %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -84,10 +87,10 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <CodeGeneration>compute_86,sm_86</CodeGeneration>
+      <CodeGeneration>compute_86,sm_86;compute_120,sm_120</CodeGeneration>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Od</Optimization>
-      <AdditionalOptions>-std=c++20 -prec-div=true -prec-sqrt=true -ftz=false %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-std=c++20 -Xcompiler /Zc:preprocessor -Xcompiler /bigobj -prec-div=true -prec-sqrt=true -ftz=false %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -95,6 +98,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ComplexFunctionsTests.cuh" />
+    <ClInclude Include="ExportFunctionTests.cuh" />
     <ClInclude Include="IntegrationPathEquivalenceTests.cuh" />
     <ClInclude Include="MatrixMTests.cuh" />
     <ClInclude Include="ODESolverTests.cuh" />
@@ -106,6 +110,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 12.9.targets" />
+    <Import Project="$(CudaBuildCustomizationsDir)CUDA 13.3.targets" />
   </ImportGroup>
 </Project>

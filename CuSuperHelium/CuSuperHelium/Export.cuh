@@ -13,8 +13,10 @@
 #include "HeliumWithDrivingBoundaryProblem.cuh"
 #include "RK4_Time_Dependent.cuh"
 #include "AugmentedBoundaryIntegrator.cuh"
+#include "AugmentedIntensityBoundaryIntegrator.cuh"
 #include "TrajectoryLogger.cuh"
 #include "HeliumDrivenAutonomousProblem.cuh"
+#include "HeliumRampedIntensityAutonomousProblem.cuh"
 
 extern "C" 
 {

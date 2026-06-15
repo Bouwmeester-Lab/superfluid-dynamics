@@ -2,8 +2,11 @@
 #ifndef MATRIX_SOLVER_H
 #define MATRIX_SOLVER_H
 
-
 #include <cusolverDn.h>
+#include <array>
+#include <stdexcept>
+#include <string>
+#include <vector>
 #include "utilities.cuh"
 
 /// <summary>
@@ -38,8 +41,9 @@ public:
     }
 private:
     cublasHandle_t blas;
-    cudaStream_t stream = cudaStreamPerThread;
+    cudaStream_t stream = cudaStreamLegacy;
     cusolverDnHandle_t handle; ///< cuSolver handle for managing solver context
+    void checkSolverInfo(const char* operation);
     int* devPivot;             ///< Device pointer for pivot indices (length N)
     int* devInfo;              ///< Device pointer for solver info (length 1)
     double* devWork;           ///< Device pointer for workspace memory
@@ -79,8 +83,8 @@ MatrixSolver<N, batchSize>::MatrixSolver()
 	checkCuda(cudaMalloc(&devPivotArray, batchSize * N * sizeof(int)));
 	checkCuda(cudaMalloc(&devInfoArray, batchSize * sizeof(int)));
 
-	// set the stream to default
-    this->setStream(cudaStreamPerThread);
+	// Match surrounding kernel launches that use the default stream.
+    this->setStream(cudaStreamLegacy);
 }
 
 /// <summary>
@@ -102,6 +106,21 @@ MatrixSolver<N, batchSize>::~MatrixSolver()
 	if (devInfoArray) cudaFree(devInfoArray);
 }
 
+template<int N, size_t batchSize>
+inline void MatrixSolver<N, batchSize>::checkSolverInfo(const char* operation)
+{
+    int hostInfo = 0;
+    checkCuda(cudaMemcpyAsync(&hostInfo, devInfo, sizeof(int), cudaMemcpyDeviceToHost, this->stream));
+    checkCuda(cudaStreamSynchronize(this->stream));
+
+    if (hostInfo < 0) {
+        throw std::runtime_error(std::string(operation) + " failed: argument " + std::to_string(-hostInfo) + " had an illegal value");
+    }
+    if (hostInfo > 0) {
+        throw std::runtime_error(std::string(operation) + " failed: matrix is singular at U(" + std::to_string(hostInfo) + "," + std::to_string(hostInfo) + ")");
+    }
+}
+
 /// <summary>
 /// Solves the linear system devM * deva = devb using LU factorization and substitution.
 /// devM and devb are device pointers. The solution is written to deva (device pointer).
@@ -120,9 +139,17 @@ inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double
     }
     if (batchSize == 1) {
 		// use cuSolver to perform LU factorization of M if batchSize is 1
-        checkCusolver(cusolverDnDgetrf(handle, N, N, devM, N, devWork, devPivot, devInfo));
+        cusolverStatus_t getrfStatus = cusolverDnDgetrf(handle, N, N, devM, N, devWork, devPivot, devInfo);
+        if (getrfStatus != CUSOLVER_STATUS_SUCCESS) {
+            throw std::runtime_error("cusolverDnDgetrf failed with status " + std::to_string(static_cast<int>(getrfStatus)));
+        }
+        checkSolverInfo("cusolverDnDgetrf");
         // Solve: LU * x = b -> a = x
-        checkCusolver(cusolverDnDgetrs(handle, CUBLAS_OP_N, N, 1, devM, N, devPivot, deva, N, devInfo)); // Use the matrix as-is (no transpose) CUBLAS_OP_N
+        cusolverStatus_t getrsStatus = cusolverDnDgetrs(handle, CUBLAS_OP_N, N, 1, devM, N, devPivot, deva, N, devInfo); // Use the matrix as-is (no transpose) CUBLAS_OP_N
+        if (getrsStatus != CUSOLVER_STATUS_SUCCESS) {
+            throw std::runtime_error("cusolverDnDgetrs failed with status " + std::to_string(static_cast<int>(getrsStatus)));
+        }
+        checkSolverInfo("cusolverDnDgetrs");
     }
     else {
         

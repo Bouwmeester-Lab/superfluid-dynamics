@@ -159,5 +159,11 @@
     <ClInclude Include="TrajectoryLogger.cuh">
       <Filter>Ode Integrators</Filter>
     </ClInclude>
+    <ClInclude Include="AugmentedIntensityBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="HeliumRampedIntensityAutonomousProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

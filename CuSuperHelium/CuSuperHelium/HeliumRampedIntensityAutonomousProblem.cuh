@@ -4,8 +4,8 @@
 
 #include "HeliumBoundaryProblem.cuh"
 #include "OptomechanicalVariables.h"
-#include "createM.cuh"
 #include "LightIntensity.cuh"
+#include "Optomechanics/OptomechanicalDriveKernels.cuh"
 
 template <int N, size_t batchSize>
 class HeliumRampedIntensityAutonomousProblem : public HeliumBoundaryProblem<N, batchSize>

@@ -5,10 +5,10 @@
 #include "AutonomousProblem.h"
 #include <memory>
 #include "constants.cuh"
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
 #include <utility>
 
-__global__ void createInitialBatchedZ(const std_complex* __restrict__ initialState, std_complex* __restrict__ ZBatched, double eps, size_t N)
+static __global__ void createInitialBatchedZ(const std_complex* __restrict__ initialState, std_complex* __restrict__ ZBatched, double eps, size_t N)
 {
 	int tid = blockIdx.x * blockDim.x + threadIdx.x; // tid from 0 to 2*N - 1 ( each thread calculates one perturbation, 2 elements (position and potential))
 	int b = blockIdx.y; // batch id
@@ -89,7 +89,7 @@ __device__ __host__ __forceinline__ size_t columnMajorIndex(const size_t row, co
 /// <param name="particles">The number of particles in the system.</param>
 /// <param name="eps">The perturbation magnitude used for finite difference calculations.</param>
 /// <returns>This function does not return a value; it writes the computed Jacobian matrix to the array pointed to by C.</returns>
-__global__ void createJacobianMatrixFromPerturbedRhs(const std_complex* __restrict__ pos, const std_complex* __restrict__ neg, double* __restrict__ C, size_t N, double eps)
+static __global__ void createJacobianMatrixFromPerturbedRhs(const std_complex* __restrict__ pos, const std_complex* __restrict__ neg, double* __restrict__ C, size_t N, double eps)
 {
 	int tId = blockIdx.x * blockDim.x + threadIdx.x; // from 0 to 6*N*N - 1
 	// create a stride loop to cover all elements in the matrix
@@ -151,7 +151,7 @@ __global__ void createJacobianMatrixFromPerturbedRhs(const std_complex* __restri
 }
 
 
-__global__ void createInitialState(const double* initialState, std_complex* complexState, size_t N) 
+static __global__ void createInitialState(const double* initialState, std_complex* complexState, size_t N) 
 {
 	int tId = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tId >= N) return;

@@ -5,7 +5,9 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
+#include "Common/VectorKernels.cuh"
+#include "Math/ComplexMath.cuh"
 #include "cufft.h"
 #include "constants.cuh"
 #include "cuDoubleComplexOperators.cuh"
@@ -21,7 +23,7 @@
 /// <param name="out1">V1 matrix</param>
 /// <param name="out2">Diagonal entries of V2</param>
 /// <param name="lower"></param>
-__global__ void createVelocityMatrices(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower = true, size_t batchSize = 1);
+static __global__ void createVelocityMatrices(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower = true, size_t batchSize = 1);
 /// <summary>
 /// Calculates the veloctities in the water model from the V1 and V2 matrices calculated by createVelocityMatrices.
 /// </summary>
@@ -32,10 +34,10 @@ __global__ void createVelocityMatrices(const std_complex* Z, const std_complex* 
 /// <param name="N">Size of the system.</param>
 ///void calculateVelocities(double* a, double* aprime, cufftDoubleComplex* V1, cufftDoubleComplex* V2, int N);
 
-__global__ void calculateDiagonalVectorMultiplication(std_complex* diag, std_complex* vec, std_complex* out, int N);
+static __global__ void calculateDiagonalVectorMultiplication(std_complex* diag, std_complex* vec, std_complex* out, int N);
 
 
-__global__ void createVelocityMatrices(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower, size_t batchSize)
+static __global__ void createVelocityMatrices(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, int N, std_complex* out1, std_complex* out2, bool lower, size_t batchSize)
 {
 	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
 	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -69,7 +71,7 @@ __global__ void createVelocityMatrices(const std_complex* Z, const std_complex* 
 	}
 }
 
-__global__ void createHeliumVelocityMatrices(const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int N, std_complex* const out1, std_complex* const out2, bool lower, size_t batchSize, bool infinite_depth = false)
+static __global__ void createHeliumVelocityMatrices(const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int N, std_complex* const out1, std_complex* const out2, bool lower, size_t batchSize, bool infinite_depth = false)
 {
 	int j = blockIdx.y * blockDim.y + threadIdx.y; // row
 	int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -106,7 +108,7 @@ __global__ void createHeliumVelocityMatrices(const std_complex* const Z, const s
 	}
 }
 
-__global__ void calculateDiagonalVectorMultiplication(std_complex* diag, std_complex* vec, std_complex* out, int N)
+static __global__ void calculateDiagonalVectorMultiplication(std_complex* diag, std_complex* vec, std_complex* out, int N)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < N) {

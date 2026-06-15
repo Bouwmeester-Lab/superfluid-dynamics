@@ -102,7 +102,12 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="Export.cu" />
+    <CudaCompile Include="Export\AugmentedOptomechanicalExports.cu" />
+    <CudaCompile Include="Export\ExportProperties.cu" />
+    <CudaCompile Include="Export\IntegrationExports.cu" />
+    <CudaCompile Include="Export\JacobianExports.cu" />
+    <CudaCompile Include="Export\OptomechanicalExports.cu" />
+    <CudaCompile Include="Export\RhsExports.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AugmentedBoundaryIntegrator.cuh" />
@@ -110,6 +115,10 @@
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
+    <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
+    <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh" />
+    <ClInclude Include="Common\CudaChecks.cuh" />
+    <ClInclude Include="Common\VectorKernels.cuh" />
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
@@ -120,6 +129,8 @@
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export.cuh" />
+    <ClInclude Include="Export\ExportApi.cuh" />
+    <ClInclude Include="Export\ExportInternal.cuh" />
     <ClInclude Include="ExportTypes.cuh" />
     <ClInclude Include="GaussLegendre.cuh" />
     <ClInclude Include="GLCoefficients.hpp" />
@@ -130,8 +141,11 @@
     <ClInclude Include="JacobianCalculator.cuh" />
     <CudaCompile Include="LightIntensity.cuh" />
     <ClInclude Include="LinearAlgebra.cuh" />
+    <ClInclude Include="Math\ComplexMath.cuh" />
+    <ClInclude Include="Math\FftKernels.cuh" />
     <ClInclude Include="MatrixSolver.cuh" />
     <ClInclude Include="OdeSolver.h" />
+    <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh" />
     <ClInclude Include="OptomechanicalVariables.h" />
     <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />

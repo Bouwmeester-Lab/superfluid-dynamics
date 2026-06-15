@@ -8,7 +8,7 @@
 
 namespace fs = std::filesystem;  
 
-void createVideo(const std::string name, int width, int height, std::vector<std::string>& paths_pngs, int fps = 30) {
+inline void createVideo(const std::string name, int width, int height, std::vector<std::string>& paths_pngs, int fps = 30) {
 	cv::VideoWriter writer(name, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
 		fps,  
 		cv::Size(width, height));  

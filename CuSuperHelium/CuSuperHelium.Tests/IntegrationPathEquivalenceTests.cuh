@@ -14,7 +14,7 @@
 #include "RK4_Time_Dependent.cuh"
 #include "TimedBoundaryIntegrator.cuh"
 #include "TrajectoryLogger.cuh"
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
 #include "matplotlibcpp.h"
 #include "AugmentedIntensityBoundaryIntegrator.cuh"
 #include "HeliumRampedIntensityAutonomousProblem.cuh"

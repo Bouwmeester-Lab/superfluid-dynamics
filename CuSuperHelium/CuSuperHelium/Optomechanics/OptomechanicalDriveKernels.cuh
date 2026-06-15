@@ -66,7 +66,7 @@ __global__ void add_delayed_intensity_phi_rhs(std_complex* result, const std_com
     }
 }
 
-__global__ void set_growth_intensity_rate(std_complex* rhs_intensity, const double ramp_rate)
+static __global__ void set_growth_intensity_rate(std_complex* rhs_intensity, const double ramp_rate)
 {
     rhs_intensity[0] = std_complex(ramp_rate, 0.0); // set the growth rate of the intensity to the specified ramp rate.
 }

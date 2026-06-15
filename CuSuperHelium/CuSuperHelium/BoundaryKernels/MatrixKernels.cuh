@@ -10,8 +10,8 @@
 
 #include <cuda/std/complex>
 
-__global__ void createMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho, int n, size_t batchSize);
-__global__ void createFiniteDepthMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h, int n, size_t batchSize, bool infinite_depth = false);
+static __global__ void createMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double rho, int n, size_t batchSize);
+static __global__ void createFiniteDepthMKernel(double* A, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, double h, int n, size_t batchSize, bool infinite_depth = false);
 
 /// <summary>
 /// Creates the matrix M used in eq. 2.9 from Roberts 1983
@@ -20,7 +20,7 @@ __global__ void createFiniteDepthMKernel(double* A, const std_complex* Z, const 
 /// <param name="diag">The precalculated diagonal using the expression for Mkk</param>
 /// <param name="n">The size of the matrix (nxn)</param>
 /// <returns></returns>
-__global__ void createMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double rho, int n, size_t batchSize)
+static __global__ void createMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double rho, int n, size_t batchSize)
 {
     int j = blockIdx.y * blockDim.y + threadIdx.y; // row
     int k = blockIdx.x * blockDim.x + threadIdx.x; // col
@@ -42,7 +42,7 @@ __global__ void createMKernel(double* A, const std_complex* const Z, const std_c
     }
 }
 
-__global__ void createFiniteDepthMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int n, size_t batchSize, bool infinite_depth)
+static __global__ void createFiniteDepthMKernel(double* A, const std_complex* const Z, const std_complex* const Zp, const std_complex* const Zpp, double h, int n, size_t batchSize, bool infinite_depth)
 {
     const int j = blockIdx.y * blockDim.y + threadIdx.y; // row
     const int k = blockIdx.x * blockDim.x + threadIdx.x; // col

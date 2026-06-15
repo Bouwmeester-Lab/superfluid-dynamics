@@ -41,18 +41,18 @@ private:
 	size_t size = 0;
 };
 
-ValueLogger::ValueLogger(int stepInterval, size_t size) : stepInterval(stepInterval), size(size)
+inline ValueLogger::ValueLogger(int stepInterval, size_t size) : stepInterval(stepInterval), size(size)
 {
 	loggedValues.clear();
 	loggedValues.reserve(size);
 }
 
-ValueLogger::~ValueLogger()
+inline ValueLogger::~ValueLogger()
 {
 	loggedValues.clear();
 }
 
-void ValueLogger::logValue(double value)
+inline void ValueLogger::logValue(double value)
 {
 	if(std::isnan(value) || std::isinf(value))
 		throw std::runtime_error("ValueLogger::logValue: Attempting to log NaN or Inf value.");

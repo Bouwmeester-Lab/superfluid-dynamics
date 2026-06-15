@@ -102,7 +102,12 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="Export.cu" />
+    <CudaCompile Include="Export\AugmentedOptomechanicalExports.cu" />
+    <CudaCompile Include="Export\ExportProperties.cu" />
+    <CudaCompile Include="Export\IntegrationExports.cu" />
+    <CudaCompile Include="Export\JacobianExports.cu" />
+    <CudaCompile Include="Export\OptomechanicalExports.cu" />
+    <CudaCompile Include="Export\RhsExports.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AugmentedBoundaryIntegrator.cuh" />
@@ -124,6 +129,8 @@
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export.cuh" />
+    <ClInclude Include="Export\ExportApi.cuh" />
+    <ClInclude Include="Export\ExportInternal.cuh" />
     <ClInclude Include="ExportTypes.cuh" />
     <ClInclude Include="GaussLegendre.cuh" />
     <ClInclude Include="GLCoefficients.hpp" />

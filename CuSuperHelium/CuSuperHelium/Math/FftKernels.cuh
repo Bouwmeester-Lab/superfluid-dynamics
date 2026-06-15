@@ -17,7 +17,7 @@
 /// <param name="result"></param>
 /// <param name="n"></param>
 /// <returns></returns>
-__global__ void first_derivative_multiplication(
+static __global__ void first_derivative_multiplication(
     const cufftDoubleComplex* a,
     cufftDoubleComplex* result,
     const int n,
@@ -59,7 +59,7 @@ __global__ void first_derivative_multiplication(
     }
 }
 
-__global__ void multiply_element_wise(const cufftDoubleComplex* a, cufftDoubleComplex* b, cufftDoubleComplex* result, int n)
+static __global__ void multiply_element_wise(const cufftDoubleComplex* a, cufftDoubleComplex* b, cufftDoubleComplex* result, int n)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
@@ -87,7 +87,7 @@ __device__ __host__ inline double filterTanh(int k, int N, double eps, double d)
 /// <param name="result"></param>
 /// <param name="n"></param>
 /// <returns></returns>
-__global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufftDoubleComplex* result, const int n, const int batchSize = 1)
+static __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufftDoubleComplex* result, const int n, const int batchSize = 1)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid >= n * batchSize) return; // out of bounds
@@ -110,7 +110,7 @@ __global__ void second_derivative_fft(const cufftDoubleComplex* coeffsFft, cufft
     }
 }
 
-__global__ void force_real_only(cufftDoubleComplex* a, int n)
+static __global__ void force_real_only(cufftDoubleComplex* a, int n)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) {
@@ -118,7 +118,7 @@ __global__ void force_real_only(cufftDoubleComplex* a, int n)
     }
 }
 
-__global__ void set_mode_to_imaginary(cufftDoubleComplex* a, double img, int n)
+static __global__ void set_mode_to_imaginary(cufftDoubleComplex* a, double img, int n)
 {
     a[n].x = 0; // set the real part of the Nyquist frequency to 0
     a[n].y = img; // set the imaginary part of the Nyquist frequency to 1

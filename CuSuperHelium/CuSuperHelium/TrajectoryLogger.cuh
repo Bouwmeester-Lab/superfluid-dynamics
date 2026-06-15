@@ -4,6 +4,7 @@
 
 #include <thrust/device_vector.h>
 #include "Common/CudaChecks.cuh"
+#include "VectorUtilities.cuh"
 
 template <typename T, size_t N>
 class TrajectoryLogger

@@ -5,7 +5,9 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
+#include "Common/VectorKernels.cuh"
+#include "Math/ComplexMath.cuh"
 #include "cufft.h"
 #include "constants.cuh"
 #include "cuDoubleComplexOperators.cuh"

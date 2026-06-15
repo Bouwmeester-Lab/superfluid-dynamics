@@ -10,7 +10,9 @@
 #include <cufft.h>
 #include "array"
 #include <stdexcept>
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
+#include "Common/VectorKernels.cuh"
+#include "Math/FftKernels.cuh"
 #include <iostream>
 #include "constants.cuh"
 #include "matplotlibcpp.h"

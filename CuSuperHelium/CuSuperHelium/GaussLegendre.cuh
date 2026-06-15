@@ -506,10 +506,12 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 		}
 
 		// solve the system
-		fillMMatrix << <blockSize, gridSize, 0, this->stream >> > (this->devJ1, this->devJ2, stepSize, this->glCoeffs, this->devM, N);
+		fillMMatrix << <gridSize, blockSize, 0, this->stream >> > (this->devJ1, this->devJ2, stepSize, this->glCoeffs, this->devM, N);
+		CHECK_CUDA(cudaGetLastError());
 
 		// prepare the right-hand side by multiplying R by -1
 		multiplyVector << <(6 * N + 255) / 256, 256, 0, this->stream >> > (-1.0, this->R, this->R, 6 * N);
+		CHECK_CUDA(cudaGetLastError());
 		matrixSolver.setStream(this->stream);
 		matrixSolver.solve(this->devM, this->R, this->dK); // solution is stored in dK
 

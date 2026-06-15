@@ -62,8 +62,9 @@ class COptomechanicalProperties(Structure):
                 ("sigma_optical_mode", c_double),
                 ("sigma_thermal_mode", c_double),
                 ("beta", c_double),
-                ("damping_strength", c_double)
-
+                ("damping_strength", c_double),
+                ("ramp_intensity", c_bool),
+                ("ramp_rate", c_double)
                 ]
 
 class SimulationManager:
@@ -304,7 +305,14 @@ class SimulationManager:
                 return res, None, None
             # empty the allocated memory in C++
             self.lib.integrateOptomechanicalSimulationRK4_freeMemory(states_ptr, times_ptr)
-    def integrate_augmented_optomechanical_problem(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties, rk4_props : CRK4Options):
+    def integrate_augmented_optomechanical_problem(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties, rk4_props : CRK4Options):        
+        ### verify that the initial state is the right length:
+        if opt_props.ramp_intensity:
+            ## if we ramp the intensity then we need an odd sized state vector to accomodate the extra variable for the ramping
+            length = y0.shape[0]
+            if length % 4 != 1:
+                raise ValueError("Initial state vector length must be of the form 4n + 1 when ramping intensity is enabled")
+        
         self.lib.integrateAugmentedOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),
                                        POINTER(c_size_t),

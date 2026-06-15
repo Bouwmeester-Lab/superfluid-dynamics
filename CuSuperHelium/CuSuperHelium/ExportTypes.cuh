@@ -62,6 +62,10 @@ extern "C"
 
 		double beta = 1.0;
 		double damping_strength = 1.0;
+
+		bool ramp_intensity = false;
+		double ramp_rate = 1.0;
+
 	};
 
 	struct COptomechanicalDevArrays 

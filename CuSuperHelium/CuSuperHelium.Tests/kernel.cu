@@ -8,6 +8,7 @@
 #include "ODESolverTests.cuh"
 #include "ComplexFunctionsTests.cuh"
 #include "IntegrationPathEquivalenceTests.cuh"
+#include "ExportFunctionTests.cuh"
 
 int main(int argc, char** argv) {
     // Optional: CUDA setup check

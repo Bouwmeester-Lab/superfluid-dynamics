@@ -429,16 +429,16 @@ inline void checkCuda(cudaError_t result,
 }
 #define CHECK_CUDA(val) checkCuda((val), #val, __FILE__, __LINE__)
 
-void checkCusolver(cusolverStatus_t status) {
+void inline checkCusolver(cusolverStatus_t status) {
     if (status != CUSOLVER_STATUS_SUCCESS) {
-        std::cerr << "cuSolver Error" << std::endl;
+        std::cerr << "cuSolver Error: " << static_cast<int>(status) << std::endl;
         exit(EXIT_FAILURE);
     }
 }
 
 void checkCublas(cublasStatus_t status) {
     if (status != CUBLAS_STATUS_SUCCESS) {
-        std::cerr << "cuBLAS Error: " << status << std::endl;
+        std::cerr << "cuBLAS Error: " << static_cast<int>(status) << std::endl;
 		exit(EXIT_FAILURE);
     }
 }

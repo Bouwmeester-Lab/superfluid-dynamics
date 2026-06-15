@@ -44,7 +44,7 @@ __device__ __host__ __forceinline__ void twoDiff(double  a, double  b,
 	lo = (a - (hi + t)) + (t - b);      // exact rounding error
 }
 
-__device__ __host__ doubledouble operator+(doubledouble a, doubledouble b)
+__device__ __host__ inline doubledouble operator+(doubledouble a, doubledouble b)
 {
 	doubledouble z;
 	twoDiff(a.hi, -b.hi, z.hi, z.lo);
@@ -90,7 +90,7 @@ __device__ inline dd_complex operator-(std_complex a, std_complex b)
 /// </summary>
 /// <param name="z"></param>
 /// <returns></returns>
-__device__ cuDoubleComplex dd_cinv(dd_complex z) 
+__device__ inline cuDoubleComplex dd_cinv(dd_complex z) 
 {
 	double r2h, r2l, i2h, i2l; // high and low parts of the real and imaginary parts of the inverse
 	doubledouble r2, i2; // real and imaginary parts of the double-double number

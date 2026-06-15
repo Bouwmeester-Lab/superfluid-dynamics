@@ -1,6 +1,7 @@
 #pragma once
 #include <complex>
 #include <type_traits>
+#include "constants.cuh"
 
 extern "C"
 {

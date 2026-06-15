@@ -5,6 +5,8 @@
 #include "constants.cuh"
 #include "OptomechanicalVariables.h"
 #include "ProblemProperties.hpp"
+#include "LightIntensity.cuh"
+#include "Optomechanics/OptomechanicalDriveKernels.cuh"
 
 template <int N, size_t batchSize>
 class DelayedIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N* batchSize>

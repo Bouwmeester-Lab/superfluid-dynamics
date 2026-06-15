@@ -6,7 +6,6 @@
 #include "Derivatives.cuh"
 #include "WaterVelocities.cuh"
 #include "matplotlibcpp.h"
-#include "utilities.cuh"
 #include "AutonomousProblem.h"
 #include "AutonomousRungeKuttaStepper.cuh"
 #include "RK45.cuh"

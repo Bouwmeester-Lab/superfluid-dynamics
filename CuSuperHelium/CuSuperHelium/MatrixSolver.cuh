@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
 
 /// <summary>
 /// Solves a systeme M a = b for a where M is an NxN matrix of real components, b reals, a reals

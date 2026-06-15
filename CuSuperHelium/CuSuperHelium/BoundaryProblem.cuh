@@ -4,7 +4,6 @@
 #include "ProblemProperties.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "utilities.cuh"
 #include "constants.cuh"
 #include "Derivatives.cuh"
 #include "WaterVelocities.cuh"

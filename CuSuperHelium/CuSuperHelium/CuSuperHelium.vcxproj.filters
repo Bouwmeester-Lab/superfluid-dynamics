@@ -1,7 +1,22 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CudaCompile Include="Export.cu">
+    <CudaCompile Include="Export\AugmentedOptomechanicalExports.cu">
+      <Filter>Export</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Export\ExportProperties.cu">
+      <Filter>Export</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Export\IntegrationExports.cu">
+      <Filter>Export</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Export\JacobianExports.cu">
+      <Filter>Export</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Export\OptomechanicalExports.cu">
+      <Filter>Export</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Export\RhsExports.cu">
       <Filter>Export</Filter>
     </CudaCompile>
     <CudaCompile Include="LightIntensity.cuh">
@@ -38,6 +53,12 @@
     </Filter>
     <Filter Include="Ode Integrators">
       <UniqueIdentifier>{3133c457-5d75-415e-85eb-1b8888e6f57a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Boundary Kernels">
+      <UniqueIdentifier>{97df3fb5-1ff6-4f97-84ca-00a892f7b416}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math">
+      <UniqueIdentifier>{bc1f2bdf-400f-4ee3-8e07-9cc3534c53c3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -96,6 +117,12 @@
       <Filter>Common</Filter>
     </ClInclude>
     <ClInclude Include="ExportTypes.cuh">
+      <Filter>Export</Filter>
+    </ClInclude>
+    <ClInclude Include="Export\ExportApi.cuh">
+      <Filter>Export</Filter>
+    </ClInclude>
+    <ClInclude Include="Export\ExportInternal.cuh">
       <Filter>Export</Filter>
     </ClInclude>
     <ClInclude Include="JacobianCalculator.cuh">
@@ -164,6 +191,27 @@
     </ClInclude>
     <ClInclude Include="HeliumRampedIntensityAutonomousProblem.cuh">
       <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryKernels\MatrixKernels.cuh">
+      <Filter>Boundary Kernels</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh">
+      <Filter>Boundary Kernels</Filter>
+    </ClInclude>
+    <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\CudaChecks.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\VectorKernels.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\ComplexMath.cuh">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\FftKernels.cuh">
+      <Filter>Math</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

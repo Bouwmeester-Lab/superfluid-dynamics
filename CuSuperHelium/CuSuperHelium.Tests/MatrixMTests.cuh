@@ -1,13 +1,14 @@
 #pragma once
 
-#include "createM.cuh"
+#include "BoundaryKernels/MatrixKernels.cuh"
+#include "BoundaryKernels/PhiRhsKernels.cuh"
 #include "gtest/gtest.h"
 #include <complex>
 #include <array>
 #include "Derivatives.cuh"
 #include "WaterVelocities.cuh"
 #include "matplotlibcpp.h"
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
 //#include "SimulationRunner.cuh"
 #include "JacobianCalculator.cuh"
 

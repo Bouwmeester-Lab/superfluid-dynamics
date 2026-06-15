@@ -20,10 +20,10 @@
 /// <param name="alpha"></param>
 /// <param name="N"></param>
 /// <returns></returns>
-__global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N);
-__global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N);
+static __global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N);
+static __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N);
 
-__global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N)
+static __global__ void compute_rhs_phi_expression(const std_complex* Z, const std_complex* V1, const std_complex* V2, std_complex* result, double rho, int N)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -36,7 +36,7 @@ __global__ void compute_rhs_phi_expression(const std_complex* Z, const std_compl
     }
 }
 
-__global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N)
+static __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -46,7 +46,7 @@ __global__ void compute_rhs_helium_phi_expression(const std_complex* Z, const st
     }
 }
 
-__global__ void compute_rhs_helium_phi_expression_expansion_terms(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N, int order = 2)
+static __global__ void compute_rhs_helium_phi_expression_expansion_terms(const std_complex* Z, const std_complex* V1, std_complex* result, double h, int N, int order = 2)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -75,7 +75,7 @@ __device__ __forceinline__ double inverse_radius_of_curvature(const std_complex 
     return (Zp.real() * Zpp.imag() - Zp.imag() * Zpp.real()) / cuda::std::pow(Zp.real() * Zp.real() + Zp.imag() * Zp.imag(), 1.5);
 }
 
-__global__ void compute_rhs_helium_phi_expression_with_surface_tension(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, const std_complex* V1, std_complex* result, double h, double kappa, int N)
+static __global__ void compute_rhs_helium_phi_expression_with_surface_tension(const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, const std_complex* V1, std_complex* result, double h, double kappa, int N)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {

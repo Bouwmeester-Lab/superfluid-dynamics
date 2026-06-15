@@ -83,7 +83,7 @@ __device__ __host__ cuFloatComplex operator+(T a, cuFloatComplex b) { return cuC
  * @param b cuFloatComplex data type.
  * @return Returns the cuFloatComplex subtraction of a - b.
  */
-__device__ __host__ cuFloatComplex operator-(cuFloatComplex a, cuFloatComplex b) { return cuCsubf(a, b); }
+__device__ __host__ inline cuFloatComplex operator-(cuFloatComplex a, cuFloatComplex b) { return cuCsubf(a, b); }
 
 
 /**
@@ -114,7 +114,7 @@ __device__ __host__ cuFloatComplex operator-(T a, cuFloatComplex b) { return cuC
  * @param b cuFloatComplex data type.
  * @return Returns the cuFloatComplex multiplication of a * b.
  */
-__device__ __host__ cuFloatComplex operator*(cuFloatComplex a, cuFloatComplex b) { return cuCmulf(a, b); }
+__device__ __host__ inline cuFloatComplex operator*(cuFloatComplex a, cuFloatComplex b) { return cuCmulf(a, b); }
 
 
 /**
@@ -145,7 +145,7 @@ __device__ __host__ cuFloatComplex operator*(T a, cuFloatComplex b) { return cuC
  * @param b cuFloatComplex data type.
  * @return Returns the cuFloatComplex division of a / b.
  */
-__device__ __host__ cuFloatComplex operator/(cuFloatComplex a, cuFloatComplex b) { return cuCdivf(a, b); }
+__device__ __host__ inline cuFloatComplex operator/(cuFloatComplex a, cuFloatComplex b) { return cuCdivf(a, b); }
 
 
 /**
@@ -180,11 +180,11 @@ __device__ __host__ cuFloatComplex operator/(T a, cuFloatComplex b) { return cuC
  * @param b cuDoubleComplex data type.
  * @return Returns the cuDoubleComplex sum of a + b.
  */
-__device__ __host__ cuDoubleComplex operator+(cuDoubleComplex a, cuDoubleComplex b) { return cuCadd(a, b); }
+__device__ __host__ inline cuDoubleComplex operator+(cuDoubleComplex a, cuDoubleComplex b) { return cuCadd(a, b); }
 
-__device__ __host__ cuDoubleComplex& operator+=(cuDoubleComplex& a, cuDoubleComplex b) { return a = cuCadd(a, b); }
+__device__ __host__ inline cuDoubleComplex& operator+=(cuDoubleComplex& a, cuDoubleComplex b) { return a = cuCadd(a, b); }
 
-__device__ __host__ cuDoubleComplex& operator-=(cuDoubleComplex& a, cuDoubleComplex b) { return a = cuCsub(a, b); }
+__device__ __host__ inline cuDoubleComplex& operator-=(cuDoubleComplex& a, cuDoubleComplex b) { return a = cuCsub(a, b); }
 
 /**
  * Complex double overloaded addition operator (cuDoubleComplex + <T>).
@@ -214,7 +214,7 @@ __device__ __host__ cuDoubleComplex operator+(T a, cuDoubleComplex b) { return c
  * @param b cuDoubleComplex data type.
  * @return Returns the cuDoubleComplex subtraction of a - b.
  */
-__device__ __host__ cuDoubleComplex operator-(cuDoubleComplex a, cuDoubleComplex b) { return cuCsub(a, b); }
+__device__ __host__ inline cuDoubleComplex operator-(cuDoubleComplex a, cuDoubleComplex b) { return cuCsub(a, b); }
 
 
 /**
@@ -245,7 +245,7 @@ __device__ __host__ cuDoubleComplex operator-(T a, cuDoubleComplex b) { return c
  * @param b cuDoubleComplex data type.
  * @return Returns the cuDoubleComplex multiplication of a * b.
  */
-__device__ __host__ cuDoubleComplex operator*(cuDoubleComplex a, cuDoubleComplex b) { return cuCmul(a, b); }
+__device__ __host__ inline cuDoubleComplex operator*(cuDoubleComplex a, cuDoubleComplex b) { return cuCmul(a, b); }
 
 
 /**
@@ -276,7 +276,7 @@ __device__ __host__ cuDoubleComplex operator*(T a, cuDoubleComplex b) { return c
  * @param b cuDoubleComplex data type.
  * @return Returns the cuDoubleComplex division of a / b.
  */
-__device__ __host__ cuDoubleComplex operator/(cuDoubleComplex a, cuDoubleComplex b) { return cuCdiv(a, b); }
+__device__ __host__ inline cuDoubleComplex operator/(cuDoubleComplex a, cuDoubleComplex b) { return cuCdiv(a, b); }
 
 
 /**

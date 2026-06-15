@@ -15,15 +15,15 @@
 #include "SimulationOptions.h"
 #include "SimulationRunner.cuh"
 
-double X(double j, double h, double omega, double t) {
+inline double X(double j, double h, double omega, double t) {
     return j - h * std::sin((j - omega * t));
 }
 
-double Y(double j, double h, double omega, double t) {
+inline double Y(double j, double h, double omega, double t) {
     return h * std::cos(j);// PeriodicFunctions::gaussian::gaussian_periodic(j);  // std::cos((j - omega * t));
 }
 
-double Phi(double j, double h, double omega, double t, double rho) {
+inline double Phi(double j, double h, double omega, double t, double rho) {
     return h * (1 + rho) * omega * std::sin(j);// PeriodicFunctions::bimodal::bimodal(j);// std::sech2_periodic((j - omega * t));
 }
 

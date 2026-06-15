@@ -22,9 +22,9 @@ namespace plt = matplotlibcpp;
 namespace plt = matplotlibcpp;
 #endif // DEBUG_FFT
 
-__device__ double filterIndexTanh(int m, int N);
+__device__ __host__ inline double filterIndexTanh(int m, int N);
 
-__device__ double filterIndexTanh(int m, int N)
+__device__ __host__ inline double filterIndexTanh(int m, int N)
 {
 	return 0.5 * (1 - tanh(40 * (static_cast<double>(m) / N - 0.25)));
 }
@@ -110,7 +110,6 @@ public:
 	void exec(const std_complex* Z, const std_complex* Phi, std_complex* ZPrime, std_complex* PhiPrime, std_complex* Zpp);
 };
 
-double filterIndexTanh(int m, int N);
 
 template <int N, int batchSize>
 cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)

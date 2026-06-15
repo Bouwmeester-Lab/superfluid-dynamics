@@ -14,10 +14,10 @@ private:
 
 };
 
-OdeSolver::OdeSolver()
+inline OdeSolver::OdeSolver()
 {
 }
 
-OdeSolver::~OdeSolver()
+inline OdeSolver::~OdeSolver()
 {
 }

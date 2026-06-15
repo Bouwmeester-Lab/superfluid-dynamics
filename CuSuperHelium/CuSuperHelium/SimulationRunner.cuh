@@ -96,7 +96,7 @@ public:
 /// <param name="Z"></param>
 /// <param name="phi"></param>
 /// <returns></returns>
-int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, const double scaleY = 1.0) 
+inline int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, const double scaleY = 1.0) 
 {
     
     HighFive::File file(path, HighFive::File::ReadOnly);
@@ -141,7 +141,7 @@ int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, 
     }
 	return 0;
 }
-void createPropertiesAttributes(HighFive::File& file, const ProblemProperties& properties) 
+inline void createPropertiesAttributes(HighFive::File& file, const ProblemProperties& properties) 
 {
     // add properties to the file
     file.createAttribute<double>("rho", properties.rho);
@@ -151,7 +151,7 @@ void createPropertiesAttributes(HighFive::File& file, const ProblemProperties& p
 	file.createAttribute<double>("initial_amplitude", properties.initial_amplitude);
 }
 
-int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, ProblemProperties properties, bool rhs = false)
+inline int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, ProblemProperties properties, bool rhs = false)
 {
 	HighFive::File file(path, HighFive::File::Overwrite);
 
@@ -177,7 +177,7 @@ int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, 
 	return 0;
 }
 
-int loadDataToDevice(const double* x, const double* y, const double* phi, DeviceParticleData& deviceData, const size_t N, const size_t batchSize = 1, cudaStream_t stream = cudaStreamPerThread)
+inline int loadDataToDevice(const double* x, const double* y, const double* phi, DeviceParticleData& deviceData, const size_t N, const size_t batchSize = 1, cudaStream_t stream = cudaStreamPerThread)
 {
     cudaError_t cudaStatus;
     // Allocate GPU buffers for three vectors (two input, one output)    .
@@ -241,7 +241,7 @@ int loadDataToDevice(const double* x, const double* y, const double* phi, Device
     return 0;
 }
 
-int loadDataToDevice(const c_double* Z, const c_double* phi, DeviceParticleData& deviceData, size_t N, cudaStream_t stream = cudaStreamPerThread)
+inline int loadDataToDevice(const c_double* Z, const c_double* phi, DeviceParticleData& deviceData, size_t N, cudaStream_t stream = cudaStreamPerThread)
 {
     cudaError_t cudaStatus;
     // Allocate GPU buffers for three vectors (two input, one output)    .
@@ -270,7 +270,7 @@ int loadDataToDevice(const c_double* Z, const c_double* phi, DeviceParticleData&
 	return 0;
 }
 
-int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const size_t N) 
+inline int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const size_t N) 
 {
     cudaError_t cudaStatus;
     // Allocate GPU buffers for three vectors (two input, one output)    .
@@ -334,7 +334,7 @@ int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const s
 }
 
 
-int freeDeviceData(DeviceParticleData& deviceData) 
+inline int freeDeviceData(DeviceParticleData& deviceData) 
 {
     cudaError_t cudaStatus;
     cudaStatus = cudaFree(deviceData.devZ);

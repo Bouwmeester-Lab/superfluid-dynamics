@@ -52,15 +52,17 @@ alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
 drive_type = rhs.DriveType.Sine
 
-omega_drive = 2*np.pi * 3e3 # 3 kHz
+omega_drive = 2*np.pi * 4.8e3 # 15 kHz
 ramp_rate = -1000 / (50000e-6) # in number of photons per second
 
+
+omegas_drive = np.linspace(2*np.pi*1e3, 2*np.pi*10e3, 8)
 print(f"Ramp rate: {ramp_rate:.3f} photons/s")
 
 N = 2**8
 t0 = 0.0
-t1 = 12000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
-timeStep = 0.1e-6 # in us
+t1 = 50000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+timeStep = 0.5e-6 # in us
 beta = 1e6# adimensional, this is just a ratio.
 damping_strength = -2.50e0
 sim_props = rhs.CSimulationProperties(
@@ -84,7 +86,7 @@ optomechanical_props = rhs.COptomechanicalProperties(
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 150.0, # 100*P0 / base_power,
+    max_intensity = 500.0, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
@@ -116,7 +118,7 @@ delayed = np.zeros_like(r)
 Y0 = np.concatenate((r, ampl, pot, delayed))
 
 if drive_type == rhs.DriveType.Sine:
-    Y0 = np.concatenate((Y0, np.array([0.0]))) # initial phase
+    Y0 = np.concatenate((Y0, np.array([0.0]))) # initial oscillator angle theta(t0), theta0 = omega_drive * t0 + phase
 elif drive_type == rhs.DriveType.Ramped:
     Y0 = np.concatenate((Y0, np.array([0.0]))) # initial number of photons in the cavity
 
@@ -230,8 +232,9 @@ def load_results(filename):
         rk4_props = rhs.CRK4Options(**f["rk4_props"].attrs)
         return T, Y, sim_props, optomechanical_props, rk4_props
 simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
-for i, det in enumerate(detunings[2:3]):
-    
+for i, omega_drive in enumerate(omegas_drive):
+    det = detunings[3]
+    optomechanical_props.omega_drive = omega_drive
     ### load file if it exists, otherwise run the simulation and save the results
     if drive_type == rhs.DriveType.Sine:
         filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}_omega_freq_{np.abs(omega_drive / (2*np.pi)):.3e}.h5"
@@ -278,9 +281,9 @@ for i, det in enumerate(detunings[2:3]):
         values_y[i] = L0 * interpolate(Y_new[i, :N], Y_new[i, N:2*N], x0/L0)
         values_phi[i] = interpolate(Y_new[i, :N], Y_new[i, 2*N:3*N], x0/L0)
         values_d[i] = interpolate(Y_new[i, :N], Y_new[i, 3*N:4*N], x0/L0)
-    plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Detuning = {det:.3e} Hz", n_arrows=10, lw=1.5)
-    plot_spatial_fft(Y_new[-1, N:2*N]*L0, ax_spatial_fft, label=f"Spatial FFT - Detuning = {det:.3e} Hz")
-    ax_last_interface.plot(Y_new[-1, :N]*L0, Y_new[-1, N:2*N]*L0, label=f"Last Interface - Detuning = {det:.3e} Hz", lw=1.5)
+    plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Frequency = {omega_drive / (2*np.pi):.3e} Hz", n_arrows=10, lw=1.5)
+    plot_spatial_fft(Y_new[-1, N:2*N]*L0, ax_spatial_fft, label=f"Spatial FFT - Frequency = {omega_drive / (2*np.pi):.3e} Hz")
+    ax_last_interface.plot(Y_new[-1, :N]*L0, Y_new[-1, N:2*N]*L0, label=f"Last Interface - Frequency = {omega_drive / (2*np.pi):.3e} Hz", lw=1.5)
     save_results(filename, T_new, Y_new, sim_props, optomechanical_props, rk4_props)
 
 # plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Depth = {depth:.3e}", n_arrows=10, lw=1.5)
@@ -296,7 +299,7 @@ axes[1].legend()
 
 ax_last_interface.set_xlabel(r"$x$ (m)")
 ax_last_interface.set_ylabel(r"$y(x)$ (m)")
-ax_last_interface.set_title("Last Interface for y at different Detunings")
+ax_last_interface.set_title("Last Interface for y at different Frequencies")
 ax_last_interface.legend()
 
 

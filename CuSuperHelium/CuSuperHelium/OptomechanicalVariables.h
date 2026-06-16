@@ -1,6 +1,12 @@
 #pragma once
 #ifndef OPTOMECHANICAL_VARIABLES_H
 
+enum class DriveType {
+	Constant = 0,
+	Ramped = 1,
+	Sine = 2
+};
+
 struct OptomechanicalVariables
 {
 public:
@@ -29,8 +35,11 @@ public:
 	double Beta;
 	double DampingStrength = 0.01;
 
-	bool ramp_intensity = false;
+	DriveType drive_type = DriveType::Constant;
 	double ramp_rate = 1.0;
+
+	// sine modulation
+	double omega_drive = 1.0;
 
 };
 #endif // !OPTOMECHANICAL_VARIABLES_H

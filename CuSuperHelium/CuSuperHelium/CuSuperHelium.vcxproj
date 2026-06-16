@@ -133,10 +133,12 @@
     <ClInclude Include="Export\ExportInternal.cuh" />
     <ClInclude Include="ExportTypes.cuh" />
     <ClInclude Include="GaussLegendre.cuh" />
+    <ClInclude Include="GeneralAugmentedBoundaryIntegrator.cuh" />
     <ClInclude Include="GLCoefficients.hpp" />
     <ClInclude Include="HeliumDrivenAutonomousProblem.cuh" />
     <ClInclude Include="HeliumBoundaryProblem.cuh" />
     <ClInclude Include="HeliumRampedIntensityAutonomousProblem.cuh" />
+    <ClInclude Include="HeliumSineAutonomousProblem.cuh" />
     <ClInclude Include="HeliumWithDrivingBoundaryProblem.cuh" />
     <ClInclude Include="JacobianCalculator.cuh" />
     <CudaCompile Include="LightIntensity.cuh" />

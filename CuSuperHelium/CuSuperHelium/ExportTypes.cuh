@@ -39,6 +39,13 @@ extern "C"
 		double t1;
 		bool returnTrajectory = true;
 	};
+
+	typedef enum CDriveType {
+		CDRIVE_TYPE_Constant = 0,
+		CDRIVE_TYPE_Ramped = 1,
+		CDRIVE_TYPE_SineWave = 2,
+	} CDriveType;
+
 	struct COptomechanicalVariables 
 	{
 		// initial detuning in the experiment
@@ -64,9 +71,9 @@ extern "C"
 		double beta = 1.0;
 		double damping_strength = 1.0;
 
-		bool ramp_intensity = false;
+		CDriveType drive_type = CDriveType::CDRIVE_TYPE_Constant;
 		double ramp_rate = 1.0;
-
+		double omega_drive = 1.0;
 	};
 
 	struct COptomechanicalDevArrays 

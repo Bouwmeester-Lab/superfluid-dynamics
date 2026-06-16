@@ -1,3 +1,4 @@
+from enum import IntEnum
 import ctypes, os, sys
 from ctypes import c_bool, c_double, c_size_t, c_char_p, c_char, POINTER, create_string_buffer, c_int, Structure, byref
 from typing import Self
@@ -51,6 +52,13 @@ class CRK4Options(Structure):
                 ("t1", c_double),
                 ("returnTrajectory", c_bool)
                 ]
+class DriveType(IntEnum):
+    Constant = 0
+    Ramped = 1
+    Sine = 2
+
+
+
 class COptomechanicalProperties(Structure):
     _fields_ = [("detuning", c_double),
                 ("gamma", c_double),
@@ -63,8 +71,9 @@ class COptomechanicalProperties(Structure):
                 ("sigma_thermal_mode", c_double),
                 ("beta", c_double),
                 ("damping_strength", c_double),
-                ("ramp_intensity", c_bool),
-                ("ramp_rate", c_double)
+                ("drive_type", c_int),
+                ("ramp_rate", c_double),
+                ("omega_drive", c_double),
                 ]
 
 class SimulationManager:
@@ -307,11 +316,11 @@ class SimulationManager:
             self.lib.integrateOptomechanicalSimulationRK4_freeMemory(states_ptr, times_ptr)
     def integrate_augmented_optomechanical_problem(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties, rk4_props : CRK4Options):        
         ### verify that the initial state is the right length:
-        if opt_props.ramp_intensity:
+        if opt_props.drive_type == DriveType.Sine or opt_props.drive_type == DriveType.Ramped:
             ## if we ramp the intensity then we need an odd sized state vector to accomodate the extra variable for the ramping
             length = y0.shape[0]
             if length % 4 != 1:
-                raise ValueError("Initial state vector length must be of the form 4n + 1 when ramping intensity is enabled")
+                raise ValueError("Initial state vector length must be of the form 4n + 1 when ramping or sine driving is enabled")
         
         self.lib.integrateAugmentedOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),

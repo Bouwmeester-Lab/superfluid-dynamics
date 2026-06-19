@@ -44,9 +44,22 @@ void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, Optomec
 	opto_variables.sigma_thermal_mode = c_optomechanicalVariables.sigma_thermal_mode;
 	opto_variables.Beta = c_optomechanicalVariables.beta;
 	opto_variables.DampingStrength = c_optomechanicalVariables.damping_strength;
-
-	opto_variables.ramp_intensity = c_optomechanicalVariables.ramp_intensity;
+	switch (c_optomechanicalVariables.drive_type) {
+	case CDRIVE_TYPE_Constant:
+		opto_variables.drive_type = DriveType::Constant;
+		break;
+	case CDRIVE_TYPE_Ramped:
+		opto_variables.drive_type = DriveType::Ramped;
+		break;
+	case CDRIVE_TYPE_SineWave:
+		opto_variables.drive_type = DriveType::Sine;
+		break;
+	default:
+		std::cerr << "Invalid drive type specified in COptomechanicalVariables: " << c_optomechanicalVariables.drive_type << std::endl;
+		exit(1);
+	}
 	opto_variables.ramp_rate = c_optomechanicalVariables.ramp_rate; // (intensity / seconds)
+	opto_variables.omega_drive = c_optomechanicalVariables.omega_drive; // (radians / second) 
 }
 
 RK4SolverOptions adimensionalizeRK4SolverOptions(RK4SolverOptions options, ProblemProperties properties)
@@ -103,6 +116,9 @@ OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVar
 
 	// ramp rate is intensity per second, so it gets multiplied by base_time:
 	optomechanicalVariables.ramp_rate *= properties.base_time;
+
+	// omega_drive is a frequency, so it gets multiplied by base_time:
+	optomechanicalVariables.omega_drive *= properties.base_time;
 
 	// TODO: deal with max_intensity and Beta
 

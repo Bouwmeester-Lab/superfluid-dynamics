@@ -26,7 +26,7 @@ def interpolate(x, y, x0):
     return f(x0)
 
 path = r"C:\Users\emore\OneDrive\Bouwmeester Group\data\calibration\converted_data.json"
-folder = "data\\tau\\damping\\ramp"
+folder = "data\\tau\\damping\\sine"
 detunings = []
 
 ### open the json file and read the data
@@ -46,19 +46,24 @@ pin = 6.7e-6 # in W
 G = 35e6 * 1e9
 tau = 55e-6
 
-L = 150e-6
+L = 1500e-6
 depth = 10e-9
 alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
-ramp_intensity = True
+drive_type = rhs.DriveType.Sine
+
+omega_drive = 2*np.pi * 4.8e3 # 15 kHz
 ramp_rate = -1000 / (50000e-6) # in number of photons per second
 
+
+# omegas_drive = np.linspace(2*np.pi*10e3, 2*np.pi*25e3, 8)
+omegas_drive = np.linspace(2*np.pi*0.1e3, 2*np.pi*0.8e3, 20)
 print(f"Ramp rate: {ramp_rate:.3f} photons/s")
 
 N = 2**8
 t0 = 0.0
-t1 = 120000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
-timeStep = 0.1e-6 # in us
+t1 = 50000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
+timeStep = 0.9e-6 # in us
 beta = 1e6# adimensional, this is just a ratio.
 damping_strength = -2.50e0
 sim_props = rhs.CSimulationProperties(
@@ -74,7 +79,7 @@ L0 = sim_props.L / (2.0 * np.pi)
 g = 3*alpha_hamaker / sim_props.depth**4
 _t0 = np.sqrt(L0 / g)
 sigma = 20e-6 # in m, size of the beam waist
-sigma_thermal = 20e-6
+sigma_thermal = 100e-6
 print(f"Sigma: {sigma:.3e} m")
 
 optomechanical_props = rhs.COptomechanicalProperties(
@@ -82,14 +87,15 @@ optomechanical_props = rhs.COptomechanicalProperties(
     gamma = gamma, # in SI units Hz
     G = G, # in SI units Hz/m
     tau = tau, # in SI units s
-    max_intensity = 1.0, # 100*P0 / base_power,
+    max_intensity = 500.0, # 100*P0 / base_power,
     initial_time = 0.0,
     location_x0_mode = 0.5*sim_props.L, # in SI units m # half of L
     sigma_optical_mode = sigma, # in SI units m
     sigma_thermal_mode = sigma_thermal, # in SI units m
     beta =  beta,
     damping_strength = damping_strength,
-    ramp_intensity = ramp_intensity,
+    drive_type = drive_type,
+    omega_drive = omega_drive,
     ramp_rate = ramp_rate
 )
 rk4_props = rhs.CRK4Options(
@@ -112,8 +118,10 @@ delayed = np.zeros_like(r)
 
 Y0 = np.concatenate((r, ampl, pot, delayed))
 
-if ramp_intensity:
-    Y0 = np.concatenate((Y0, np.array([0.0])))
+if drive_type == rhs.DriveType.Sine:
+    Y0 = np.concatenate((Y0, np.array([0.0]))) # initial oscillator angle theta(t0), theta0 = omega_drive * t0 + phase
+elif drive_type == rhs.DriveType.Ramped:
+    Y0 = np.concatenate((Y0, np.array([0.0]))) # initial number of photons in the cavity
 
 fig, axes = plt.subplots(2, 1, figsize=(15, 5))
 ax_pd = axes[0]
@@ -225,10 +233,16 @@ def load_results(filename):
         rk4_props = rhs.CRK4Options(**f["rk4_props"].attrs)
         return T, Y, sim_props, optomechanical_props, rk4_props
 simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
-for i, det in enumerate(detunings[2:3]):
-    
+for i, omega_drive in enumerate(omegas_drive):
+    det = detunings[3]
+    optomechanical_props.omega_drive = omega_drive
     ### load file if it exists, otherwise run the simulation and save the results
-    filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}_ramp_{np.abs(ramp_rate):.3e}.h5"
+    if drive_type == rhs.DriveType.Sine:
+        filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}_omega_freq_{np.abs(omega_drive / (2*np.pi)):.3e}.h5"
+    elif drive_type == rhs.DriveType.Ramped:
+        filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}_ramp_{np.abs(ramp_rate):.3e}.h5"
+    else:
+        filename = f"{folder}\\results_detuning_{det:.3e}_pow_{optomechanical_props.max_intensity:.3e}_tau_{tau:.3e}_depth_{depth:.3e}_L_{sim_props.L:.3e}_dmp_{damping_strength:.3e}_gamma_{gamma:.3e}.h5"
     results = load_results(filename)
     if results is not None:
         T_new, Y_new, sim_props, optomechanical_props, rk4_props = results
@@ -252,7 +266,7 @@ for i, det in enumerate(detunings[2:3]):
             continue
     optomechanical_props.detuning = det
     print("\n\n")
-    print(f"{i}/{len(detunings)}")
+    print(f"{i+1}/{len(omegas_drive)}")
     print("\n\n")
     print(f"Integrating for detuning={det:.3e} Hz")
     res, T_new, Y_new = simManager.integrate_augmented_optomechanical_problem(Y0, sim_props, optomechanical_props, rk4_props)
@@ -268,9 +282,9 @@ for i, det in enumerate(detunings[2:3]):
         values_y[i] = L0 * interpolate(Y_new[i, :N], Y_new[i, N:2*N], x0/L0)
         values_phi[i] = interpolate(Y_new[i, :N], Y_new[i, 2*N:3*N], x0/L0)
         values_d[i] = interpolate(Y_new[i, :N], Y_new[i, 3*N:4*N], x0/L0)
-    plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Detuning = {det:.3e} Hz", n_arrows=10, lw=1.5)
-    plot_spatial_fft(Y_new[-1, N:2*N]*L0, ax_spatial_fft, label=f"Spatial FFT - Detuning = {det:.3e} Hz")
-    ax_last_interface.plot(Y_new[-1, :N]*L0, Y_new[-1, N:2*N]*L0, label=f"Last Interface - Detuning = {det:.3e} Hz", lw=1.5)
+    plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Frequency = {omega_drive / (2*np.pi):.3e} Hz", n_arrows=10, lw=1.5)
+    plot_spatial_fft(Y_new[-1, N:2*N]*L0, ax_spatial_fft, label=f"Spatial FFT - Frequency = {omega_drive / (2*np.pi):.3e} Hz")
+    ax_last_interface.plot(Y_new[-1, :N]*L0, Y_new[-1, N:2*N]*L0, label=f"Last Interface - Frequency = {omega_drive / (2*np.pi):.3e} Hz", lw=1.5)
     save_results(filename, T_new, Y_new, sim_props, optomechanical_props, rk4_props)
 
 # plot_phase_diagram(values_y, T_new, _t0, ax_pd, ax_time, label=f"Depth = {depth:.3e}", n_arrows=10, lw=1.5)
@@ -286,7 +300,7 @@ axes[1].legend()
 
 ax_last_interface.set_xlabel(r"$x$ (m)")
 ax_last_interface.set_ylabel(r"$y(x)$ (m)")
-ax_last_interface.set_title("Last Interface for y at different Detunings")
+ax_last_interface.set_title("Last Interface for y at different Frequencies")
 ax_last_interface.legend()
 
 

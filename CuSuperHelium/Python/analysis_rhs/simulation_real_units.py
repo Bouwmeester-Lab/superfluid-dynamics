@@ -46,7 +46,7 @@ pin = 6.7e-6 # in W
 G = 35e6 * 1e9
 tau = 55e-6
 
-L = 150e-6
+L = 1500e-6
 depth = 10e-9
 alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
 
@@ -56,13 +56,14 @@ omega_drive = 2*np.pi * 4.8e3 # 15 kHz
 ramp_rate = -1000 / (50000e-6) # in number of photons per second
 
 
-omegas_drive = np.linspace(2*np.pi*1e3, 2*np.pi*10e3, 8)
+# omegas_drive = np.linspace(2*np.pi*10e3, 2*np.pi*25e3, 8)
+omegas_drive = np.linspace(2*np.pi*0.1e3, 2*np.pi*0.8e3, 20)
 print(f"Ramp rate: {ramp_rate:.3f} photons/s")
 
 N = 2**8
 t0 = 0.0
 t1 = 50000e-6 # in us #~ 1 au of time is about 1 us in for this system (L ~ 1 mm, depth 20 nm)
-timeStep = 0.5e-6 # in us
+timeStep = 0.9e-6 # in us
 beta = 1e6# adimensional, this is just a ratio.
 damping_strength = -2.50e0
 sim_props = rhs.CSimulationProperties(
@@ -78,7 +79,7 @@ L0 = sim_props.L / (2.0 * np.pi)
 g = 3*alpha_hamaker / sim_props.depth**4
 _t0 = np.sqrt(L0 / g)
 sigma = 20e-6 # in m, size of the beam waist
-sigma_thermal = 20e-6
+sigma_thermal = 100e-6
 print(f"Sigma: {sigma:.3e} m")
 
 optomechanical_props = rhs.COptomechanicalProperties(
@@ -265,7 +266,7 @@ for i, omega_drive in enumerate(omegas_drive):
             continue
     optomechanical_props.detuning = det
     print("\n\n")
-    print(f"{i}/{len(detunings)}")
+    print(f"{i+1}/{len(omegas_drive)}")
     print("\n\n")
     print(f"Integrating for detuning={det:.3e} Hz")
     res, T_new, Y_new = simManager.integrate_augmented_optomechanical_problem(Y0, sim_props, optomechanical_props, rk4_props)

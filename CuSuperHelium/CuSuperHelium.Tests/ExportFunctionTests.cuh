@@ -56,7 +56,12 @@ COptomechanicalVariables makeExportTestOptomechanicalVariables(bool rampIntensit
 	variables.sigma_thermal_mode = 0.5;
 	variables.beta = 1.0e6;
 	variables.damping_strength = 0.0;
-	variables.ramp_intensity = rampIntensity;
+	if (rampIntensity) {
+		variables.drive_type = CDRIVE_TYPE_Ramped;
+	}
+	else {
+		variables.drive_type = CDRIVE_TYPE_Constant;
+	}
 	variables.ramp_rate = 0.25;
 	return variables;
 }

@@ -41,5 +41,4 @@ public:
 	}
 };
 
-
 #endif // !AUGMENTED_BOUNDARY_INTEGRATOR_CUH

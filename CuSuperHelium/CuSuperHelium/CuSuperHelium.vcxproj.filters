@@ -213,5 +213,11 @@
     <ClInclude Include="Math\FftKernels.cuh">
       <Filter>Math</Filter>
     </ClInclude>
+    <ClInclude Include="HeliumSineAutonomousProblem.cuh">
+      <Filter>Boundary Problems</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneralAugmentedBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

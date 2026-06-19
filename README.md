@@ -8,3 +8,8 @@ The repo will use the method developped by [Roberts (1983)](https://doi.org/10.1
 First we will implement the method as if it was related to fluids subject to gravity as originally done in the paper, then we will adapt it to the case of superfluid helium.
 
 CUDA will be used throughout the repo to accelerate the computations and hopefully make it possible to simulate many particles in a more reasonable time.
+
+## 2D cartesian flow
+
+The method used here is mainly applicable to 2D Cartesian flow. This is not yet generalized to 3D radially symmetric flow.
+

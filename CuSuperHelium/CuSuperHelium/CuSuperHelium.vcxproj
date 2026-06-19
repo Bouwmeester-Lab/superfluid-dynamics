@@ -127,6 +127,8 @@
     <ClInclude Include="DelayedIntensityTerm.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
+    <ClInclude Include="ElipticalGreenFunctions.cuh" />
+    <ClInclude Include="ElipticalIntegrals.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export.cuh" />
     <ClInclude Include="Export\ExportApi.cuh" />

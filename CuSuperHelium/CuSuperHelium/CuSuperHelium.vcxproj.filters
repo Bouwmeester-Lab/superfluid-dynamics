@@ -60,6 +60,9 @@
     <Filter Include="Math">
       <UniqueIdentifier>{bc1f2bdf-400f-4ee3-8e07-9cc3534c53c3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Math\Green Functions">
+      <UniqueIdentifier>{8b94e222-b03d-4478-a13b-853531f33f28}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -218,6 +221,12 @@
     </ClInclude>
     <ClInclude Include="GeneralAugmentedBoundaryIntegrator.cuh">
       <Filter>Boundary Integrators</Filter>
+    </ClInclude>
+    <ClInclude Include="ElipticalGreenFunctions.cuh">
+      <Filter>Math\Green Functions</Filter>
+    </ClInclude>
+    <ClInclude Include="ElipticalIntegrals.cuh">
+      <Filter>Math\Green Functions</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

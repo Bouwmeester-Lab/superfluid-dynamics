@@ -2,12 +2,14 @@
 #ifndef BESSEL_GREEN_FUNCTIONS_H
 #define BESSEL_GREEN_FUNCTIONS_H
 
+#include "../Common/CudaChecks.cuh"
+
 #include "cuda_runtime.h"
 #include <vector>
 #include <boost/math/special_functions/bessel.hpp>
 #include <iterator>
 
-__global__ void calculateBnMatrix(double* dev_r, double* devKappa, double* Bn, size_t Nb, size_t N_collocations)
+static __global__ void calculateBnMatrix(const double* dev_r, const double* devKappa, double* Bn, size_t Nb, size_t N_collocations)
 {
 	size_t k = blockIdx.x * blockDim.x + threadIdx.x; // bessel function n
 	size_t j = blockIdx.y * blockDim.y + threadIdx.y; // collocation point j
@@ -17,7 +19,7 @@ __global__ void calculateBnMatrix(double* dev_r, double* devKappa, double* Bn, s
 	}
 }
 
-__global__ void calculateJ1CollocationMatrix(double* dev_r, double* devKappa, double* BPrimeN, size_t Nb, size_t N_collocations)
+static __global__ void calculateJ1CollocationMatrix(const double* dev_r, const double* devKappa, double* BPrimeN, size_t Nb, size_t N_collocations)
 {
 	size_t k = blockIdx.x * blockDim.x + threadIdx.x; // bessel function n
 	size_t j = blockIdx.y * blockDim.y + threadIdx.y; // collocation point j
@@ -61,7 +63,7 @@ private:
 
 	double* devBn; // Device pointer to the matrix storing Bkj = J_0(\beta_k * r_j / R), where r_j is the j-th collocation point and \beta_k is the k-th zero of J0.
 	double* devJ1; // Device pointer to the matrix storing B'kj = J_1(\beta_k * r_j / R), where r_j is the j-th collocation point and \beta_k is the k-th zero of J0.
-	dim3 matrix_threads(16, 16);
+	dim3 matrix_threads = dim3(16, 16);
 	// Number of blocks in the grid for the kernel launch.
 	dim3 matrix_blocks = dim3((Nb + 15) / 16, (N_collocations + 15) / 16); 
 
@@ -119,16 +121,16 @@ private:
 template<size_t Nb, size_t N_collocations>
 DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::DirichletNeumannBesselGreenFunctions(double* dev_r, double R) : dev_r(dev_r)
 {
-	cudaMalloc((void**)&devZerosJ0, Nb * sizeof(double));
-	cudaMalloc((void**)&devKappa, Nb * sizeof(double));
-	cudaMalloc((void**)&devWn, Nb * sizeof(double));
-	cudaMalloc((void**)&devBn, N_collocations * Nb * sizeof(double));
-	cudaMalloc((void**)&devJ1, N_collocations * Nb * sizeof(double));
+	CHECK_CUDA(cudaMalloc((void**)&devZerosJ0, Nb * sizeof(double)));
+	CHECK_CUDA(cudaMalloc((void**)&devKappa, Nb * sizeof(double)));
+	CHECK_CUDA(cudaMalloc((void**)&devWn, Nb * sizeof(double)));
+	CHECK_CUDA(cudaMalloc((void**)&devBn, N_collocations * Nb * sizeof(double)));
+	CHECK_CUDA(cudaMalloc((void**)&devJ1, N_collocations * Nb * sizeof(double)));
 
 	std::vector<double> zeros_J0_host;
 	std::vector<double> kappa_host;
 	std::vector<double> Wn_host;
-	boost::math::cyl_bessel_j_zero(0, 1, Nb, std::back_inserter(zeros_J0_host));
+	boost::math::cyl_bessel_j_zero(0.0, 1, Nb, std::back_inserter(zeros_J0_host));
 
 	double j1 = 0.0;
 	//double kappa_n;
@@ -136,7 +138,7 @@ DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::DirichletNeumannBessel
 	{
 		//kappa_host.push_back(zeros_J0_host[n] / R);
 		kappa_host.push_back(zeros_J0_host[n] / R);
-		j1 = boost::math::cyl_bessel_j(1, zeros_J0_host[n]);
+		j1 = boost::math::cyl_bessel_j(1.0, zeros_J0_host[n]);
 		//Nn_host.push_back(0.5 * R * R * j1 * j1);
 		Wn_host.push_back(1.0 / (R * R * j1 * j1 * kappa_host[n]));
 		
@@ -144,23 +146,25 @@ DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::DirichletNeumannBessel
 
 
 	
-	cudaMemcpy(devZerosJ0, zeros_J0_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(devKappa, kappa_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(devWn, Wn_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice);
+	CHECK_CUDA(cudaMemcpy(devZerosJ0, zeros_J0_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
+	CHECK_CUDA(cudaMemcpy(devKappa, kappa_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
+	CHECK_CUDA(cudaMemcpy(devWn, Wn_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
 
 	calculateBnMatrix << <matrix_blocks, matrix_threads >> > (dev_r, devKappa, devBn, Nb, N_collocations);
+	CHECK_CUDA(cudaGetLastError());
 	calculateJ1CollocationMatrix << <matrix_blocks, matrix_threads >> > (dev_r, devKappa, devJ1, Nb, N_collocations);
-	cudaDeviceSynchronize();
+	CHECK_CUDA(cudaGetLastError());
+	CHECK_CUDA(cudaDeviceSynchronize());
 }
 
 template<size_t Nb, size_t N_collocations>
 DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::~DirichletNeumannBesselGreenFunctions()
 {
-	cudaFree(devZerosJ0);
-	cudaFree(devKappa);
-	cudaFree(devWn);
-	cudaFree(devJ1);
-	cudaFree(devBn);
+	checkCuda(cudaFree(devZerosJ0));
+	checkCuda(cudaFree(devKappa));
+	checkCuda(cudaFree(devWn));
+	checkCuda(cudaFree(devJ1));
+	checkCuda(cudaFree(devBn));
 }
 
 template<size_t Nb, size_t N_collocations>

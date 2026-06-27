@@ -114,6 +114,8 @@
     <ClInclude Include="AugmentedIntensityBoundaryIntegrator.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
+    <ClInclude Include="BoundaryKernels\BesselGreenFunctions.cuh" />
+    <ClInclude Include="BoundaryKernels\RadialKernels.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
     <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
     <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh" />

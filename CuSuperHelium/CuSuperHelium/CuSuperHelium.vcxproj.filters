@@ -228,5 +228,11 @@
     <ClInclude Include="ElipticalIntegrals.cuh">
       <Filter>Math\Green Functions</Filter>
     </ClInclude>
+    <ClInclude Include="BoundaryKernels\RadialKernels.cuh">
+      <Filter>Boundary Kernels</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryKernels\BesselGreenFunctions.cuh">
+      <Filter>Math\Green Functions</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

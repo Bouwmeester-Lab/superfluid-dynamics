@@ -115,6 +115,7 @@
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
     <ClInclude Include="BoundaryKernels\BesselGreenFunctions.cuh" />
+    <ClInclude Include="BoundaryKernels\BesselMatrixKernels.cuh" />
     <ClInclude Include="BoundaryKernels\RadialKernels.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
     <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
@@ -157,6 +158,8 @@
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
+    <ClInclude Include="RadialBoundaryIntegrator.cuh" />
+    <ClInclude Include="RadialModels.h" />
     <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="Reductions.cuh" />
     <ClInclude Include="RK45.cuh" />

@@ -63,6 +63,12 @@
     <Filter Include="Math\Green Functions">
       <UniqueIdentifier>{8b94e222-b03d-4478-a13b-853531f33f28}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Boundary Integrators\Radial Symmetry">
+      <UniqueIdentifier>{a2d0ea30-a199-4f83-8b11-d33fb020df57}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Radial Symmetry">
+      <UniqueIdentifier>{491d8e29-66be-4f07-af32-1941d4e452fa}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ProblemProperties.hpp" />
@@ -233,6 +239,15 @@
     </ClInclude>
     <ClInclude Include="BoundaryKernels\BesselGreenFunctions.cuh">
       <Filter>Math\Green Functions</Filter>
+    </ClInclude>
+    <ClInclude Include="BoundaryKernels\BesselMatrixKernels.cuh">
+      <Filter>Boundary Kernels</Filter>
+    </ClInclude>
+    <ClInclude Include="RadialBoundaryIntegrator.cuh">
+      <Filter>Boundary Integrators\Radial Symmetry</Filter>
+    </ClInclude>
+    <ClInclude Include="RadialModels.h">
+      <Filter>Radial Symmetry</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

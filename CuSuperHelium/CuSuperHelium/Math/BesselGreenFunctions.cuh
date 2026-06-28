@@ -9,6 +9,8 @@
 #include <boost/math/special_functions/bessel.hpp>
 #include <iterator>
 
+#include "RadialModels.h"
+
 static __global__ void calculateBnMatrix(const double* dev_r, const double* devKappa, double* Bn, size_t Nb, size_t N_collocations)
 {
 	size_t k = blockIdx.x * blockDim.x + threadIdx.x; // bessel function n
@@ -29,20 +31,14 @@ static __global__ void calculateJ1CollocationMatrix(const double* dev_r, const d
 	}
 }
 
-struct RadialPointers {
-	double* dev_r; // Device pointer to store the radial coordinates of the collocation points.
-	double* dev_z; // Device pointer to store the z coordinates of the collocation points -> height
-
-	double* dev_z_prime; // Device pointer to store the derivative with respect to r (used as parameter in the curve) of the z coordinates of the collocation points -> height' (deta/drho)
-};
 
 template <size_t Nb, size_t N_collocations>
 class DirichletNeumannBesselGreenFunctions
 {
 public:
-	DirichletNeumannBesselGreenFunctions(double* dev_r, double R = 1.0);
+	DirichletNeumannBesselGreenFunctions(double R = 1.0);
 	~DirichletNeumannBesselGreenFunctions();
-
+	void initialize(RadialPointers pointers);
 	/// <summary>
 	/// Calculates the green function at the collocation point k using for the source point j using the Bessel function of the first kind of order 0 and the normalization factor Wn.
 	/// </summary>
@@ -52,8 +48,8 @@ public:
 	/// <param name="depth">The depth of the domain.</param>
 	/// <param name="Nb">The number of modes.</param>
 	/// <returns></returns>
-	__device__ __inline__ double calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, double depth);
-	__device__ __inline__ double calculatedGdn(size_t k, size_t j, RadialPointers pointers, double depth);
+	__device__ __inline__ double calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, RadialProperties properties);
+	__device__ __inline__ double calculatedGdn(size_t k, size_t j, RadialPointers pointers, RadialProperties properties);
 private:
 	double* dev_r; // Device pointer to store the radial coordinates of the collocation points.
 
@@ -119,13 +115,20 @@ private:
 
 
 template<size_t Nb, size_t N_collocations>
-DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::DirichletNeumannBesselGreenFunctions(double* dev_r, double R) : dev_r(dev_r)
+DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::DirichletNeumannBesselGreenFunctions(double R)
 {
 	CHECK_CUDA(cudaMalloc((void**)&devZerosJ0, Nb * sizeof(double)));
 	CHECK_CUDA(cudaMalloc((void**)&devKappa, Nb * sizeof(double)));
 	CHECK_CUDA(cudaMalloc((void**)&devWn, Nb * sizeof(double)));
 	CHECK_CUDA(cudaMalloc((void**)&devBn, N_collocations * Nb * sizeof(double)));
 	CHECK_CUDA(cudaMalloc((void**)&devJ1, N_collocations * Nb * sizeof(double)));
+}
+
+template<size_t Nb, size_t N_collocations>
+void DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::initialize(RadialPointers pointers)
+{
+	const double* dev_r = pointers.dev_r;
+	const double R = pointers.R;
 
 	std::vector<double> zeros_J0_host;
 	std::vector<double> kappa_host;
@@ -141,11 +144,9 @@ DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::DirichletNeumannBessel
 		j1 = boost::math::cyl_bessel_j(1.0, zeros_J0_host[n]);
 		//Nn_host.push_back(0.5 * R * R * j1 * j1);
 		Wn_host.push_back(1.0 / (R * R * j1 * j1 * kappa_host[n]));
-		
+
 	}
 
-
-	
 	CHECK_CUDA(cudaMemcpy(devZerosJ0, zeros_J0_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
 	CHECK_CUDA(cudaMemcpy(devKappa, kappa_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
 	CHECK_CUDA(cudaMemcpy(devWn, Wn_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
@@ -168,7 +169,7 @@ DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::~DirichletNeumannBesse
 }
 
 template<size_t Nb, size_t N_collocations>
-__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, double depth)
+__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, RadialProperties properties)
 {
 	if (k == j) 
 	{
@@ -179,14 +180,14 @@ __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocat
 		double sum = 0.0;
 		for (size_t n = 0; n < Nb; ++n)
 		{
-			sum += getBnj(n, k) * getBnj(n, j) * getWn(n) * calculate_g(k, j, n, pointers, depth);
+			sum += getBnj(n, k) * getBnj(n, j) * getWn(n) * calculate_g(k, j, n, pointers, properties.depth);
 		}
 		return sum;
 	}
 }
 
 template<size_t Nb, size_t N_collocations>
-__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculatedGdn(size_t k, size_t j, RadialPointers pointers, double depth)
+__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculatedGdn(size_t k, size_t j, RadialPointers pointers, RadialProperties properties)
 {
 	if (k == j)
 	{
@@ -197,8 +198,8 @@ __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocat
 	double sumz = 0.0;
 	for (size_t n = 0; n < Nb; ++n) 
 	{
-		sumr -= getWn(n) * calculate_g(k, j, n, pointers, depth) * getBPrimenj(n, j) * devKappa[n] * getBnj(n, k);
-		sumz += getWn(n) * getBnj(n, k) * getBnj(n, j) * calculate_g_prime(k, j, n, pointers, depth);
+		sumr -= getWn(n) * calculate_g(k, j, n, pointers, properties.depth) * getBPrimenj(n, j) * devKappa[n] * getBnj(n, k);
+		sumz += getWn(n) * getBnj(n, k) * getBnj(n, j) * calculate_g_prime(k, j, n, pointers, properties.depth);
 	}
 	return  (calculate_nr(j, pointers) * sumr + calculate_nz(j, pointers) * sumz) / calculate_norm_n(j, pointers);
 }

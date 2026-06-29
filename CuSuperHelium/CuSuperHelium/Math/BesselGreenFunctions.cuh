@@ -38,8 +38,8 @@ class DirichletNeumannBesselGreenFunctions
 public:
 	DirichletNeumannBesselGreenFunctions(double R = 1.0);
 	~DirichletNeumannBesselGreenFunctions();
-	void initialize(RadialPointers pointers);
-	/// <summary>
+	void initialize(RadialPointers pointers, RadialProperties properties);
+	void calculateMatrices(RadialPointers pointers, RadialProperties properties);
 	/// Calculates the green function at the collocation point k using for the source point j using the Bessel function of the first kind of order 0 and the normalization factor Wn.
 	/// </summary>
 	/// <param name="k">Represents the field point where the green function is evaluated.</param>
@@ -125,10 +125,10 @@ DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::DirichletNeumannBessel
 }
 
 template<size_t Nb, size_t N_collocations>
-void DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::initialize(RadialPointers pointers)
+void DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::initialize(RadialPointers pointers, RadialProperties properties)
 {
 	const double* dev_r = pointers.dev_r;
-	const double R = pointers.R;
+	const double R = properties.R;
 
 	std::vector<double> zeros_J0_host;
 	std::vector<double> kappa_host;
@@ -144,18 +144,23 @@ void DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::initialize(Radial
 		j1 = boost::math::cyl_bessel_j(1.0, zeros_J0_host[n]);
 		//Nn_host.push_back(0.5 * R * R * j1 * j1);
 		Wn_host.push_back(1.0 / (R * R * j1 * j1 * kappa_host[n]));
-
 	}
 
 	CHECK_CUDA(cudaMemcpy(devZerosJ0, zeros_J0_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
 	CHECK_CUDA(cudaMemcpy(devKappa, kappa_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
 	CHECK_CUDA(cudaMemcpy(devWn, Wn_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
+}
+	
 
+template<size_t Nb, size_t N_collocations>
+void DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculateMatrices(RadialPointers pointers, RadialProperties properties)
+{
 	calculateBnMatrix << <matrix_blocks, matrix_threads >> > (dev_r, devKappa, devBn, Nb, N_collocations);
 	CHECK_CUDA(cudaGetLastError());
 	calculateJ1CollocationMatrix << <matrix_blocks, matrix_threads >> > (dev_r, devKappa, devJ1, Nb, N_collocations);
 	CHECK_CUDA(cudaGetLastError());
 	CHECK_CUDA(cudaDeviceSynchronize());
+
 }
 
 template<size_t Nb, size_t N_collocations>

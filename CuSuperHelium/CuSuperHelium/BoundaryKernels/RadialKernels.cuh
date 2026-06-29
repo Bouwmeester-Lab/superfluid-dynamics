@@ -6,12 +6,9 @@
 #include "cuda_runtime.h"
 #include "../ElipticalGreenFunctions.cuh"
 
-__global__ void form_radial_kernel(double* matrix, const double* r, const double* z, size_t num_elements, size_t batch_size);
 
 
-
-
-__global__ void form_radial_kernel(double* matrixA, double* matrixB, const double* r, const double* z, const double* zprime, size_t num_elements, size_t batch_size)
+static __global__ void form_radial_kernel(double* matrixA, double* matrixB, const double* r, const double* z, const double* zprime, size_t num_elements, size_t batch_size)
 {
     int j = blockIdx.y * blockDim.y + threadIdx.y; // row // used as integration variable
 	int k = blockIdx.x * blockDim.x + threadIdx.x; // col // used as the evaluation point for the kernel

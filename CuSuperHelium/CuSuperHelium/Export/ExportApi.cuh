@@ -5,7 +5,7 @@
 #include "../ExportTypes.cuh"
 #include "../OptomechanicalVariables.h"
 #include "../ProblemProperties.hpp"
-
+#include "../RadialVelocityCalculator.cuh"
 #include <cstddef>
 
 extern "C" 
@@ -32,6 +32,8 @@ extern "C"
 	/// <param name="depth">The depth parameter.</param>
 	/// <returns>Returns an integer status code indicating the success or failure of the calculation.</returns>
 	__declspec(dllexport) int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, double L, double rho, double kappa, double depth);
+	__declspec(dllexport) int calculateVelocitiesRadialSymmetry(const double* r, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N);
+
 	__declspec(dllexport) int calculateDerivativeFFT256(const c_double* input, c_double* output);
 	__declspec(dllexport) int calculateJacobian(const double* state, double* jac, double L, double rho, double kappa, double depth, double epsilon, size_t N);
 	__declspec(dllexport) int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, int batchSize);

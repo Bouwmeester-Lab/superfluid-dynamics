@@ -17,9 +17,9 @@ __device__ __forceinline__ double calculateBesselGreenSelfTerm(
 	size_t k,
 	DirichletNeumannBesselGreenFunctions<Nb, N_collocations>& greens,
 	RadialPointers pointers,
-	double depth)
+	RadialProperties properties)
 {
-	return greens.calculateGreenFunction(k, k, pointers, depth);
+	return greens.calculateGreenFunction(k, k, pointers, properties);
 }
 
 template <size_t Nb, size_t N_collocations>
@@ -27,9 +27,9 @@ __device__ __forceinline__ double calculateBesselDGreenDnSelfTerm(
 	size_t k,
 	DirichletNeumannBesselGreenFunctions<Nb, N_collocations>& greens,
 	RadialPointers pointers,
-	double depth)
+	RadialProperties properties)
 {
-	return greens.calculatedGdn(k, k, pointers, depth);
+	return greens.calculatedGdn(k, k, pointers, properties);
 }
 
 /// <summary>
@@ -66,11 +66,11 @@ static __global__ void formBesselSDMatrices(
 
 	const double sourceMeasure = batchPointers.dev_r[j] * ds[nodeOffset + j];
 	const double green = (k == j)
-		? calculateBesselGreenSelfTerm(k, greens, batchPointers, depth)
-		: greens.calculateGreenFunction(k, j, batchPointers, depth);
+		? calculateBesselGreenSelfTerm(k, greens, batchPointers, properties)
+		: greens.calculateGreenFunction(k, j, batchPointers, properties);
 	const double dGreenDn = (k == j)
-		? calculateBesselDGreenDnSelfTerm(k, greens, batchPointers, depth)
-		: greens.calculatedGdn(k, j, batchPointers, depth);
+		? calculateBesselDGreenDnSelfTerm(k, greens, batchPointers, properties)
+		: greens.calculatedGdn(k, j, batchPointers, properties);
 
 	const size_t matrixIndex = besselMatrixIndex(k, j, b, N_collocations);
 	S[matrixIndex] = sourceMeasure * green;

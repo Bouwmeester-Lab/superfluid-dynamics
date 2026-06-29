@@ -75,7 +75,7 @@ int integrateSimulationGL2(double* initialState, double** statesOut, size_t* sta
 	default:
 		std::cerr << "Error: Unsupported N size " << N << std::endl;
 		std::cerr << "Supported N sizes are: 32, 64, 128 , 256, 512, 1024" << std::endl;
-		break;
+		return -1;
 	}
 }
 

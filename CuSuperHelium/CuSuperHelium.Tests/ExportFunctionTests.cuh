@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -13,6 +14,7 @@ extern "C"
 {
 	int integrateAugmentedOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N);
 	int integrateAugmentedOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut);
+	int calculateVelocitiesRadialSymmetry(const double* r, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N);
 }
 
 namespace
@@ -160,4 +162,42 @@ TEST(ExportFunctions, AugmentedOptomechanicalRK4UsesRampedStateLayout)
 	EXPECT_NEAR(statesOut[lastStateOffset + 4 * ExportTestN], expectedRampIntensity, 1.0e-9);
 
 	integrateAugmentedOptomechanicalSimulationRK4_freeMemory(statesOut, timesOut);
+}
+
+TEST(ExportFunctions, RadialSymmetryZeroSurfaceAndPotentialIsAtRest)
+{
+	constexpr size_t N = 128;
+	constexpr double tolerance = 1.0e-12;
+
+	std::vector<double> r(N);
+	std::vector<double> phi(N, 0.0);
+	std::vector<double> vr(N, std::numeric_limits<double>::quiet_NaN());
+	std::vector<double> vz(N, std::numeric_limits<double>::quiet_NaN());
+
+	for (size_t i = 0; i < N; ++i)
+	{
+		r[i] = static_cast<double>(i) / static_cast<double>(N - 1);
+	}
+
+	SimProperties simProperties = makeExportTestSimProperties();
+	simProperties.L = 1.0;
+	simProperties.depth = 1.0;
+
+	const int result = calculateVelocitiesRadialSymmetry(
+		r.data(),
+		phi.data(),
+		vr.data(),
+		vz.data(),
+		&simProperties,
+		N);
+
+	ASSERT_EQ(result, 0);
+
+	for (size_t i = 0; i < N; ++i)
+	{
+		EXPECT_TRUE(std::isfinite(vr[i])) << "vr index " << i;
+		EXPECT_TRUE(std::isfinite(vz[i])) << "vz index " << i;
+		EXPECT_NEAR(vr[i], 0.0, tolerance) << "vr index " << i;
+		EXPECT_NEAR(vz[i], 0.0, tolerance) << "vz index " << i;
+	}
 }

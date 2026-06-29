@@ -359,23 +359,23 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 	double* dev_vr;
 	double* dev_vz;
 
-	checkCuda(cudaMalloc(&dev_r, sizeof(double) * N));
-	checkCuda(cudaMalloc(&dev_z, sizeof(double) * N));
-	checkCuda(cudaMalloc(&dev_z_prime, sizeof(double) * N));
-	checkCuda(cudaMalloc(&dev_phi, sizeof(double) * N));
-	checkCuda(cudaMalloc(&dev_phi_prime, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_r, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_z, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_z_prime, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_phi, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_phi_prime, sizeof(double) * N));
 
-	checkCuda(cudaMalloc(&dev_vr, sizeof(double) * N));
-	checkCuda(cudaMalloc(&dev_vz, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_vr, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_vz, sizeof(double) * N));
 
-	checkCuda(cudaMemcpy(dev_r, r, sizeof(double) * N, cudaMemcpyHostToDevice));
+	CHECK_CUDA(cudaMemcpy(dev_r, r, sizeof(double) * N, cudaMemcpyHostToDevice));
 	if (z != nullptr) {
-		checkCuda(cudaMemcpy(dev_z, z, sizeof(double) * N, cudaMemcpyHostToDevice));
+		CHECK_CUDA(cudaMemcpy(dev_z, z, sizeof(double) * N, cudaMemcpyHostToDevice));
 	}
 	else {
-		checkCuda(cudaMemset(dev_z, 0, sizeof(double) * N));
+		CHECK_CUDA(cudaMemset(dev_z, 0, sizeof(double) * N));
 	}
-	checkCuda(cudaMemcpy(dev_phi, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
+	CHECK_CUDA(cudaMemcpy(dev_phi, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
 
 	FiniteDifferenceDerivativeCalculator derivativeCalculator;
 
@@ -408,17 +408,17 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 
 	radialVelocityCalculator.calculateVelocities(dev_vr, dev_vz, pointers, radialProperties);
 
-	checkCuda(cudaMemcpy(vr, dev_vr, sizeof(double) * N, cudaMemcpyDeviceToHost));
-	checkCuda(cudaMemcpy(vz, dev_vz, sizeof(double) * N, cudaMemcpyDeviceToHost));
+	CHECK_CUDA(cudaMemcpy(vr, dev_vr, sizeof(double) * N, cudaMemcpyDeviceToHost));
+	CHECK_CUDA(cudaMemcpy(vz, dev_vz, sizeof(double) * N, cudaMemcpyDeviceToHost));
 
 
-	checkCuda(cudaFree(dev_r));
-	checkCuda(cudaFree(dev_z));
-	checkCuda(cudaFree(dev_phi));
-	checkCuda(cudaFree(dev_z_prime));
-	checkCuda(cudaFree(dev_phi_prime));
-	checkCuda(cudaFree(dev_vr));
-	checkCuda(cudaFree(dev_vz));
+	CHECK_CUDA(cudaFree(dev_r));
+	CHECK_CUDA(cudaFree(dev_z));
+	CHECK_CUDA(cudaFree(dev_phi));
+	CHECK_CUDA(cudaFree(dev_z_prime));
+	CHECK_CUDA(cudaFree(dev_phi_prime));
+	CHECK_CUDA(cudaFree(dev_vr));
+	CHECK_CUDA(cudaFree(dev_vz));
 
 	return 0;
 }
@@ -426,6 +426,10 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 int calculateVelocitiesRadialSymmetry(const double* r, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N)
 {
 	switch (N) {
+	case 4:
+		return calculateVelocitiesRadialSymmetryTemplate<4, 1>(r, nullptr, phi, vr, vz, simProperties);
+	case 8:
+		return calculateVelocitiesRadialSymmetryTemplate<8, 1>(r, nullptr, phi, vr, vz, simProperties);
 	case 128:
 		return calculateVelocitiesRadialSymmetryTemplate<128, 1>(r, nullptr, phi, vr, vz, simProperties);
 	case 256:

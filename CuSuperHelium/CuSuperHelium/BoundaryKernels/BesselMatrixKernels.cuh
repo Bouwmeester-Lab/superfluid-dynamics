@@ -15,7 +15,7 @@ __device__ __forceinline__ size_t besselMatrixIndex(size_t k, size_t j, size_t b
 template <size_t Nb, size_t N_collocations>
 __device__ __forceinline__ double calculateBesselGreenSelfTerm(
 	size_t k,
-	DirichletNeumannBesselGreenFunctions<Nb, N_collocations>& greens,
+	DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>& greens,
 	RadialPointers pointers,
 	RadialProperties properties)
 {
@@ -25,7 +25,7 @@ __device__ __forceinline__ double calculateBesselGreenSelfTerm(
 template <size_t Nb, size_t N_collocations>
 __device__ __forceinline__ double calculateBesselDGreenDnSelfTerm(
 	size_t k,
-	DirichletNeumannBesselGreenFunctions<Nb, N_collocations>& greens,
+	DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>& greens,
 	RadialPointers pointers,
 	RadialProperties properties)
 {
@@ -41,7 +41,7 @@ template <size_t Nb, size_t N_collocations>
 static __global__ void formBesselSDMatrices(
 	double* S,
 	double* D,
-	DirichletNeumannBesselGreenFunctions<Nb, N_collocations> greens,
+	DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations> greens,
 	RadialPointers pointers,
 	const double* ds,
 	RadialProperties properties,

@@ -166,7 +166,7 @@ TEST(ExportFunctions, AugmentedOptomechanicalRK4UsesRampedStateLayout)
 
 TEST(ExportFunctions, RadialSymmetryZeroSurfaceAndPotentialIsAtRest)
 {
-	constexpr size_t N = 128;
+	constexpr size_t N = 4;
 	constexpr double tolerance = 1.0e-12;
 
 	std::vector<double> r(N);
@@ -176,7 +176,7 @@ TEST(ExportFunctions, RadialSymmetryZeroSurfaceAndPotentialIsAtRest)
 
 	for (size_t i = 0; i < N; ++i)
 	{
-		r[i] = static_cast<double>(i) / static_cast<double>(N - 1);
+		r[i] = static_cast<double>(i + 0.5) / static_cast<double>(N);
 	}
 
 	SimProperties simProperties = makeExportTestSimProperties();

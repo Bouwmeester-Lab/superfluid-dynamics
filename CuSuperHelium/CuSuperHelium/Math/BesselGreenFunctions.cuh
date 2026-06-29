@@ -32,14 +32,11 @@ static __global__ void calculateJ1CollocationMatrix(const double* dev_r, const d
 }
 
 
+
 template <size_t Nb, size_t N_collocations>
-class DirichletNeumannBesselGreenFunctions
+class DirichletNeumannBesselGreenFunctionsDeviceView
 {
 public:
-	DirichletNeumannBesselGreenFunctions(double R = 1.0);
-	~DirichletNeumannBesselGreenFunctions();
-	void initialize(RadialPointers pointers, RadialProperties properties);
-	void calculateMatrices(RadialPointers pointers, RadialProperties properties);
 	/// Calculates the green function at the collocation point k using for the source point j using the Bessel function of the first kind of order 0 and the normalization factor Wn.
 	/// </summary>
 	/// <param name="k">Represents the field point where the green function is evaluated.</param>
@@ -51,17 +48,13 @@ public:
 	__device__ __inline__ double calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, RadialProperties properties);
 	__device__ __inline__ double calculatedGdn(size_t k, size_t j, RadialPointers pointers, RadialProperties properties);
 private:
-	double* dev_r; // Device pointer to store the radial coordinates of the collocation points.
-
 	double* devZerosJ0; // Device pointer to store the zeros of the Bessel function J0, kappa_n = \beta_n / R, where beta_n is the n-th zero of J0.
 	double* devKappa; // Device pointer to store the values of kappa_n = \beta_n / R, where beta_n is the n-th zero of J0.
 	double* devWn; // Device pointer to store the normalization of the green function: Wn = 1/(R^2 * J1(\beta_n)^2 *\kappa_n), where J1 is the Bessel function of the first kind of order 1.
 
 	double* devBn; // Device pointer to the matrix storing Bkj = J_0(\beta_k * r_j / R), where r_j is the j-th collocation point and \beta_k is the k-th zero of J0.
 	double* devJ1; // Device pointer to the matrix storing B'kj = J_1(\beta_k * r_j / R), where r_j is the j-th collocation point and \beta_k is the k-th zero of J0.
-	dim3 matrix_threads = dim3(16, 16);
-	// Number of blocks in the grid for the kernel launch.
-	dim3 matrix_blocks = dim3((Nb + 15) / 16, (N_collocations + 15) / 16); 
+	
 
 	/// <summary>
 	/// Access the Bkj value from the device memory.
@@ -108,10 +101,34 @@ private:
 	/// <returns></returns>
 	__device__ __inline__ double calculate_norm_n(size_t k, RadialPointers pointers) const;
 
-	
-
+public:
+	__host__ __device__ DirichletNeumannBesselGreenFunctionsDeviceView(double* devZerosJ0, double* devKappa, double* devWn, double* devBn, double* devJ1)
+		: devZerosJ0(devZerosJ0), devKappa(devKappa), devWn(devWn), devBn(devBn), devJ1(devJ1) {}
 };
 
+template <size_t Nb, size_t N_collocations>
+class DirichletNeumannBesselGreenFunctions
+{
+	double* devZerosJ0; // Device pointer to store the zeros of the Bessel function J0, kappa_n = \beta_n / R, where beta_n is the n-th zero of J0.
+	double* devKappa; // Device pointer to store the values of kappa_n = \beta_n / R, where beta_n is the n-th zero of J0.
+	double* devWn; // Device pointer to store the normalization of the green function: Wn = 1/(R^2 * J1(\beta_n)^2 *\kappa_n), where J1 is the Bessel function of the first kind of order 1.
+
+	double* devBn; // Device pointer to the matrix storing Bkj = J_0(\beta_k * r_j / R), where r_j is the j-th collocation point and \beta_k is the k-th zero of J0.
+	double* devJ1; // Device pointer to the matrix storing B'kj = J_1(\beta_k * r_j / R), where r_j is the j-th collocation point and \beta_k is the k-th zero of J0.
+	
+	dim3 matrix_threads = dim3(16, 16);
+	// Number of blocks in the grid for the kernel launch.
+	dim3 matrix_blocks = dim3((Nb + 15) / 16, (N_collocations + 15) / 16);
+public:
+	DirichletNeumannBesselGreenFunctions(double R = 1.0);
+	~DirichletNeumannBesselGreenFunctions();
+
+
+public:
+	void initialize(RadialPointers pointers, RadialProperties properties);
+	void calculateMatrices(RadialPointers pointers, RadialProperties properties);
+	DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations> createDeviceView();
+};
 
 
 template<size_t Nb, size_t N_collocations>
@@ -149,36 +166,59 @@ void DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::initialize(Radial
 	CHECK_CUDA(cudaMemcpy(devZerosJ0, zeros_J0_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
 	CHECK_CUDA(cudaMemcpy(devKappa, kappa_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
 	CHECK_CUDA(cudaMemcpy(devWn, Wn_host.data(), Nb * sizeof(double), cudaMemcpyHostToDevice));
+	CHECK_CUDA(cudaGetLastError());
 }
 	
 
 template<size_t Nb, size_t N_collocations>
 void DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculateMatrices(RadialPointers pointers, RadialProperties properties)
 {
-	calculateBnMatrix << <matrix_blocks, matrix_threads >> > (dev_r, devKappa, devBn, Nb, N_collocations);
+	calculateBnMatrix << <matrix_blocks, matrix_threads >> > (pointers.dev_r, devKappa, devBn, Nb, N_collocations);
 	CHECK_CUDA(cudaGetLastError());
-	calculateJ1CollocationMatrix << <matrix_blocks, matrix_threads >> > (dev_r, devKappa, devJ1, Nb, N_collocations);
+	calculateJ1CollocationMatrix << <matrix_blocks, matrix_threads >> > (pointers.dev_r, devKappa, devJ1, Nb, N_collocations);
 	CHECK_CUDA(cudaGetLastError());
 	CHECK_CUDA(cudaDeviceSynchronize());
 
 }
 
 template<size_t Nb, size_t N_collocations>
-DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::~DirichletNeumannBesselGreenFunctions()
+DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations> DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::createDeviceView()
 {
-	checkCuda(cudaFree(devZerosJ0));
-	checkCuda(cudaFree(devKappa));
-	checkCuda(cudaFree(devWn));
-	checkCuda(cudaFree(devJ1));
-	checkCuda(cudaFree(devBn));
+	return DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>(devZerosJ0, devKappa, devWn, devBn, devJ1);
 }
 
 template<size_t Nb, size_t N_collocations>
-__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, RadialProperties properties)
+DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::~DirichletNeumannBesselGreenFunctions()
+{
+	if (devZerosJ0 != nullptr) 
+	{
+		CHECK_CUDA(cudaFree(devZerosJ0));
+		devZerosJ0 = nullptr;
+	}
+	if (devKappa != nullptr) {
+		CHECK_CUDA(cudaFree(devKappa));
+		devKappa = nullptr;
+	}
+	if (devWn != nullptr) {
+		CHECK_CUDA(cudaFree(devWn));
+		devWn = nullptr;
+	}
+	if (devJ1 != nullptr) {
+		CHECK_CUDA(cudaFree(devJ1));
+		devJ1 = nullptr;
+	}
+	if (devBn != nullptr) {
+		CHECK_CUDA(cudaFree(devBn));
+		devBn = nullptr;
+	}
+}
+
+template<size_t Nb, size_t N_collocations>
+__device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, RadialProperties properties)
 {
 	if (k == j) 
 	{
-		return 0.0; // TODO: handle the singularity case when k == j, possibly using a limit.
+		return 1.0; // TODO: handle the singularity case when k == j, possibly using a limit.
 	}
 	else 
 	{
@@ -192,11 +232,11 @@ __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocat
 }
 
 template<size_t Nb, size_t N_collocations>
-__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculatedGdn(size_t k, size_t j, RadialPointers pointers, RadialProperties properties)
+__device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::calculatedGdn(size_t k, size_t j, RadialPointers pointers, RadialProperties properties)
 {
 	if (k == j)
 	{
-		return 0.0; // TODO: handle the singularity case when k == j, possibly using a limit.
+		return 1.0; // TODO: handle the singularity case when k == j, possibly using a limit.
 	}
 
 	double sumr = 0.0;
@@ -211,25 +251,25 @@ __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocat
 
 
 template<size_t Nb, size_t N_collocations>
-inline __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::getBnj(size_t n, size_t j) const
+inline __device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::getBnj(size_t n, size_t j) const
 {
 	return devBn[n * N_collocations + j];
 }
 
 template<size_t Nb, size_t N_collocations>
-inline __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::getWn(size_t n) const
+inline __device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::getWn(size_t n) const
 {
 	return devWn[n];
 }
 
 template<size_t Nb, size_t N_collocations>
-inline __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculate_g(size_t k, size_t j, size_t n, RadialPointers pointers, double depth) const
+inline __device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::calculate_g(size_t k, size_t j, size_t n, RadialPointers pointers, double depth) const
 {
 	return exp(-devKappa[n] * fabs(pointers.dev_z[k] - pointers.dev_z[j])) + exp(-devKappa[n] * (pointers.dev_z[k] + pointers.dev_z[j] + 2.0 * depth));
 }
 
 template<size_t Nb, size_t N_collocations>
-__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculate_g_prime(size_t k, size_t j, size_t n, RadialPointers pointers, double depth) const
+__device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::calculate_g_prime(size_t k, size_t j, size_t n, RadialPointers pointers, double depth) const
 {
 
 	const double kappa = devKappa[n];
@@ -261,13 +301,13 @@ __device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocat
 }
 
 template<size_t Nb, size_t N_collocations>
-__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculate_nr(size_t k, RadialPointers pointers) const
+__device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::calculate_nr(size_t k, RadialPointers pointers) const
 {
 	return -pointers.dev_z_prime[k];
 }
 
 template<size_t Nb, size_t N_collocations>
-__device__ __inline__ double DirichletNeumannBesselGreenFunctions<Nb, N_collocations>::calculate_norm_n(size_t k, RadialPointers pointers) const
+__device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::calculate_norm_n(size_t k, RadialPointers pointers) const
 {
 	return sqrt(1.0 + pointers.dev_z_prime[k] * pointers.dev_z_prime[k]);
 }

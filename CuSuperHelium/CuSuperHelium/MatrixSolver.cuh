@@ -70,18 +70,18 @@ MatrixSolver<N, batchSize>::MatrixSolver()
     checkCusolver(cusolverDnCreate(&handle));  
     checkCublas(cublasCreate(&blas));
     // Allocate device memory for pivot and info  
-    checkCuda(cudaMalloc(&devPivot, N * sizeof(int)));  
-    checkCuda(cudaMalloc(&devInfo, sizeof(int)));  
+    CHECK_CUDA(cudaMalloc(&devPivot, N * sizeof(int)));
+    CHECK_CUDA(cudaMalloc(&devInfo, sizeof(int)));
 
     // Query working space size for LU factorization  
     checkCusolver(cusolverDnDgetrf_bufferSize(handle, N, N, nullptr, N, &work_size));  
 	// Allocate device memory for workspace
-    checkCuda(cudaMalloc(&devWork, work_size * sizeof(double)));
+    CHECK_CUDA(cudaMalloc(&devWork, work_size * sizeof(double)));
 
-	checkCuda(cudaMalloc(&devMarray, batchSize * sizeof(double*)));
-	checkCuda(cudaMalloc(&devbarray, batchSize * sizeof(double*)));
-	checkCuda(cudaMalloc(&devPivotArray, batchSize * N * sizeof(int)));
-	checkCuda(cudaMalloc(&devInfoArray, batchSize * sizeof(int)));
+    CHECK_CUDA(cudaMalloc(&devMarray, batchSize * sizeof(double*)));
+    CHECK_CUDA(cudaMalloc(&devbarray, batchSize * sizeof(double*)));
+    CHECK_CUDA(cudaMalloc(&devPivotArray, batchSize * N * sizeof(int)));
+    CHECK_CUDA(cudaMalloc(&devInfoArray, batchSize * sizeof(int)));
 
 	// Match surrounding kernel launches that use the default stream.
     this->setStream(cudaStreamLegacy);

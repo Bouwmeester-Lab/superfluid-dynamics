@@ -5,6 +5,7 @@
 #include "../HeliumBoundaryProblem.cuh"
 #include "../SimulationFunctions.cuh"
 #include "../SimulationRunner.cuh"
+#include "../DerivativeCalculator.cuh"
 
 #include <algorithm>
 #include <complex>
@@ -336,6 +337,108 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 
 	return 0;
 }
+
+
+template <size_t N, size_t mode_number>
+int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties)
+{
+	ProblemProperties properties;
+	properties.rho = simProperties->rho;
+	properties.kappa = simProperties->kappa;
+	properties.depth = simProperties->depth;
+	properties.L = simProperties->L;
+	// adimensionalize properties
+
+	// copy to device
+	double* dev_r;
+	double* dev_z;
+	double* dev_z_prime;
+	double* dev_phi;
+	double* dev_phi_prime;
+
+	double* dev_vr;
+	double* dev_vz;
+
+	checkCuda(cudaMalloc(&dev_r, sizeof(double) * N));
+	checkCuda(cudaMalloc(&dev_z, sizeof(double) * N));
+	checkCuda(cudaMalloc(&dev_z_prime, sizeof(double) * N));
+	checkCuda(cudaMalloc(&dev_phi, sizeof(double) * N));
+	checkCuda(cudaMalloc(&dev_phi_prime, sizeof(double) * N));
+
+	checkCuda(cudaMalloc(&dev_vr, sizeof(double) * N));
+	checkCuda(cudaMalloc(&dev_vz, sizeof(double) * N));
+
+	checkCuda(cudaMemcpy(dev_r, r, sizeof(double) * N, cudaMemcpyHostToDevice));
+	if (z != nullptr) {
+		checkCuda(cudaMemcpy(dev_z, z, sizeof(double) * N, cudaMemcpyHostToDevice));
+	}
+	else {
+		checkCuda(cudaMemset(dev_z, 0, sizeof(double) * N));
+	}
+	checkCuda(cudaMemcpy(dev_phi, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
+
+	FiniteDifferenceDerivativeCalculator derivativeCalculator;
+
+	derivativeCalculator.calculateFirstDerivative(dev_z, dev_r, dev_z_prime, N);
+	derivativeCalculator.calculateFirstDerivative(dev_phi, dev_r, dev_phi_prime, N);
+
+
+
+	RadialPointers pointers{
+		.dev_r = dev_r,
+		.dev_z = dev_z,
+		.dev_z_prime = dev_z_prime,
+		.devPhi = dev_phi,
+		.devPhiPrime = dev_phi_prime
+	};
+
+	RadialProperties radialProperties{
+		.R = 1.0,
+		.depth = simProperties->depth / simProperties->L
+	};
+
+
+	RadialVelocityCalculator<mode_number, N> radialVelocityCalculator;
+
+
+
+	radialVelocityCalculator.initialize(pointers, radialProperties);
+
+	// calculate velocities
+
+	radialVelocityCalculator.calculateVelocities(dev_vr, dev_vz, pointers, radialProperties);
+
+	checkCuda(cudaMemcpy(vr, dev_vr, sizeof(double) * N, cudaMemcpyDeviceToHost));
+	checkCuda(cudaMemcpy(vz, dev_vz, sizeof(double) * N, cudaMemcpyDeviceToHost));
+
+
+	checkCuda(cudaFree(dev_r));
+	checkCuda(cudaFree(dev_z));
+	checkCuda(cudaFree(dev_phi));
+	checkCuda(cudaFree(dev_z_prime));
+	checkCuda(cudaFree(dev_phi_prime));
+	checkCuda(cudaFree(dev_vr));
+	checkCuda(cudaFree(dev_vz));
+
+	return 0;
+}
+
+int calculateVelocitiesRadialSymmetry(const double* r, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N)
+{
+	switch (N) {
+	case 128:
+		return calculateVelocitiesRadialSymmetryTemplate<128, 1>(r, nullptr, phi, vr, vz, simProperties);
+	case 256:
+		return calculateVelocitiesRadialSymmetryTemplate<256, 1>(r, nullptr, phi, vr, vz, simProperties);
+	case 512:
+		return calculateVelocitiesRadialSymmetryTemplate<512, 1>(r, nullptr, phi, vr, vz, simProperties);
+	default:
+		std::cerr << "Error: Unsupported particle number" << N << std::endl;
+		std::cerr << "Supported particle numbers are: 128, 256, 512" << std::endl;
+		return -1;
+	}
+}
+
 
 int calculateDerivativeFFT256(const c_double* input, c_double* output)
 {

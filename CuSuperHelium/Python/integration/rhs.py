@@ -143,6 +143,33 @@ class SimulationManager:
         dphi = np.empty_like(x)
 
         return self.lib.calculateRHSFromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, n), vx, vy, dphi
+
+    def calculate_velocities_radial_symmetry(self : Self, r : NDArray, phi: NDArray, sim_props : CSimulationProperties):
+        self.lib.calculateVelocitiesRadialSymmetry.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")),
+                                                               ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")),
+                                                               ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                               ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                                                               POINTER(CSimulationProperties),
+                                                               c_size_t)
+        self.lib.calculateVelocitiesRadialSymmetry.restype = c_int
+
+        if not isinstance(sim_props, CSimulationProperties):
+            raise TypeError("sim_props must be a CSimulationProperties instance")
+
+        r = np.ascontiguousarray(r, dtype=np.float64)
+        phi = np.ascontiguousarray(phi, dtype=np.float64)
+
+        if r.ndim != 1 or phi.ndim != 1:
+            raise ValueError("Input arrays must be one-dimensional")
+
+        n = r.shape[0]
+        if phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
+
+        vr = np.empty_like(r)
+        vz = np.empty_like(r)
+
+        return self.lib.calculateVelocitiesRadialSymmetry(r, phi, vr, vz, byref(sim_props), n), vr, vz
     
     def calculate_rhs2048_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")

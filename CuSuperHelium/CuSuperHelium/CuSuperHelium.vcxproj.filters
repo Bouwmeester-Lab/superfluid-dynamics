@@ -243,10 +243,13 @@
     <ClInclude Include="BoundaryKernels\BesselMatrixKernels.cuh">
       <Filter>Boundary Kernels</Filter>
     </ClInclude>
-    <ClInclude Include="RadialBoundaryIntegrator.cuh">
+    <ClInclude Include="RadialVelocityCalculator.cuh">
       <Filter>Boundary Integrators\Radial Symmetry</Filter>
     </ClInclude>
     <ClInclude Include="RadialModels.h">
+      <Filter>Radial Symmetry</Filter>
+    </ClInclude>
+    <ClInclude Include="DerivativeCalculator.cuh">
       <Filter>Radial Symmetry</Filter>
     </ClInclude>
   </ItemGroup>

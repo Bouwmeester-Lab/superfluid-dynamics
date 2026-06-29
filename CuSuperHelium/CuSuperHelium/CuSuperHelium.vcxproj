@@ -128,6 +128,7 @@
     <ClInclude Include="DataLogger.cuh" />
     <ClInclude Include="DelayedIntensityIntegrator.cuh" />
     <ClInclude Include="DelayedIntensityTerm.cuh" />
+    <ClInclude Include="DerivativeCalculator.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
     <ClInclude Include="ElipticalGreenFunctions.cuh" />
@@ -158,7 +159,7 @@
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
-    <ClInclude Include="RadialBoundaryIntegrator.cuh" />
+    <ClInclude Include="RadialVelocityCalculator.cuh" />
     <ClInclude Include="RadialModels.h" />
     <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="Reductions.cuh" />

@@ -31,7 +31,7 @@ static __global__ void calculateFirstDerivativeKernel(const double* input, const
 		}
 		else
 		{
-			output[idx] = (input[idx + 1] - input[idx - 1]) / (2.0 * (x[idx + 1] - x[idx])); // Central difference
+			output[idx] = (input[idx + 1] - input[idx - 1]) / ((x[idx + 1] - x[idx-1])); // Central difference
 		}
 	}
 }

@@ -30,7 +30,7 @@ public:
     /// <summary>
     /// Solves a matrix system devM * deva = devb. devM, and devb are known. All the pointers are assumed to be device pointers on the gpu!
     /// </summary>
-    /// <param name="devM">Device pointer to the batchSize x NxN matrices M (row-major, double precision)</param>
+    /// <param name="devM">Device pointer to the batchSize x NxN matrices M (column-major - cublas compatible, double precision)</param>
     /// <param name="devb">Device pointer to the right-hand side vector b (length batchSize x N, double precision)</param>
     /// <param name="deva">Device pointer to the solution vector a (length batchSize x N, double precision, output)</param>
     void solve(double* devM, double* devb, double* deva);

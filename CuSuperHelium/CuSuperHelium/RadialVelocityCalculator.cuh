@@ -64,7 +64,7 @@ static __global__ void calculateVelocitiesKernel(const double* __restrict__ devN
 	}
 }
 
-static __global__ void calculateRadialDsKernel(const double* __restrict__ dev_r, const double* __restrict__ devEtaPrime, double* __restrict__ devDs, const size_t N_collocations)
+static __global__ void calculateRadialDsKernel(const double* __restrict__ dev_r, const double* __restrict__ devEtaPrime, double* __restrict__ devDs, const size_t N_collocations, double R = 1.0)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < N_collocations)
@@ -80,7 +80,7 @@ static __global__ void calculateRadialDsKernel(const double* __restrict__ dev_r,
 			else if (idx == N_collocations - 1)
 			{
 				// Cell goes from midpoint between last two points to r = R
-				dr = 1.0 - 0.5 * (dev_r[N_collocations - 2] +
+				dr = R - 0.5 * (dev_r[N_collocations - 2] +
 					dev_r[N_collocations - 1]);
 			}
 			else
@@ -146,7 +146,7 @@ template<size_t Nb, size_t N_collocations>
 void RadialVelocityCalculator<Nb, N_collocations>::calculateVelocities(double* devVelocitiesR, double* devVelocitiesZ, RadialPointers pointers, RadialProperties properties)
 {
 	besselGreenFunctions.calculateMatrices(pointers, properties);
-	calculateRadialDsKernel << <blocksPerGrid, threadsPerBlock >> > (pointers.dev_r, pointers.dev_z_prime, workspacePointers.devDeltaS, N_collocations);
+	calculateRadialDsKernel << <blocksPerGrid, threadsPerBlock >> > (pointers.dev_r, pointers.dev_z_prime, workspacePointers.devDeltaS, N_collocations, properties.R);
 	CHECK_CUDA(cudaGetLastError());
 	// create the S, D matrices used in the BI equation to obtain the normal velocities
 	this->createRadialMatrices(pointers, properties);
@@ -170,7 +170,7 @@ void RadialVelocityCalculator<Nb, N_collocations>::createRadialMatrices(RadialPo
 {
 	formBesselSDMatrices<<<matrixBlocksPerGrid, matrixThreadsPerBlock>>>(workspacePointers.devS, workspacePointers.devD, besselGreenFunctions.createDeviceView(), pointers, workspacePointers.devDeltaS, properties, 1);
 	checkCuda(cudaGetLastError(), __FUNCTION__, __FILE__, __LINE__);
-
+#ifdef TEST
 	CHECK_CUDA(cudaDeviceSynchronize());
 	// copy the matrix locally for observing it
 	double* hostS = reinterpret_cast<double*>(std::malloc(sizeof(double) * N_collocations * N_collocations));
@@ -195,7 +195,7 @@ void RadialVelocityCalculator<Nb, N_collocations>::createRadialMatrices(RadialPo
 
 	std::free(hostS);
 	std::free(hostD);
-#ifdef TEST
+
 	std::cout << "In TEST block" << std::endl;
 
 
@@ -205,7 +205,7 @@ void RadialVelocityCalculator<Nb, N_collocations>::createRadialMatrices(RadialPo
 template<size_t Nb, size_t N_collocations>
 void RadialVelocityCalculator<Nb, N_collocations>::calculateNormalVelocities(double* devNormalVelocities, RadialPointers pointers, RadialProperties properties)
 {
-	double alpha = -1.0;
+	double alpha = 1.0;
 	double beta = 0.0;
 	// calculate the b vector: D * phi, to solve: Sq + D phi = 0 for q
 	checkCublas(cublasDgemv(cublasHandle, CUBLAS_OP_N, N_collocations, N_collocations, &alpha, workspacePointers.devD, N_collocations, pointers.devPhi, 1, &beta, workspacePointers.devb, 1));

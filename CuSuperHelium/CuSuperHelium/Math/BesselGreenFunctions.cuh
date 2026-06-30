@@ -47,6 +47,7 @@ public:
 	/// <returns></returns>
 	__device__ __inline__ double calculateGreenFunction(size_t k, size_t j, RadialPointers pointers, RadialProperties properties);
 	__device__ __inline__ double calculatedGdn(size_t k, size_t j, RadialPointers pointers, RadialProperties properties);
+	__device__ __inline__ double getKappa(size_t k);
 private:
 	double* devZerosJ0; // Device pointer to store the zeros of the Bessel function J0, kappa_n = \beta_n / R, where beta_n is the n-th zero of J0.
 	double* devKappa; // Device pointer to store the values of kappa_n = \beta_n / R, where beta_n is the n-th zero of J0.
@@ -247,6 +248,12 @@ __device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, 
 		sumz += getWn(n) * getBnj(n, k) * getBnj(n, j) * calculate_g_prime(k, j, n, pointers, properties.depth);
 	}
 	return  (calculate_nr(j, pointers) * sumr + calculate_nz(j, pointers) * sumz) / calculate_norm_n(j, pointers);
+}
+
+template<size_t Nb, size_t N_collocations>
+__device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::getKappa(size_t k)
+{
+	return devKappa[k];
 }
 
 

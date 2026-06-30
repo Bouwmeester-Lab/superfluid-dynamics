@@ -14,6 +14,7 @@ struct RadialPointers {
 
 	// derivatives
 	double* dev_z_prime; // Device pointer to store the derivative with respect to r (used as parameter in the curve) of the z coordinates of the collocation points -> height' (deta/drho)
+	double* dev_z_pp; 
 
 	double* devPhi; // Device pointer to the potential
 	double* devPhiPrime; // Device pointer to the derivative of the potential with respect to r (used as parameter in the curve) -> potential' (dPhi/drho)

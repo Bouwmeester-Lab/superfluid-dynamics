@@ -353,6 +353,8 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 	double* dev_r;
 	double* dev_z;
 	double* dev_z_prime;
+	double* dev_z_pp;
+
 	double* dev_phi;
 	double* dev_phi_prime;
 
@@ -362,6 +364,8 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 	CHECK_CUDA(cudaMalloc(&dev_r, sizeof(double) * N));
 	CHECK_CUDA(cudaMalloc(&dev_z, sizeof(double) * N));
 	CHECK_CUDA(cudaMalloc(&dev_z_prime, sizeof(double) * N));
+	CHECK_CUDA(cudaMalloc(&dev_z_pp, sizeof(double) * N));
+	
 	CHECK_CUDA(cudaMalloc(&dev_phi, sizeof(double) * N));
 	CHECK_CUDA(cudaMalloc(&dev_phi_prime, sizeof(double) * N));
 
@@ -381,13 +385,14 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 
 	derivativeCalculator.calculateFirstDerivative(dev_z, dev_r, dev_z_prime, N);
 	derivativeCalculator.calculateFirstDerivative(dev_phi, dev_r, dev_phi_prime, N);
-
+	derivativeCalculator.calculateFirstDerivative(dev_z_prime, dev_r, dev_z_pp, N);
 
 
 	RadialPointers pointers{
 		.dev_r = dev_r,
 		.dev_z = dev_z,
 		.dev_z_prime = dev_z_prime,
+		.dev_z_pp = dev_z_pp,
 		.devPhi = dev_phi,
 		.devPhiPrime = dev_phi_prime
 	};
@@ -416,6 +421,7 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 	CHECK_CUDA(cudaFree(dev_z));
 	CHECK_CUDA(cudaFree(dev_phi));
 	CHECK_CUDA(cudaFree(dev_z_prime));
+	CHECK_CUDA(cudaFree(dev_z_pp));
 	CHECK_CUDA(cudaFree(dev_phi_prime));
 	CHECK_CUDA(cudaFree(dev_vr));
 	CHECK_CUDA(cudaFree(dev_vz));

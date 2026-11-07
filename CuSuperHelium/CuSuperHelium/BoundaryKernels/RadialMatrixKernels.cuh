@@ -36,7 +36,7 @@ static __global__ void formRadialSDMatrices(double* S, double* D, BoundaryNodes 
 	if (k == j) // handles the singular case when the source = field point. The solving of the singularity is left to "greens" and abstracted away.
 	{
 		green = greens.selfSingle(nodes, k);
-		dGreenDn = greens.selfDouble(nodes, k) + 0.5;
+		dGreenDn = greens.selfDouble(nodes, k) + 0.5; // TODO: 0.5 comes from c(P) in the PV integral. This IS AN ASSUMPTION OF SMOOTH SURFACE. THIS WILL NEED TO BE REVISITED FOR GENERAL CASES.
 	}
 	else // handles the source != field case. See Slide 269 PowerPoint "Solitons SuperFluid Helium"
 	{

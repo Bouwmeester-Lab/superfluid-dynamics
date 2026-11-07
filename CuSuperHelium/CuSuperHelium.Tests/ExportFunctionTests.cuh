@@ -14,7 +14,7 @@ extern "C"
 {
 	int integrateAugmentedOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N);
 	int integrateAugmentedOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut);
-	int calculateVelocitiesRadialSymmetry(const double* r, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N);
+	int calculateVelocitiesRadialSymmetry(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N);
 }
 
 namespace
@@ -170,6 +170,7 @@ TEST(ExportFunctions, RadialSymmetryZeroSurfaceAndPotentialIsAtRest)
 	constexpr double tolerance = 1.0e-12;
 
 	std::vector<double> r(N);
+	std::vector<double> z(N, 0.0);
 	std::vector<double> phi(N, 0.0);
 	std::vector<double> vr(N, std::numeric_limits<double>::quiet_NaN());
 	std::vector<double> vz(N, std::numeric_limits<double>::quiet_NaN());
@@ -185,6 +186,7 @@ TEST(ExportFunctions, RadialSymmetryZeroSurfaceAndPotentialIsAtRest)
 
 	const int result = calculateVelocitiesRadialSymmetry(
 		r.data(),
+		z.data(),
 		phi.data(),
 		vr.data(),
 		vz.data(),

@@ -219,7 +219,7 @@ __device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, 
 {
 	if (k == j) 
 	{
-		return 1.0; // TODO: handle the singularity case when k == j, possibly using a limit.
+		return 1.0; // this is handled in the formation of the S, D matrices not at the evaluation of the Green's function.
 	}
 	else 
 	{
@@ -272,7 +272,7 @@ inline __device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceVi
 template<size_t Nb, size_t N_collocations>
 inline __device__ __inline__ double DirichletNeumannBesselGreenFunctionsDeviceView<Nb, N_collocations>::calculate_g(size_t k, size_t j, size_t n, RadialPointers pointers, double depth) const
 {
-	return exp(-devKappa[n] * fabs(pointers.dev_z[k] - pointers.dev_z[j])) + exp(-devKappa[n] * (pointers.dev_z[k] + pointers.dev_z[j] + 2.0 * depth));
+	return exp(-1.0*devKappa[n] * fabs(pointers.dev_z[k] - pointers.dev_z[j])) + exp(-devKappa[n] * (pointers.dev_z[k] + pointers.dev_z[j] + 2.0 * depth));
 }
 
 template<size_t Nb, size_t N_collocations>

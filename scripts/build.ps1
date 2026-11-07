@@ -7,14 +7,20 @@
     previews, because the projects use the v145 toolset (Visual Studio 18).
     Set CUSH_MSBUILD to the full path of MSBuild.exe to override the search.
 
+    Use -Rebuild after editing headers. The CUDA build tracks header
+    dependencies through nvcc's generated .deps files, and these miss some
+    included .cuh files, so an incremental build can leave stale binaries.
+
 .EXAMPLE
     ./scripts/build.ps1
+    ./scripts/build.ps1 -Rebuild
     ./scripts/build.ps1 -Configuration Debug
 #>
 param(
     [ValidateSet("Release", "Debug")]
     [string]$Configuration = "Release",
-    [string]$Platform = "x64"
+    [string]$Platform = "x64",
+    [switch]$Rebuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,11 +41,12 @@ function Find-MSBuild {
 
 $msbuild = Find-MSBuild
 Write-Host "MSBuild: $msbuild"
-Write-Host "Building $Configuration|$Platform"
+$target = if ($Rebuild) { "Rebuild" } else { "Build" }
+Write-Host "$target $Configuration|$Platform"
 
 # Native stderr must not stop the script (Windows PowerShell 5.1 turns it into errors); the exit code decides.
 $ErrorActionPreference = "Continue"
-& $msbuild $solution /m /nologo /verbosity:minimal "/p:Configuration=$Configuration" "/p:Platform=$Platform" 2>&1 | ForEach-Object { "$_" }
+& $msbuild $solution /m /nologo /verbosity:minimal "/t:$target" "/p:Configuration=$Configuration" "/p:Platform=$Platform" 2>&1 | ForEach-Object { "$_" }
 $ErrorActionPreference = "Stop"
 if ($LASTEXITCODE -ne 0) {
     $code = $LASTEXITCODE

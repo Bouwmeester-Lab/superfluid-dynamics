@@ -5,6 +5,7 @@
 #include "gtest/gtest.h"
 #include <complex>
 #include <array>
+#include <stdexcept>
 #include "Derivatives.cuh"
 #include "WaterVelocities.cuh"
 #include "matplotlibcpp.h"
@@ -67,7 +68,10 @@ void prepareZPhi(std_complex* Z, std_complex* _Phi, std_complex* Zp, std_complex
 	}
 }
 
-double theoreticalMMatrix(int k, int j, double h) 
+/// <summary>
+/// Closed-form M matrix for N = 2 collocation points, so only k, j in {0, 1} exist.
+/// </summary>
+double theoreticalMMatrix(int k, int j, double h)
 {
 	if (k == 0 && j == 0) 
 	{
@@ -85,6 +89,7 @@ double theoreticalMMatrix(int k, int j, double h)
 	{
 		return (h - 1) / 4.0 * std::sinh(2.0 * h) / (std::cosh(2.0 * h) + 1.0);
 	}
+	throw std::out_of_range("theoreticalMMatrix: the closed form only covers N = 2 (k, j in {0, 1})");
 }
 
 void createMMatrix(double* M, double h, double omega, double rho, double t, int N) 

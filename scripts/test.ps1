@@ -10,6 +10,7 @@
 .EXAMPLE
     ./scripts/test.ps1
     ./scripts/test.ps1 -Build
+    ./scripts/test.ps1 -Rebuild     # full rebuild first; use after editing headers
     ./scripts/test.ps1 -GTestFilter "Radial*"
     ./scripts/test.ps1 -SkipGTest
 #>
@@ -17,6 +18,7 @@ param(
     [ValidateSet("Release", "Debug")]
     [string]$Configuration = "Release",
     [switch]$Build,
+    [switch]$Rebuild,
     [switch]$SkipGTest,
     [switch]$SkipPython,
     [string]$GTestFilter = "*",
@@ -27,8 +29,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $outDir = Join-Path $repoRoot "CuSuperHelium\x64\$Configuration"
 
-if ($Build) {
-    & (Join-Path $PSScriptRoot "build.ps1") -Configuration $Configuration
+if ($Build -or $Rebuild) {
+    & (Join-Path $PSScriptRoot "build.ps1") -Configuration $Configuration -Rebuild:$Rebuild
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

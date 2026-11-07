@@ -10,6 +10,7 @@
 #include "ComplexFunctionsTests.cuh"
 #include "IntegrationPathEquivalenceTests.cuh"
 #include "ExportFunctionTests.cuh"
+#include "RadialBoundaryNodesTests.cuh"
 
 int main(int argc, char** argv) {
     // Optional: CUDA setup check

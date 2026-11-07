@@ -341,125 +341,97 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 
 constexpr size_t RADIAL_BESSEL_MODE_COUNT = 1024;
 
-template <size_t N, size_t bessel_mode_count>
-int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties)
+namespace
 {
-	ProblemProperties properties;
-	properties.rho = simProperties->rho;
-	properties.kappa = simProperties->kappa;
-	properties.depth = simProperties->depth;
-	properties.L = simProperties->L;
-	// adimensionalize properties
-
-	// copy to device
-	double* dev_r;
-	double* dev_z;
-	double* dev_z_prime;
-	double* dev_z_pp;
-
-	double* dev_phi;
-	double* dev_phi_prime;
-
-	double* dev_vr;
-	double* dev_vz;
-
-	CHECK_CUDA(cudaMalloc(&dev_r, sizeof(double) * N));
-	CHECK_CUDA(cudaMalloc(&dev_z, sizeof(double) * N));
-	CHECK_CUDA(cudaMalloc(&dev_z_prime, sizeof(double) * N));
-	CHECK_CUDA(cudaMalloc(&dev_z_pp, sizeof(double) * N));
-	
-	CHECK_CUDA(cudaMalloc(&dev_phi, sizeof(double) * N));
-	CHECK_CUDA(cudaMalloc(&dev_phi_prime, sizeof(double) * N));
-
-	CHECK_CUDA(cudaMalloc(&dev_vr, sizeof(double) * N));
-	CHECK_CUDA(cudaMalloc(&dev_vz, sizeof(double) * N));
-
-	CHECK_CUDA(cudaMemcpy(dev_r, r, sizeof(double) * N, cudaMemcpyHostToDevice));
-	if (z != nullptr) {
-		CHECK_CUDA(cudaMemcpy(dev_z, z, sizeof(double) * N, cudaMemcpyHostToDevice));
-	}
-	else {
-		CHECK_CUDA(cudaMemset(dev_z, 0, sizeof(double) * N));
-	}
-	CHECK_CUDA(cudaMemcpy(dev_phi, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
-
-	FiniteDifferenceDerivativeCalculator derivativeCalculator;
-
-	derivativeCalculator.calculateFirstDerivative(dev_z, dev_r, dev_z_prime, N);
-	derivativeCalculator.calculateFirstDerivative(dev_phi, dev_r, dev_phi_prime, N);
-	derivativeCalculator.calculateFirstDerivative(dev_z_prime, dev_r, dev_z_pp, N);
-
-
-	RadialPointers pointers{
-		.dev_r = dev_r,
-		.dev_z = dev_z,
-		.dev_z_prime = dev_z_prime,
-		.dev_z_pp = dev_z_pp,
-		.devPhi = dev_phi,
-		.devPhiPrime = dev_phi_prime
+	/// <summary>
+	/// Owns one device array of doubles; freed when it goes out of scope (also on exceptions).
+	/// </summary>
+	struct DeviceDoubles
+	{
+		double* ptr = nullptr;
+		explicit DeviceDoubles(size_t count) { CHECK_CUDA(cudaMalloc(&ptr, sizeof(double) * count)); }
+		~DeviceDoubles() { cudaFree(ptr); }
+		DeviceDoubles(const DeviceDoubles&) = delete;
+		DeviceDoubles& operator=(const DeviceDoubles&) = delete;
 	};
+}
 
-	RadialProperties radialProperties{
-		.R = 1.0,
-		.depth = simProperties->depth / simProperties->L
-	};
+int calculateVelocitiesRadialSymmetryModes(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N, size_t nModes)
+{
+	if (N < 2)
+	{
+		std::cerr << "Error: the radial solver needs at least 2 collocation points, got " << N << std::endl;
+		return -1;
+	}
+	if (nModes == 0)
+	{
+		std::cerr << "Error: the Bessel-series Green function needs at least 1 mode" << std::endl;
+		return -1;
+	}
 
-	std::cout << "Calculating velocities for N = " << N << ", bessel_mode_count = " << bessel_mode_count << std::endl;
-	std::cout << "Properties: R = " << radialProperties.R << ", depth = " << radialProperties.depth << std::endl;
+	try
+	{
+		DeviceDoubles dev_r(N);
+		DeviceDoubles dev_z(N);
+		DeviceDoubles dev_z_prime(N);
+		DeviceDoubles dev_z_pp(N);
+		DeviceDoubles dev_phi(N);
+		DeviceDoubles dev_phi_prime(N);
+		DeviceDoubles dev_vr(N);
+		DeviceDoubles dev_vz(N);
 
+		CHECK_CUDA(cudaMemcpy(dev_r.ptr, r, sizeof(double) * N, cudaMemcpyHostToDevice));
+		if (z != nullptr) {
+			CHECK_CUDA(cudaMemcpy(dev_z.ptr, z, sizeof(double) * N, cudaMemcpyHostToDevice));
+		}
+		else {
+			CHECK_CUDA(cudaMemset(dev_z.ptr, 0, sizeof(double) * N));
+		}
+		CHECK_CUDA(cudaMemcpy(dev_phi.ptr, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
 
-	RadialVelocityCalculator<bessel_mode_count, N> radialVelocityCalculator;
+		FiniteDifferenceDerivativeCalculator derivativeCalculator;
 
+		derivativeCalculator.calculateFirstDerivative(dev_z.ptr, dev_r.ptr, dev_z_prime.ptr, N);
+		derivativeCalculator.calculateFirstDerivative(dev_phi.ptr, dev_r.ptr, dev_phi_prime.ptr, N);
+		derivativeCalculator.calculateFirstDerivative(dev_z_prime.ptr, dev_r.ptr, dev_z_pp.ptr, N);
 
+		const RadialSurfaceState surface{
+			.r = dev_r.ptr,
+			.eta = dev_z.ptr,
+			.etaPrime = dev_z_prime.ptr,
+			.etaPrimePrime = dev_z_pp.ptr,
+			.phi = dev_phi.ptr,
+			.phiPrime = dev_phi_prime.ptr,
+			.n = N
+		};
 
-	radialVelocityCalculator.initialize(pointers, radialProperties);
+		const RadialProperties radialProperties{
+			.R = 1.0,
+			.depth = simProperties->depth / simProperties->L
+		};
 
-	// calculate velocities
+		std::cout << "Calculating velocities for N = " << N << ", bessel_mode_count = " << nModes << std::endl;
+		std::cout << "Properties: R = " << radialProperties.R << ", depth = " << radialProperties.depth << std::endl;
 
-	radialVelocityCalculator.calculateVelocities(dev_vr, dev_vz, pointers, radialProperties);
+		RadialVelocityCalculator radialVelocityCalculator(N, nModes);
+		radialVelocityCalculator.initialize(radialProperties);
+		radialVelocityCalculator.calculateVelocities(dev_vr.ptr, dev_vz.ptr, surface, radialProperties);
 
-	CHECK_CUDA(cudaMemcpy(vr, dev_vr, sizeof(double) * N, cudaMemcpyDeviceToHost));
-	CHECK_CUDA(cudaMemcpy(vz, dev_vz, sizeof(double) * N, cudaMemcpyDeviceToHost));
-
-
-	CHECK_CUDA(cudaFree(dev_r));
-	CHECK_CUDA(cudaFree(dev_z));
-	CHECK_CUDA(cudaFree(dev_phi));
-	CHECK_CUDA(cudaFree(dev_z_prime));
-	CHECK_CUDA(cudaFree(dev_z_pp));
-	CHECK_CUDA(cudaFree(dev_phi_prime));
-	CHECK_CUDA(cudaFree(dev_vr));
-	CHECK_CUDA(cudaFree(dev_vz));
+		CHECK_CUDA(cudaMemcpy(vr, dev_vr.ptr, sizeof(double) * N, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(vz, dev_vz.ptr, sizeof(double) * N, cudaMemcpyDeviceToHost));
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
 
 	return 0;
 }
 
 int calculateVelocitiesRadialSymmetry(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N)
 {
-	switch (N) {
-	case 4:
-		return calculateVelocitiesRadialSymmetryTemplate<4, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 8:
-		return calculateVelocitiesRadialSymmetryTemplate<8, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 128:
-		return calculateVelocitiesRadialSymmetryTemplate<128, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 256:
-		return calculateVelocitiesRadialSymmetryTemplate<256, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 512:
-		return calculateVelocitiesRadialSymmetryTemplate<512, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 1024:
-		return calculateVelocitiesRadialSymmetryTemplate<1024, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 2048:
-		return calculateVelocitiesRadialSymmetryTemplate<2048, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 4096:
-		return calculateVelocitiesRadialSymmetryTemplate<4096, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	case 8192:
-		return calculateVelocitiesRadialSymmetryTemplate<8192, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
-	default:
-		std::cerr << "Error: Unsupported particle number" << N << std::endl;
-		std::cerr << "Supported particle numbers are: 128, 256, 512" << std::endl;
-		return -1;
-	}
+	return calculateVelocitiesRadialSymmetryModes(r, z, phi, vr, vz, simProperties, N, RADIAL_BESSEL_MODE_COUNT);
 }
 
 

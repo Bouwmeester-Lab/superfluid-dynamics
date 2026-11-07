@@ -32,7 +32,15 @@ extern "C"
 	/// <param name="depth">The depth parameter.</param>
 	/// <returns>Returns an integer status code indicating the success or failure of the calculation.</returns>
 	__declspec(dllexport) int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, double L, double rho, double kappa, double depth);
+	/// <summary>
+	/// Surface velocities (v_r, v_z) of an axisymmetric flow from the surface z(r) and potential phi(r) at N points,
+	/// using the Bessel-series Green function with the default number of modes (1024). Any N >= 2.
+	/// </summary>
 	__declspec(dllexport) int calculateVelocitiesRadialSymmetry(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N);
+	/// <summary>
+	/// Same as calculateVelocitiesRadialSymmetry, with the number of Bessel modes nModes chosen by the caller.
+	/// </summary>
+	__declspec(dllexport) int calculateVelocitiesRadialSymmetryModes(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N, size_t nModes);
 
 	__declspec(dllexport) int calculateDerivativeFFT256(const c_double* input, c_double* output);
 	__declspec(dllexport) int calculateJacobian(const double* state, double* jac, double L, double rho, double kappa, double depth, double epsilon, size_t N);

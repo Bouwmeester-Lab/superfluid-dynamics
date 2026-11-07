@@ -339,7 +339,9 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 }
 
 
-template <size_t N, size_t mode_number>
+constexpr size_t RADIAL_BESSEL_MODE_COUNT = 1024;
+
+template <size_t N, size_t bessel_mode_count>
 int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties)
 {
 	ProblemProperties properties;
@@ -402,8 +404,11 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 		.depth = simProperties->depth / simProperties->L
 	};
 
+	std::cout << "Calculating velocities for N = " << N << ", bessel_mode_count = " << bessel_mode_count << std::endl;
+	std::cout << "Properties: R = " << radialProperties.R << ", depth = " << radialProperties.depth << std::endl;
 
-	RadialVelocityCalculator<mode_number, N> radialVelocityCalculator;
+
+	RadialVelocityCalculator<bessel_mode_count, N> radialVelocityCalculator;
 
 
 
@@ -429,19 +434,27 @@ int calculateVelocitiesRadialSymmetryTemplate(const double* r, const double* z, 
 	return 0;
 }
 
-int calculateVelocitiesRadialSymmetry(const double* r, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N)
+int calculateVelocitiesRadialSymmetry(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N)
 {
 	switch (N) {
 	case 4:
-		return calculateVelocitiesRadialSymmetryTemplate<4, 1>(r, nullptr, phi, vr, vz, simProperties);
+		return calculateVelocitiesRadialSymmetryTemplate<4, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
 	case 8:
-		return calculateVelocitiesRadialSymmetryTemplate<8, 1>(r, nullptr, phi, vr, vz, simProperties);
+		return calculateVelocitiesRadialSymmetryTemplate<8, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
 	case 128:
-		return calculateVelocitiesRadialSymmetryTemplate<128, 1>(r, nullptr, phi, vr, vz, simProperties);
+		return calculateVelocitiesRadialSymmetryTemplate<128, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
 	case 256:
-		return calculateVelocitiesRadialSymmetryTemplate<256, 1>(r, nullptr, phi, vr, vz, simProperties);
+		return calculateVelocitiesRadialSymmetryTemplate<256, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
 	case 512:
-		return calculateVelocitiesRadialSymmetryTemplate<512, 1>(r, nullptr, phi, vr, vz, simProperties);
+		return calculateVelocitiesRadialSymmetryTemplate<512, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
+	case 1024:
+		return calculateVelocitiesRadialSymmetryTemplate<1024, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
+	case 2048:
+		return calculateVelocitiesRadialSymmetryTemplate<2048, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
+	case 4096:
+		return calculateVelocitiesRadialSymmetryTemplate<4096, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
+	case 8192:
+		return calculateVelocitiesRadialSymmetryTemplate<8192, RADIAL_BESSEL_MODE_COUNT>(r, z, phi, vr, vz, simProperties);
 	default:
 		std::cerr << "Error: Unsupported particle number" << N << std::endl;
 		std::cerr << "Supported particle numbers are: 128, 256, 512" << std::endl;

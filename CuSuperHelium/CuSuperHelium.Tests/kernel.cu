@@ -4,6 +4,8 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#include <cstdlib>
+#include <string>
 #include <gtest/gtest.h>
 #include "MatrixMTests.cuh"
 #include "ODESolverTests.cuh"
@@ -24,6 +26,10 @@ int main(int argc, char** argv) {
     // Run all tests
     int res = RUN_ALL_TESTS();
 
-    plt::show();
+    // Figures made by tests are shown only on request, so automated runs never block.
+    const char* showPlots = std::getenv("CUSH_SHOW_PLOTS");
+    if (showPlots != nullptr && std::string(showPlots) == "1") {
+        plt::show();
+    }
 	return res;
 }

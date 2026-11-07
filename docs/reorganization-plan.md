@@ -116,6 +116,18 @@ Each phase is one PR. Each must pass the gtest suite and the golden regression f
 - Add `scripts/build.ps1` (MSBuild path, Release x64) and `scripts/test.ps1` (gtest + pytest).
 - Make the gtest executable non-interactive: `plt::show()` in `main` runs only when `CUSH_SHOW_PLOTS=1` (see "Visual tests").
 - **Done when:** one command builds, runs gtest and compares goldens on a clean checkout of this machine.
+- **Status: done** on branch `reorg/phase-0-safety-net`.
+  - 17 golden cases in `CuSuperHelium/Python/tests/golden/` (about 600 KB). They cover every export that does work: RHS (N and fixed-256, batched), vorticities, FFT derivative, Jacobian, Gauss-Legendre, optomechanical and augmented RK4 (constant and ramped), augmented RHS, and the radial Bessel solver.
+  - Run-to-run output on the same GPU is bit-identical. The tolerances (1e-10 relative, 1e-9 for integrations) only leave room for harmless reordering of floating-point operations.
+  - `scripts/test.ps1` runs 26 gtests and 17 golden cases in about 15 seconds.
+- **Found while doing Phase 0** (to fix in Phase 1):
+  - `integrateSimulationRK4` is an empty stub that returns 0 without integrating. Either implement it or remove it from the ABI.
+  - Compiler warnings that are real bugs:
+    - uninitialized `i` in `RK45.cuh:203` and `x` in `ComplexFunctionsTests.cuh`;
+    - missing return paths in `runEvolution` (`AutonomousRungeKuttaStepper.cuh:437`, `RK4_Time_Dependent.cuh:412`) and `theoreticalMMatrix`.
+  - A post-build step calls `pwsh.exe`, which is not installed, so it silently fails.
+  - In `rhs.py`, several bindings declare structs by value, while the C functions take pointers. This works only because the x64 calling convention passes large structs by reference. Phase 6 should declare them as `POINTER(...)`.
+  - The radial golden output for a curved surface is not converged in N, which is the known Bessel-truncation error. The golden freezes it so refactors stay neutral. Option A will replace these values with intended changes.
 
 ### Phase 1 — Hygiene, no moves
 
@@ -123,7 +135,7 @@ Each phase is one PR. Each must pass the gtest suite and the golden regression f
 - Delete the dead files listed above.
 - Fix the spelling errors (`Elliptic*`, `RealBoundaryIntegralCalculator`), with one commit per rename.
 - Add `Core/DeviceBuffer.cuh` (RAII device array) and use it in the exports in place of manual `cudaMalloc`/`cudaFree` pairs, which leak on exceptions today.
-- Stop tracking generated data: add `*.h5`, `*.avi`, `CuSuperHelium/CuSuperHelium/temp/`, `Python/figures/` and `test-output/` to `.gitignore`, and `git rm --cached` the existing files. The files stay on disk. Copy the videos you want to keep to lab storage or OneDrive first.
+- Stop tracking generated data: add `*.h5`, `*.avi`, `CuSuperHelium/CuSuperHelium/temp/`, `Python/figures/` and `test-output/` to `.gitignore`, and `git rm --cached` the existing files. The files stay on disk, and none of them need to be kept: they can be regenerated with the solver.
 - **Done when:** the DLL builds without Python libraries and goldens match.
 
 ### Phase 1b — Remove binaries from history

@@ -131,7 +131,7 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 	default:
 		std::cerr << "Error: Unsupported N size " << N << std::endl;
 		std::cerr << "Supported N sizes are: 32, 64, 128, 256, 512, 1024, 2048" << std::endl;
-		break;
+		return -1;
 	}
 }
 

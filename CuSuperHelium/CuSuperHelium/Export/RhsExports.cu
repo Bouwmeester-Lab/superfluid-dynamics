@@ -249,8 +249,8 @@ int calculateRHS256FromVectorsBatched(const double* x, const double* y, const do
 			return calculateRHSNFromVectors<256, 2048>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 	default:
 		std::cerr << "Error: Unsupported batch size " << batchSize << std::endl;
-		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256" << std::endl;
-		break;
+		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048" << std::endl;
+		return -1;
 	}
 }
 
@@ -289,9 +289,9 @@ int calculateRHSFromVectors(const double* x, const double* y, const double* phi,
 	case 4096:
 		return calculateRHSNFromVectors<4096, 1>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 	default:
-		std::cerr << "Error: Unsupported particle number" << N << std::endl;
-		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096" << std::endl;
-		break;
+		std::cerr << "Error: Unsupported particle number " << N << std::endl;
+		std::cerr << "Supported particle numbers are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096" << std::endl;
+		return -1;
 	}
 }
 

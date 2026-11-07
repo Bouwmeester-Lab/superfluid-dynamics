@@ -434,6 +434,7 @@ OdeSolverResult AutonomousRungeKuttaStepperBase<T, N>::runEvolution(double start
 	}
 	if (currentTime >= endTime)
 		return OdeSolverResult::ReachedEndTime;
+	return OdeSolverResult::UnknownError;
 }
 
 template <int N>

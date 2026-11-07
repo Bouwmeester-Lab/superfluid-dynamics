@@ -33,12 +33,12 @@ static __global__ void formRadialSDMatrices(double* S, double* D, BoundaryNodes 
 
 	double green;
 	double dGreenDn;
-	if (k == j)
+	if (k == j) // handles the singular case when the source = field point. The solving of the singularity is left to "greens" and abstracted away.
 	{
 		green = greens.selfSingle(nodes, k);
 		dGreenDn = greens.selfDouble(nodes, k) + 0.5;
 	}
-	else
+	else // handles the source != field case. See Slide 269 PowerPoint "Solitons SuperFluid Helium"
 	{
 		const double sourceMeasure = nodes.r[j] * nodes.ds[j];
 		green = sourceMeasure * greens.G(nodes, k, j);

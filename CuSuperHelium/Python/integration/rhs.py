@@ -76,6 +76,13 @@ class COptomechanicalProperties(Structure):
                 ("omega_drive", c_double),
                 ]
 
+# TODO(struct-pointers): several bindings below declare the parameter structs by value
+# (CSimulationProperties, CGaussLegendreProperties, CRK4Options, COptomechanicalProperties) while
+# the C exports take pointers (SimProperties*, ...). It works only because the Windows x64 calling
+# convention passes structs larger than 8 bytes by reference to a copy. Declare them as
+# POINTER(...) and pass byref(...) as calculate_velocities_radial_symmetry does, before running on
+# any other platform. Affected: integrate, integrate_optomechanical_problem,
+# integrate_augmented_optomechanical_problem, calculate_augmented_rhs.
 class SimulationManager:
     def __init__(self, dll_path: str | None = None):
         paths = os.environ[ 'path' ].split( ';' )
@@ -271,6 +278,7 @@ class SimulationManager:
         return self.lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, L, rho, kappa, depth, epsilon, n), J
     
     def integrate(self : Self, y0 : NDArray, sim_props : CSimulationProperties, gl_props : CGaussLegendreProperties):
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.integrateSimulationGL2.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),
                                        POINTER(c_size_t),
@@ -311,6 +319,7 @@ class SimulationManager:
             # empty the allocated memory in C++
             self.lib.integrateSimulationGL2_freeMemory(states_ptr, times_ptr)
     def integrate_optomechanical_problem(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties, rk4_props : CRK4Options):
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.integrateOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),
                                        POINTER(c_size_t),
@@ -360,6 +369,7 @@ class SimulationManager:
             if length % 4 != 1:
                 raise ValueError("Initial state vector length must be of the form 4n + 1 when ramping or sine driving is enabled")
         
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.integrateAugmentedOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),
                                        POINTER(c_size_t),
@@ -402,6 +412,7 @@ class SimulationManager:
             # empty the allocated memory in C++
             self.lib.integrateAugmentedOptomechanicalSimulationRK4_freeMemory(states_ptr, times_ptr)
     def calculate_augmented_rhs(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties):
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.calculateRhsAugmentedOptomechanical.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), CSimulationProperties, COptomechanicalProperties, c_size_t)
         self.lib.calculateRhsAugmentedOptomechanical.restype = c_int
 

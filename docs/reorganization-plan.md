@@ -120,13 +120,13 @@ Each phase is one PR. Each must pass the gtest suite and the golden regression f
   - 17 golden cases in `CuSuperHelium/Python/tests/golden/` (about 600 KB). They cover every export that does work: RHS (N and fixed-256, batched), vorticities, FFT derivative, Jacobian, Gauss-Legendre, optomechanical and augmented RK4 (constant and ramped), augmented RHS, and the radial Bessel solver.
   - Run-to-run output on the same GPU is bit-identical. The tolerances (1e-10 relative, 1e-9 for integrations) only leave room for harmless reordering of floating-point operations.
   - `scripts/test.ps1` runs 26 gtests and 17 golden cases in about 15 seconds.
-- **Found while doing Phase 0** (to fix in Phase 1):
-  - `integrateSimulationRK4` is an empty stub that returns 0 without integrating. Either implement it or remove it from the ABI.
-  - Compiler warnings that are real bugs:
-    - uninitialized `i` in `RK45.cuh:203` and `x` in `ComplexFunctionsTests.cuh`;
-    - missing return paths in `runEvolution` (`AutonomousRungeKuttaStepper.cuh:437`, `RK4_Time_Dependent.cuh:412`) and `theoreticalMMatrix`.
-  - A post-build step calls `pwsh.exe`, which is not installed, so it silently fails.
-  - In `rhs.py`, several bindings declare structs by value, while the C functions take pointers. This works only because the x64 calling convention passes large structs by reference. Phase 6 should declare them as `POINTER(...)`.
+- **Found while doing Phase 0:**
+  - Fixed:
+    - the empty `integrateSimulationRK4` stub was removed from the ABI;
+    - the uninitialized `i` in `RK45.cuh` is fixed;
+    - missing return paths in `RK45.cuh` and `AutonomousRungeKuttaStepper.cuh` are fixed (`OdeSolverResult::UnknownError`).
+  - Not an issue: the `pwsh.exe` post-build call is a fallback and works as intended.
+  - Deferred (Phase 6): in `rhs.py`, several bindings declare structs by value while the C functions take pointers. This works because the Windows x64 calling convention passes large structs by reference, and the code only runs on Windows for now. Marked `TODO(struct-pointers)` in `rhs.py`.
   - The radial golden output for a curved surface is not converged in N, which is the known Bessel-truncation error. The golden freezes it so refactors stay neutral. Option A will replace these values with intended changes.
 
 ### Phase 1 — Hygiene, no moves

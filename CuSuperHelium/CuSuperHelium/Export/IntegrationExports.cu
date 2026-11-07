@@ -101,11 +101,6 @@ int integrateSimulationRK4_N(double* initialState, double** statesOut, size_t* s
 	}
 }
 
-int integrateSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N)
-{
-	return 0;
-}
-
 int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut)
 {
 	std::free(statesOut);

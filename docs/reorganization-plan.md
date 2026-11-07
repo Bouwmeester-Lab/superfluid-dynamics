@@ -130,7 +130,7 @@ Each phase is one PR. Each must pass the gtest suite and the golden regression f
     - `theoreticalMMatrix` throws for entries outside the N = 2 closed form.
   - Not an issue: the `pwsh.exe` post-build call is a fallback and works as intended.
   - **Incremental builds miss header changes.** nvcc's generated `.deps` files leave out some included `.cuh` files (for example `ComplexFunctionsTests.cuh` and `RK45.cuh` for the test project), so MSBuild can keep stale objects after a header-only edit. Until Phase 5 looks at this, run `scripts/test.ps1 -Rebuild` (about 2 minutes) before trusting a golden comparison after editing headers.
-  - Found by the first full rebuild (to fix in Phase 1): the `switch (N)` exports `calculateJacobian`, `calculateRHSFromVectors` and `calculateRHS256FromVectorsBatched` fall off the end for an unsupported N without returning, as `integrateSimulationGL2` did before. They should return -1.
+  - Fixed after the first full rebuild: the `switch (N)` exports `calculateJacobian`, `calculateRHSFromVectors` and `calculateRHS256FromVectorsBatched` fell off the end for an unsupported N. They now return -1, which `Python/tests/test_export_errors.py` checks. A full rebuild now has no C4700 or C4715 warnings.
   - Deferred (Phase 6): in `rhs.py`, several bindings declare structs by value while the C functions take pointers. This works because the Windows x64 calling convention passes large structs by reference, and the code only runs on Windows for now. Marked `TODO(struct-pointers)` in `rhs.py`.
   - The radial golden output for a curved surface is not converged in N, which is the known Bessel-truncation error. The golden freezes it so refactors stay neutral. Option A will replace these values with intended changes.
 

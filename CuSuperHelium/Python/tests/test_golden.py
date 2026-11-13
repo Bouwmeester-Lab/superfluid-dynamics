@@ -30,8 +30,12 @@ DEPTH_SI = 15.0e-9
 RHO = 150.0
 KAPPA = 0.0
 
-# Base units, mirroring adimensionalizeProperties in Export/ExportProperties.cu.
+# Material the goldens were recorded with (helium film), passed explicitly to every call.
 ALPHA_HAMAKER = 3.5e-24
+FILM_DENSITY = 150.0
+MATERIAL = dict(hamaker_constant=ALPHA_HAMAKER, film_density=FILM_DENSITY)
+
+# Base units, mirroring Physics/NonDimensionalization.h.
 BASE_LENGTH = L_SI / (2.0 * np.pi)
 BASE_TIME = np.sqrt(BASE_LENGTH / (3.0 * ALPHA_HAMAKER / DEPTH_SI**4))
 
@@ -46,7 +50,7 @@ def periodic_state(n: int, amplitude: float = 0.01) -> tuple[np.ndarray, np.ndar
 
 def sim_props(rhs):
     return rhs.CSimulationProperties(L=L_SI, rho=RHO, kappa=KAPPA, depth=DEPTH_SI,
-                                     use_expansions=False, expansion_order=2, infinite_depth=False)
+                                     use_expansions=False, expansion_order=2, infinite_depth=False, **MATERIAL)
 
 
 def optomechanical_props(rhs, drive_type: int):
@@ -80,7 +84,7 @@ Outputs = dict[str, np.ndarray]
 def case_rhs_from_vectors(n: int) -> Callable[..., Outputs]:
     def run(sim, rhs) -> Outputs:
         x, y, phi = periodic_state(n)
-        res, vx, vy, dphi = sim.calculate_rhs_from_vectors(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI)
+        res, vx, vy, dphi = sim.calculate_rhs_from_vectors(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
         assert res == 0
         return {"vx": vx, "vy": vy, "dphi": dphi}
     return run
@@ -88,7 +92,7 @@ def case_rhs_from_vectors(n: int) -> Callable[..., Outputs]:
 
 def case_rhs256_fixed(sim, rhs) -> Outputs:
     x, y, phi = periodic_state(256)
-    res, vx, vy, dphi = sim.calculate_rhs256_from_vectors(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI)
+    res, vx, vy, dphi = sim.calculate_rhs256_from_vectors(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
     assert res == 0
     return {"vx": vx, "vy": vy, "dphi": dphi}
 
@@ -97,14 +101,14 @@ def case_rhs256_batched(sim, rhs) -> Outputs:
     batch = 4
     states = [periodic_state(256, amplitude=0.005 * (b + 1)) for b in range(batch)]
     x, y, phi = (np.concatenate([s[k] for s in states]) for k in range(3))
-    res, vx, vy, dphi = sim.calculate_rhs256_from_vectors_batched(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, batch)
+    res, vx, vy, dphi = sim.calculate_rhs256_from_vectors_batched(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, batch, **MATERIAL)
     assert res == 0
     return {"vx": vx, "vy": vy, "dphi": dphi}
 
 
 def case_vorticities256(sim, rhs) -> Outputs:
     x, y, phi = periodic_state(256)
-    out = sim.calculate_vorticities256_from_vectors(x + 1j * y, phi.astype(np.complex128), L_SI, RHO, KAPPA, DEPTH_SI)
+    out = sim.calculate_vorticities256_from_vectors(x + 1j * y, phi.astype(np.complex128), L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
     res, a, zp, zpp = out
     assert res == 0
     return {"a": a, "Zp": zp, "Zpp": zpp}
@@ -121,7 +125,7 @@ def case_derivative_fft256(sim, rhs) -> Outputs:
 def case_jacobian(n: int) -> Callable[..., Outputs]:
     def run(sim, rhs) -> Outputs:
         x, y, phi = periodic_state(n)
-        res, jac = sim.calculate_jacobian(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI)
+        res, jac = sim.calculate_jacobian(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
         assert res == 0
         return {"J": jac}
     return run
@@ -186,7 +190,7 @@ def case_radial(n: int) -> Callable[..., Outputs]:
         out: Outputs = {}
         for name, z in surfaces.items():
             for depth in (0.1, 1.0):
-                props = rhs.CSimulationProperties(1.0, 145.0, 0.0, depth, False, 2, False)
+                props = rhs.CSimulationProperties(1.0, 145.0, 0.0, depth, False, 2, False, **MATERIAL)
                 res, vr, vz = sim.calculate_velocities_radial_symmetry(r, z, phi, props)
                 assert res == 0
                 out[f"{name}_d{depth}_vr"] = vr

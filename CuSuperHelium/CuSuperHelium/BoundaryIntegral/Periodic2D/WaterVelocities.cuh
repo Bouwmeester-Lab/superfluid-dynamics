@@ -151,12 +151,12 @@ public:
 template<int N, size_t batchSize>
 VelocityCalculator<N, batchSize>::VelocityCalculator() : matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize)
 {
-	cublasCreate(&handle);
+	CUSH_CHECK(cublasCreate(&handle));
 
 	if (batchSize != 1) {
-		checkCuda(cudaMalloc((void**)&devPtrV1Array, batchSize * sizeof(cuDoubleComplex*)));
-		checkCuda(cudaMalloc((void**)&devPtrAArray, batchSize * sizeof(cuDoubleComplex*)));
-		checkCuda(cudaMalloc((void**)&devPtrVelArray, batchSize * sizeof(cuDoubleComplex*)));
+		CUSH_CHECK(cudaMalloc((void**)&devPtrV1Array, batchSize * sizeof(cuDoubleComplex*)));
+		CUSH_CHECK(cudaMalloc((void**)&devPtrAArray, batchSize * sizeof(cuDoubleComplex*)));
+		CUSH_CHECK(cudaMalloc((void**)&devPtrVelArray, batchSize * sizeof(cuDoubleComplex*)));
 	}
 
 }
@@ -164,44 +164,35 @@ VelocityCalculator<N, batchSize>::VelocityCalculator() : matrix_threads(16, 16, 
 template<int N, size_t batchSize>
 VelocityCalculator<N, batchSize>::~VelocityCalculator()
 {
-	auto error = cudaGetLastError();
-	if (error != cudaSuccess) {
-		std::cerr << "CUDA error in ~VelocityCalculator before destroy handle: " << cudaGetErrorString(error) << std::endl;
-	}
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 
 	if (handle) {
 		
-		checkCublas(cublasDestroy(handle));
+		CUSH_CHECK_NOTHROW(cublasDestroy(handle));
 	}
-	 error = cudaGetLastError();
-	if (error != cudaSuccess) {
-		std::cerr << "CUDA error in ~VelocityCalculator before free of pointers of pointers: " << cudaGetErrorString(error) << std::endl;
-	}
+	 CUSH_CHECK_NOTHROW(cudaGetLastError());
 	if (devPtrV1Array) {
 		//std::cout << "Freeing devPtrV1Array in ~VelocityCalculator" << devPtrV1Array << std::endl;
-		checkCuda(cudaFree(devPtrV1Array));
+		CUSH_CHECK_NOTHROW(cudaFree(devPtrV1Array));
 		devPtrV1Array = nullptr;
-		checkCudaErrors("Freeing devPtrV1Array in ~VelocityCalculator");
+		CUSH_CHECK_NOTHROW(cudaGetLastError());
 	}
 		
 
 	if (devPtrAArray) {
-		checkCuda(cudaFree(devPtrAArray));
+		CUSH_CHECK_NOTHROW(cudaFree(devPtrAArray));
 		devPtrAArray = nullptr;
 	}
-	checkCudaErrors("Freeing devPtrAArray in ~VelocityCalculator");
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 
 	if (devPtrVelArray) {
-		checkCuda(cudaFree(devPtrVelArray));
+		CUSH_CHECK_NOTHROW(cudaFree(devPtrVelArray));
 		devPtrVelArray = nullptr;
 	}
 		
-	checkCudaErrors("Freeing devPtrVelArray in ~VelocityCalculator");
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 
-	error = cudaGetLastError();
-	if (error != cudaSuccess) {
-		std::cerr << "CUDA error in ~VelocityCalculator: " << cudaGetErrorString(error) << std::endl;
-	}
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 }
 
 template<int N, size_t batchSize>
@@ -217,13 +208,14 @@ void VelocityCalculator<N, batchSize>::calculateVelocities(const std_complex* Z,
 {
 	// calculate v2*aprime
 	calculateDiagonalVectorMultiplication << <blocks, threads >> > (V2, aprime, velocities, batchSize * N);
+	CUSH_CHECK_LAUNCH();
 
 
 	// calculate V1 * a + v2*aprime
 	const cufftDoubleComplex alpha = make_cuDoubleComplex(1.0, 0.0);
 	const cufftDoubleComplex beta = make_cuDoubleComplex(1.0, 0.0);
 	if(batchSize == 1)
-		cublasZgemv(handle, CUBLAS_OP_N, N, N, &alpha, reinterpret_cast<cuDoubleComplex*>(V1), N, reinterpret_cast<cuDoubleComplex*>(a), 1, &beta, reinterpret_cast<cuDoubleComplex*>(velocities), 1);
+		CUSH_CHECK(cublasZgemv(handle, CUBLAS_OP_N, N, N, &alpha, reinterpret_cast<cuDoubleComplex*>(V1), N, reinterpret_cast<cuDoubleComplex*>(a), 1, &beta, reinterpret_cast<cuDoubleComplex*>(velocities), 1));
 	else {
 		// batched version
 		std::vector<cuDoubleComplex*> hAptr(batchSize), hxptr(batchSize), hyptr(batchSize);
@@ -233,13 +225,14 @@ void VelocityCalculator<N, batchSize>::calculateVelocities(const std_complex* Z,
 			hyptr[i] = reinterpret_cast<cuDoubleComplex*>(velocities) + i * N;
 		}
 		// copy to device
-		checkCuda(cudaMemcpy(devPtrV1Array, hAptr.data(), batchSize * sizeof(cuDoubleComplex*), cudaMemcpyHostToDevice));
-		checkCuda(cudaMemcpy(devPtrAArray, hxptr.data(), batchSize * sizeof(cuDoubleComplex*), cudaMemcpyHostToDevice));
-		checkCuda(cudaMemcpy(devPtrVelArray, hyptr.data(), batchSize * sizeof(cuDoubleComplex*), cudaMemcpyHostToDevice));
+		CUSH_CHECK(cudaMemcpy(devPtrV1Array, hAptr.data(), batchSize * sizeof(cuDoubleComplex*), cudaMemcpyHostToDevice));
+		CUSH_CHECK(cudaMemcpy(devPtrAArray, hxptr.data(), batchSize * sizeof(cuDoubleComplex*), cudaMemcpyHostToDevice));
+		CUSH_CHECK(cudaMemcpy(devPtrVelArray, hyptr.data(), batchSize * sizeof(cuDoubleComplex*), cudaMemcpyHostToDevice));
 		// perform batched matrix-vector multiplication
-		cublasZgemvBatched(handle, CUBLAS_OP_N, N, N, &alpha, devPtrV1Array, N, devPtrAArray, 1, &beta, devPtrVelArray, 1, batchSize);
+		CUSH_CHECK(cublasZgemvBatched(handle, CUBLAS_OP_N, N, N, &alpha, devPtrV1Array, N, devPtrAArray, 1, &beta, devPtrVelArray, 1, batchSize));
 	}
 	// calculate the conjugate of the velocities, since this df/dz = u - i v
 	conjugate_vector<<<blocks, threads >>>(velocities, velocities, batchSize * N);
+	CUSH_CHECK_LAUNCH();
 }
 #endif // !WATERVELOCITIES_H

@@ -120,6 +120,7 @@
     <ClInclude Include="BoundaryIntegral\Axisymmetric\SelfTerms.cuh" />
     <ClInclude Include="LinearAlgebra\DenseLuSolver.cuh" />
     <ClInclude Include="BoundaryIntegral\Periodic2D\BoundaryProblem.cuh" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\InterfaceParameters.h" />
     <ClInclude Include="BoundaryIntegral\Periodic2D\MatrixKernels.cuh" />
     <ClInclude Include="BoundaryIntegral\Periodic2D\PhiRhsKernels.cuh" />
     <ClInclude Include="Core\CudaChecks.cuh" />
@@ -157,7 +158,11 @@
     <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh" />
     <ClInclude Include="Optomechanics\OptomechanicalVariables.h" />
     <ClInclude Include="Core\PrecisionMath.cuh" />
-    <ClInclude Include="Physics\ProblemProperties.hpp" />
+    <ClInclude Include="Physics\PhysicalParameters.h" />
+    <ClInclude Include="Physics\Scales.h" />
+    <ClInclude Include="Physics\NonDimensionalization.h" />
+    <ClInclude Include="Optomechanics\OptomechanicalNonDimensionalization.h" />
+    <ClInclude Include="Physics\DimensionlessParameters.h" />
     <ClInclude Include="Ode\AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="BoundaryIntegral\Axisymmetric\RadialVelocityCalculator.cuh" />
     <ClInclude Include="BoundaryIntegral\Axisymmetric\RadialModels.h" />

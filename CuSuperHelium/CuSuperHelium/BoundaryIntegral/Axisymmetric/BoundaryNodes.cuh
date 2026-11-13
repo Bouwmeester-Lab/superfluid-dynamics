@@ -92,22 +92,22 @@ public:
 			throw std::invalid_argument("BoundaryNodeBuffers requires at least one surface node");
 		}
 		const size_t bytes = (nSurface + nWall) * sizeof(double);
-		CHECK_CUDA(cudaMalloc((void**)&devR, bytes));
-		CHECK_CUDA(cudaMalloc((void**)&devZ, bytes));
-		CHECK_CUDA(cudaMalloc((void**)&devNr, bytes));
-		CHECK_CUDA(cudaMalloc((void**)&devNz, bytes));
-		CHECK_CUDA(cudaMalloc((void**)&devDs, bytes));
-		CHECK_CUDA(cudaMalloc((void**)&devCurvature, bytes));
+		CUSH_CHECK(cudaMalloc((void**)&devR, bytes));
+		CUSH_CHECK(cudaMalloc((void**)&devZ, bytes));
+		CUSH_CHECK(cudaMalloc((void**)&devNr, bytes));
+		CUSH_CHECK(cudaMalloc((void**)&devNz, bytes));
+		CUSH_CHECK(cudaMalloc((void**)&devDs, bytes));
+		CUSH_CHECK(cudaMalloc((void**)&devCurvature, bytes));
 	}
 
 	~BoundaryNodeBuffers()
 	{
-		cudaFree(devR);
-		cudaFree(devZ);
-		cudaFree(devNr);
-		cudaFree(devNz);
-		cudaFree(devDs);
-		cudaFree(devCurvature);
+		CUSH_CHECK_NOTHROW(cudaFree(devR));
+		CUSH_CHECK_NOTHROW(cudaFree(devZ));
+		CUSH_CHECK_NOTHROW(cudaFree(devNr));
+		CUSH_CHECK_NOTHROW(cudaFree(devNz));
+		CUSH_CHECK_NOTHROW(cudaFree(devDs));
+		CUSH_CHECK_NOTHROW(cudaFree(devCurvature));
 	}
 
 	BoundaryNodeBuffers(const BoundaryNodeBuffers&) = delete;
@@ -132,7 +132,7 @@ public:
 		constexpr unsigned threads = 256;
 		const unsigned blocks = static_cast<unsigned>((nSurface + threads - 1) / threads);
 		buildSurfaceNodesKernel<<<blocks, threads>>>(surface, R, view());
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 	}
 
 private:

@@ -4,18 +4,18 @@
 
 #include "Export/ExportTypes.cuh"
 #include "Optomechanics/OptomechanicalVariables.h"
-#include "Physics/ProblemProperties.hpp"
+#include "Physics/DimensionlessParameters.h"
 #include "BoundaryIntegral/Axisymmetric/RadialVelocityCalculator.cuh"
 #include <cstddef>
 
 extern "C" 
 {
-	__declspec(dllexport) int calculateRHS256FromFile(const char* inputFile, const char* outputFile, double L, double rho, double kappa, double depth);
+	__declspec(dllexport) int calculateRHS256FromFile(const char* inputFile, const char* outputFile, SimProperties* simProperties);
 	
-	__declspec(dllexport) int calculateRHS256FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth);
-	__declspec(dllexport) int calculateRHSFromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, size_t N);
+	__declspec(dllexport) int calculateRHS256FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties);
+	__declspec(dllexport) int calculateRHSFromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties, size_t N);
 
-	__declspec(dllexport) int calculateRHS2048FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth);
+	__declspec(dllexport) int calculateRHS2048FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties);
 
 	/// <summary>
 	/// Calculates vorticities and their derivatives from input vectors and physical parameters for a 256-point system.
@@ -30,7 +30,7 @@ extern "C"
 	/// <param name="kappa">The vorticity parameter.</param>
 	/// <param name="depth">The depth parameter.</param>
 	/// <returns>Returns an integer status code indicating the success or failure of the calculation.</returns>
-	__declspec(dllexport) int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, double L, double rho, double kappa, double depth);
+	__declspec(dllexport) int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, SimProperties* simProperties);
 	/// <summary>
 	/// Surface velocities (v_r, v_z) of an axisymmetric flow from the surface z(r) and potential phi(r) at N points,
 	/// using the Bessel-series Green function with the default number of modes (1024). Any N >= 2.
@@ -42,10 +42,10 @@ extern "C"
 	__declspec(dllexport) int calculateVelocitiesRadialSymmetryModes(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N, size_t nModes);
 
 	__declspec(dllexport) int calculateDerivativeFFT256(const c_double* input, c_double* output);
-	__declspec(dllexport) int calculateJacobian(const double* state, double* jac, double L, double rho, double kappa, double depth, double epsilon, size_t N);
-	__declspec(dllexport) int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, double L, double rho, double kappa, double depth, int batchSize);
+	__declspec(dllexport) int calculateJacobian(const double* state, double* jac, SimProperties* simProperties, double epsilon, size_t N);
+	__declspec(dllexport) int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties, int batchSize);
 
-	__declspec(dllexport) int calculatePerturbedStates256(const double* x, const double* y, const double* phi, c_double* Zperturbed, double L, double rho, double kappa, double depth, double epsilon);
+	__declspec(dllexport) int calculatePerturbedStates256(const double* x, const double* y, const double* phi, c_double* Zperturbed, SimProperties* simProperties, double epsilon);
 	/// <summary>
 	/// Runs a Gauss-Legendre integration simulation with the given initial state and simulation properties.
 	/// Remember to free the allocated memory for statesOut and timesOut using integrateSimulationGL2_freeMemory!!
@@ -70,9 +70,6 @@ extern "C"
 
 	__declspec(dllexport) int calculateRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N);
 
-	RK4SolverOptions adimensionalizeRK4SolverOptions(RK4SolverOptions options, ProblemProperties properties);
-	ProblemProperties adimensionalizeProperties(ProblemProperties props, double rhoHelium = 150);
-	OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVariables optomechanicalVariables, ProblemProperties properties, double rhoHelium = 150);
 }
 
 #endif

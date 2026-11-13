@@ -18,6 +18,10 @@ extern "C"
 
 		// infinite_depth?
 		bool infinite_depth = false;
+
+		// Material of the film. Required: the library has no default material.
+		double hamaker_constant; // van der Waals coefficient alpha [m^5/s^2]
+		double film_density;     // [kg/m^3]
 	};
 	struct GaussLegendreOptions
 	{

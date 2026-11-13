@@ -16,18 +16,14 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 {
 	try 
 	{
-		ProblemProperties properties;
-		//OptomechanicalVariables optoVars;
-		copyProperties(*simProperties, properties);
+		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
 		OptomechanicalVariables optoVars;
 
 		copyProperties(*optoVariables, optoVars);
 
-		// adimensionalize properties
-		properties = adimensionalizeProperties(properties);
-		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
+		optoVars = NonDimensionalization::nonDimensionalize(optoVars, properties.scales);
 		// transfoms SI units to adimensional units for the RK4 options
-		auto rk4SolverOptions = adimensionalizeRK4SolverOptions(*rkOptions, properties);
+		auto rk4SolverOptions = toDimensionless(*rkOptions, properties.scales);
 
 		// print properties for debugging
 		std::cout << "Adimensionalized optomechanical properties. " << std::endl;
@@ -60,9 +56,9 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 		DeviceParticleData deviceParticleData;
 
 		loadDataToDevice(particleData, deviceParticleData, N);
-		cudaStreamSynchronize(cudaStreamPerThread);
+		CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
 
-		stepper.initialize(deviceParticleData.devZ, true);
+		stepper.initialize(deviceParticleData.devZ(), true);
 
 		std::cout << "Starting RK4 evolution from t = " << t0 << " to t = " << t1 << " with time step " << rk4_options.initial_timestep << std::endl;
 
@@ -70,7 +66,7 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		std::cout << "RK4 evolution completed. Copying results to host." << std::endl;
 
-		cudaStreamSynchronize(cudaStreamPerThread);
+		CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
 
 		stepper.copyTimesToHost(timesOut, timesCount);
 

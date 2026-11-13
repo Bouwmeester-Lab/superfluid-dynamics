@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Physics/ProblemProperties.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "Ode/AutonomousProblem.h"
@@ -53,7 +52,7 @@ struct RK45WorkspaceGpu
 
 	__host__ RK45WorkspaceGpu()
 	{
-		CHECK_CUDA(cudaMalloc((void**)&rawMemory, sizeof(T) * (8 * N)));
+		CUSH_CHECK(cudaMalloc((void**)&rawMemory, sizeof(T) * (8 * N)));
 		k1 = rawMemory;
 		k2 = k1 + N;
 		k3 = k2 + N;
@@ -63,13 +62,13 @@ struct RK45WorkspaceGpu
 
 		yAcceptedStep = k6 + N;
 		yTemp = yAcceptedStep + N;
-		CHECK_CUDA(cudaMalloc((void**)&scaledError, sizeof(double)));
-		CHECK_CUDA(cudaMemset(scaledError, 0, sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&scaledError, sizeof(double)));
+		CUSH_CHECK(cudaMemset(scaledError, 0, sizeof(double)));
 	}
 	__host__ ~RK45WorkspaceGpu()
 	{
-		if (scaledError) cudaFree(scaledError);
-		if (rawMemory) cudaFree(rawMemory);
+		if (scaledError) CUSH_CHECK_NOTHROW(cudaFree(scaledError));
+		if (rawMemory) CUSH_CHECK_NOTHROW(cudaFree(rawMemory));
 	}
 
 	// 2) Create a trivially-copyable device view
@@ -328,12 +327,12 @@ template<typename T, size_t N>
 void RK45Base<T, N>::initialize(T* initialState, bool onDevice)
 {
 	if (onDevice) {
-		CHECK_CUDA(cudaMemcpyAsync(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyDeviceToDevice, this->stream));
+		CUSH_CHECK(cudaMemcpyAsync(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyDeviceToDevice, this->stream));
 	}
 	else {
-		CHECK_CUDA(cudaMemcpyAsync(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyHostToDevice, this->stream));
+		CUSH_CHECK(cudaMemcpyAsync(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyHostToDevice, this->stream));
 	}
-	CHECK_CUDA(cudaStreamSynchronize(this->stream));
+	CUSH_CHECK(cudaStreamSynchronize(this->stream));
 }
 
 
@@ -363,23 +362,23 @@ inline void RK45_std_complex<N>::calculateTempY(uint16_t step, double timeStep)
 	case 1:
 		// calculate y + a21*h*k1 (because k1 is not multiplied by h yet)
 		axpy<std_complex><<<blocks, threads,0, this->stream>>>(this->workspace.k1, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a21 * timeStep, N);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		break;
 	case 2:
 		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a31 * timeStep, RK45Coefficients::a32 * timeStep, N);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		break;
 	case 3:
 		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a41 * timeStep, RK45Coefficients::a42 * timeStep, RK45Coefficients::a43 * timeStep, N);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		break;
 	case 4:
 		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a51 * timeStep, RK45Coefficients::a52 * timeStep, RK45Coefficients::a53 * timeStep, RK45Coefficients::a54 * timeStep, N);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		break;
 	case 5:
 		lincomb<std_complex><<<blocks, threads, 0, this->stream >>>(this->workspace.k1, this->workspace.k2, this->workspace.k3, this->workspace.k4, this->workspace.k5, this->workspace.yAcceptedStep, this->workspace.yTemp, RK45Coefficients::a61 * timeStep, RK45Coefficients::a62 * timeStep, RK45Coefficients::a63 * timeStep, RK45Coefficients::a64 * timeStep, RK45Coefficients::a65 * timeStep, N);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		break;
 	default:
 		throw std::invalid_argument("Invalid step number in calculateTempY");
@@ -391,14 +390,14 @@ template<size_t N>
 inline void RK45_std_complex<N>::calculateWeightedY(double timeStep)
 {
 	// at this stage the new y is saved in yTemp, so we just need to copy it to yAcceptedStep
-	CHECK_CUDA(cudaMemcpyAsync(this->workspace.yAcceptedStep, this->workspace.yTemp, sizeof(std_complex) * N, cudaMemcpyDeviceToDevice, this->stream));
+	CUSH_CHECK(cudaMemcpyAsync(this->workspace.yAcceptedStep, this->workspace.yTemp, sizeof(std_complex) * N, cudaMemcpyDeviceToDevice, this->stream));
 }
 
 template<size_t N>
 inline void RK45_std_complex<N>::calculateScaledError(double atol, double rtol, double timeStep)
 {
 	// set to 0 the global variable
-	CHECK_CUDA(cudaMemsetAsync(this->workspace.scaledError, 0, sizeof(double), this->stream));
+	CUSH_CHECK(cudaMemsetAsync(this->workspace.scaledError, 0, sizeof(double), this->stream));
 	// calculates the scaled error and the 5th order solution and saves it in this->workspace.scaledError and workspace.yTemp respectively
 	rk45_error_and_y5<std_complex, 256><<<blocks, threads, 0, this->stream>>>(this->workspace.yAcceptedStep,
 																this->workspace.k1,
@@ -410,9 +409,9 @@ inline void RK45_std_complex<N>::calculateScaledError(double atol, double rtol, 
 																this->workspace.yTemp, // reuse yTemp as temporary storage for the 5th order solution
 																timeStep, atol, rtol, 
 																this->workspace.scaledError, N);
-	CHECK_CUDA(cudaGetLastError());
+	CUSH_CHECK_LAUNCH();
 	// copy the scaled error back to host
-	CHECK_CUDA(cudaMemcpyAsync(&this->tempValues.scaledError, this->workspace.scaledError, sizeof(double), cudaMemcpyDeviceToHost, this->stream));
-	CHECK_CUDA(cudaStreamSynchronize(this->stream));
+	CUSH_CHECK(cudaMemcpyAsync(&this->tempValues.scaledError, this->workspace.scaledError, sizeof(double), cudaMemcpyDeviceToHost, this->stream));
+	CUSH_CHECK(cudaStreamSynchronize(this->stream));
 	this->tempValues.scaledError =  sqrt((1.0 / N) * this->tempValues.scaledError);
 }

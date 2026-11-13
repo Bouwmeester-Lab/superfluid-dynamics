@@ -4,7 +4,7 @@
 #include "Ode/AutonomousProblem.h"
 #include "Core/constants.cuh"
 #include "Optomechanics/OptomechanicalVariables.h"
-#include "Physics/ProblemProperties.hpp"
+#include "Physics/DimensionlessParameters.h"
 #include "Optomechanics/LightIntensity.cuh"
 #include "Optomechanics/OptomechanicalDriveKernels.cuh"
 
@@ -12,14 +12,14 @@ template <int N, size_t batchSize>
 class DelayedIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N* batchSize>
 {
 private:
-	ProblemProperties& properties;
+	DimensionlessParameters& properties;
 	OptomechanicalVariables& variables;
 	std::shared_ptr<LightIntensity> intensity;
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	DelayedIntensityIntegrator(OptomechanicalVariables& variables, ProblemProperties& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
+	DelayedIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
 	{
 	}
 
@@ -33,8 +33,10 @@ public:
 		double* devFrequencyShift = intensity->get_dev_frequency_shift();
 		// we need to calculate the rhs of the delayed intesity: d/dt DelayedIntensity = beta * (I(real(Z), imag(Z)) - DelayedIntensity) where I is the intensity of the optical mode
 		calculate_intensity_delayed_rhs<N* batchSize><<<this->blocks, this->threads, 0, this->stream>>>(devRhsDelayedIntensity, devFrequencyShift, devZ, devDelayedIntensity, variables);
+		CUSH_CHECK_LAUNCH();
 		// add the delayed intensity term to the rhs of phi:
 		add_delayed_intensity_phi_rhs<N* batchSize><<<this->blocks, this->threads, 0, this->stream>>>(devRhsPhi,devDelayedIntensity, variables, properties);
+		CUSH_CHECK_LAUNCH();
 
 	}
 
@@ -48,14 +50,14 @@ template <int N, size_t batchSize>
 class DelayedRampedIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N * batchSize + 1>
 {
 private:
-	ProblemProperties& properties;
+	DimensionlessParameters& properties;
 	OptomechanicalVariables& variables;
 	std::shared_ptr<LightIntensity> intensity;
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	DelayedRampedIntensityIntegrator(OptomechanicalVariables& variables, ProblemProperties& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
+	DelayedRampedIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
 	{}
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override
@@ -71,11 +73,14 @@ public:
 
 		// we need to calculate the rhs of the delayed intesity: d/dt DelayedIntensity = beta * (I(real(Z), imag(Z)) - DelayedIntensity) where I is the intensity of the optical mode
 		calculate_ramped_intensity_delayed_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsDelayedIntensity, devRampedIntensity, devFrequencyShift, devZ, devDelayedIntensity, variables);
+		CUSH_CHECK_LAUNCH();
 		// add the delayed intensity term to the rhs of phi:
 		add_delayed_intensity_phi_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsPhi, devDelayedIntensity, variables, properties);
+		CUSH_CHECK_LAUNCH();
 		// add the ramped intensity rhs of d/dt RampedIntensity = ramp_rate // since I = ramp_rate * t
 		
 		set_growth_intensity_rate << <1, 1, 0, this->stream >> > (devRhsRampedIntensity, variables.ramp_rate);
+		CUSH_CHECK_LAUNCH();
 	}
 
 	virtual void setStream(cudaStream_t stream) override
@@ -88,14 +93,14 @@ template <int N, size_t batchSize>
 class DelayedSineIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N * batchSize + 1>
 {
 private:
-	ProblemProperties& properties;
+	DimensionlessParameters& properties;
 	OptomechanicalVariables& variables;
 	std::shared_ptr<LightIntensity> intensity;
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	DelayedSineIntensityIntegrator(OptomechanicalVariables& variables, ProblemProperties& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
+	DelayedSineIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
 	{}
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override
@@ -112,11 +117,14 @@ public:
 
 		// we need to calculate the rhs of the delayed intesity: d/dt DelayedIntensity = beta * (I(real(Z), imag(Z)) - DelayedIntensity) where I is the intensity of the optical mode
 		calculate_sine_modulated_intensity_delayed_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsDelayedIntensity, devTheta, devFrequencyShift, devZ, devDelayedIntensity, variables);
+		CUSH_CHECK_LAUNCH();
 		// add the delayed intensity term to the rhs of phi:
 		add_delayed_intensity_phi_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsPhi, devDelayedIntensity, variables, properties);
+		CUSH_CHECK_LAUNCH();
 		// add the ramped intensity rhs of d/dt RampedIntensity = ramp_rate // since I = ramp_rate * t
 
 		set_theta_rhs << <1, 1, 0, this->stream >> > (devRhsTheta, variables.omega_drive);
+		CUSH_CHECK_LAUNCH();
 	}
 
 	virtual void setStream(cudaStream_t stream) override

@@ -1,5 +1,5 @@
 #pragma once
-#include "Physics/ProblemProperties.hpp"
+#include "BoundaryIntegral/Periodic2D/InterfaceParameters.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <cub/cub.cuh>
@@ -12,12 +12,12 @@ template <int N>
 class EnergyBase
 {
 public:
-	EnergyBase(ProblemProperties& properties);
+	EnergyBase(InterfaceParameters& properties);
 	virtual ~EnergyBase();
 	double getEnergy() const;
 	virtual void CalculateEnergy(const DevicePointers& devPoints, cudaStream_t stream = cudaStreamPerThread) = 0;
 protected:
-	ProblemProperties& properties;
+	InterfaceParameters& properties;
 	double* devEnergy;
 
 	void* tempStorage = nullptr; // Temporary storage for CUB operations, this is a device pointer
@@ -140,9 +140,9 @@ struct KineticEnergyCombination
 	const std_complex* Zp;
 	const std_complex* velocitiesLower;
 	const std_complex* velocitiesUpper;
-	const ProblemProperties properties;
+	const InterfaceParameters properties;
 
-	__host__ __device__ KineticEnergyCombination(const std_complex* z, const std_complex* phi, const std_complex* zp, const std_complex* velocitiesLower, const std_complex* velocitiesUpper, const ProblemProperties properties)
+	__host__ __device__ KineticEnergyCombination(const std_complex* z, const std_complex* phi, const std_complex* zp, const std_complex* velocitiesLower, const std_complex* velocitiesUpper, const InterfaceParameters properties)
 		: Z(z), Phi(phi), Zp(zp), velocitiesLower(velocitiesLower), velocitiesUpper(velocitiesUpper), properties(properties) {
 	}
 
@@ -157,8 +157,8 @@ struct KineticEnergyCombination
 struct VanDerWaalsEnergyCombination
 {
 	const std_complex* Z;
-	const ProblemProperties properties;
-	__host__ __device__ VanDerWaalsEnergyCombination(const std_complex* z, const ProblemProperties properties)
+	const InterfaceParameters properties;
+	__host__ __device__ VanDerWaalsEnergyCombination(const std_complex* z, const InterfaceParameters properties)
 		: Z(z), properties(properties) {
 	}
 	__device__ double operator()(int k) const
@@ -204,21 +204,21 @@ struct VolumeFluxCombination
 };
 
 template <int N>
-EnergyBase<N>::EnergyBase(ProblemProperties& properties) : properties(properties)
+EnergyBase<N>::EnergyBase(InterfaceParameters& properties) : properties(properties)
 {
-	checkCuda(cudaMalloc(&devEnergy, sizeof(double)));
+	CUSH_CHECK(cudaMalloc(&devEnergy, sizeof(double)));
 }
 
 template <int N>
 EnergyBase<N>::~EnergyBase()
 {
-	checkCudaErrors("EnergyBase destructor start");
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 
-	if(devEnergy) cudaFree(devEnergy);
-	checkCudaErrors("Freed devEnergy in EnergyBase destructor");
+	if(devEnergy) CUSH_CHECK_NOTHROW(cudaFree(devEnergy));
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 
-	if(tempStorage) cudaFree(tempStorage);
-	checkCudaErrors("Freed tempStorage in EnergyBase destructor");
+	if(tempStorage) CUSH_CHECK_NOTHROW(cudaFree(tempStorage));
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 	/*auto error = cudaGetLastError();
 	if (error != cudaSuccess) {
 		printf("CUDA Error in EnergyBase destructor: %s\n", cudaGetErrorString(error));
@@ -228,9 +228,9 @@ EnergyBase<N>::~EnergyBase()
 template <int N>
 double EnergyBase<N>::getEnergy() const
 {
-	cudaDeviceSynchronize();
+	CUSH_CHECK(cudaDeviceSynchronize());
 	double e;
-	cudaMemcpy(&e, devEnergy, sizeof(double), cudaMemcpyDeviceToHost);
+	CUSH_CHECK(cudaMemcpy(&e, devEnergy, sizeof(double), cudaMemcpyDeviceToHost));
 	return this->scaleEnergy(e);
 }
 
@@ -248,12 +248,12 @@ void KineticEnergy<N>::CalculateEnergy(const std_complex* devPhi, const std_comp
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 
 	// allocate temporary storage
-	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	CUSH_CHECK(cudaMalloc(&this->tempStorage, this->tempStorageBytes));
 
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 
-	cudaFreeAsync(this->tempStorage, stream);
+	CUSH_CHECK(cudaFreeAsync(this->tempStorage, stream));
 	this->tempStorage = nullptr;
 }
 
@@ -269,10 +269,10 @@ void GravitationalEnergy<N>::CalculateEnergy(const std_complex* devZ, const std_
 	// get temporary storage size
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	// allocate temporary storage
-	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	CUSH_CHECK(cudaMalloc(&this->tempStorage, this->tempStorageBytes));
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
-	cudaFreeAsync(this->tempStorage, stream);
+	CUSH_CHECK(cudaFreeAsync(this->tempStorage, stream));
 	this->tempStorage = nullptr;
 }
 
@@ -286,10 +286,10 @@ void VanDerWaalsEnergy<N>::CalculateEnergy(const std_complex* devZ, cudaStream_t
 	// get temporary storage size
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	// allocate temporary storage
-	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	CUSH_CHECK(cudaMalloc(&this->tempStorage, this->tempStorageBytes));
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
-	cudaFreeAsync(this->tempStorage, stream);
+	CUSH_CHECK(cudaFreeAsync(this->tempStorage, stream));
 	this->tempStorage = nullptr;
 }
 
@@ -303,10 +303,10 @@ void SurfaceEnergy<N>::CalculateEnergy(const std_complex* devZp, cudaStream_t st
 	// get temporary storage size
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	// allocate temporary storage
-	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	CUSH_CHECK(cudaMalloc(&this->tempStorage, this->tempStorageBytes));
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
-	cudaFreeAsync(this->tempStorage, stream);
+	CUSH_CHECK(cudaFreeAsync(this->tempStorage, stream));
 	this->tempStorage = nullptr;
 }
 
@@ -320,9 +320,9 @@ void VolumeFlux<N>::CalculateEnergy(const std_complex* devZp, const std_complex*
 	// get temporary storage size
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
 	// allocate temporary storage
-	cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+	CUSH_CHECK(cudaMalloc(&this->tempStorage, this->tempStorageBytes));
 	// perform the reduction
 	cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->devEnergy, N);
-	cudaFreeAsync(this->tempStorage, stream);
+	CUSH_CHECK(cudaFreeAsync(this->tempStorage, stream));
 	this->tempStorage = nullptr;
 }

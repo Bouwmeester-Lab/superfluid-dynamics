@@ -15,13 +15,13 @@ protected:
 	std::shared_ptr<LightIntensity> intensity;
 	GaussianDistribution lightShape;
 public:
-	HeliumSineAutonomousProblem(ProblemProperties& properties, OptomechanicalVariables& variables, std::shared_ptr<LightIntensity> intensity) : HeliumBoundaryProblem<N, batchSize>(properties), variables(variables), intensity(intensity)
+	HeliumSineAutonomousProblem(DimensionlessParameters& properties, OptomechanicalVariables& variables, std::shared_ptr<LightIntensity> intensity) : HeliumBoundaryProblem<N, batchSize>(properties), variables(variables), intensity(intensity)
 	{
 		// Constructor for the helium sine autonomous problem, initializing the base class with the problem properties
 		intensity->allocate(N * batchSize); // Allocate memory for the intensity weights based on the number of points in the simulation
 	}
 
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, InterfaceParameters& properties) override
 	{
 		HeliumBoundaryProblem<N, batchSize>::CalculateRhsPhi(problemPointers, result, properties); // Call the base class implementation to calculate the right-hand side for the potential function on the boundary
 		// add the driving terms that do not depend on time explecitly:
@@ -33,9 +33,10 @@ public:
 
 
 		// calculate the frequency shift due to the optomechanical shift
-		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables, properties);
+		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables, this->parameters);
 
-		add_optical_drive_sine_wave_autonomous<N* batchSize> << <this->blocks, this->threads >> > (result, devTheta, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, variables, properties);
+		add_optical_drive_sine_wave_autonomous<N* batchSize> << <this->blocks, this->threads >> > (result, devTheta, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, variables, this->parameters);
+		CUSH_CHECK_LAUNCH();
 
 	}
 };

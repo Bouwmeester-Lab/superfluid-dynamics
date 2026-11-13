@@ -243,12 +243,12 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 		throw std::runtime_error("Initial state not set. Call initialize() before running evolution.");
 	}
 	// copy initial state to temp state
-	cudaMemcpyAsync(this->devTempState, this->devState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream);
+	CUSH_CHECK(cudaMemcpyAsync(this->devTempState, this->devState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream));
 
 	// create the trajectory storage
 	if (options.returnTrajectory)
 	{
-		/*checkCuda(cudaMallocAsync(&this->devTimes, (nSteps + 1) * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 85));
+		/*CUSH_CHECK(cudaMallocAsync(&this->devTimes, (nSteps + 1) * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 85));
 		linspace<<<(nSteps + 1 + 255) / 256, 256, 0, this->stream>>>(this->devTimes, startTime, endTime, nSteps + 1);*/
 		this->devTimes.push_back(startTime);
 		appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
@@ -307,7 +307,7 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 		}
 
 		// Step successful, update state and time
-		cudaMemcpyAsync(this->devTempState, this->devTempNextState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream);
+		CUSH_CHECK(cudaMemcpyAsync(this->devTempState, this->devTempNextState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream));
 		percent = to_percent(currentTime, startTime, endTime);
 		if(percent != previousPercent) {
 			progressBar->set_progress(percent);
@@ -339,46 +339,40 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 	else {
 		devStateOwned = true;
 		 // x, y, phi each of size N.
-		cudaError_t err = cudaMalloc(&this->devState, stateSizeBytes);
-		if (err != cudaSuccess) {
-			throw std::runtime_error("Failed to allocate device memory for initial state.");
-		}
-		err = cudaMemcpy(this->devState, initialState, stateSizeBytes, cudaMemcpyHostToDevice);
-		if (err != cudaSuccess) {
-			throw std::runtime_error("Failed to copy initial state to device memory.");
-		}
+		CUSH_CHECK(cudaMalloc(&this->devState, stateSizeBytes));
+		CUSH_CHECK(cudaMemcpy(this->devState, initialState, stateSizeBytes, cudaMemcpyHostToDevice));
 	}
 
-	checkCuda(cudaMallocAsync(&this->devTempState, stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
-	checkCuda(cudaMallocAsync(&this->devTempNextState, stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->devTempState, stateSizeBytes, this->stream));
+	CUSH_CHECK(cudaMallocAsync(&this->devTempNextState, stateSizeBytes, this->stream));
 
 	// Also allocate k1, k2, y1, y2
-	checkCuda(cudaMallocAsync(&this->k1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->k1, 2 * stateSizeBytes, this->stream));
 	this->k2 = this->k1 + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->y1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->y1, 2 * stateSizeBytes, this->stream));
 	this->y2 = this->y1 + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->R, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->R, 2 * stateSizeBytes, this->stream));
 	this->R1 = this->R;
 	this->R2 = this->R + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->devfY1, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->devfY1, 2 * stateSizeBytes, this->stream));
 	this->devfY2 = this->devfY1 + 3 * N;
 
-	cublasCreate(&this->cublasHandle);
+	CUSH_CHECK(cublasCreate(&this->cublasHandle));
 
 	// allocate the space for the jacobians
-	checkCuda(cudaMallocAsync(&this->devJFrozen, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
-	checkCuda(cudaMallocAsync(&this->devJ1, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
-	checkCuda(cudaMallocAsync(&this->devJ2, (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->devJFrozen, (3 * N) * (3 * N) * sizeof(double), this->stream));
+	CUSH_CHECK(cudaMallocAsync(&this->devJ1, (3 * N) * (3 * N) * sizeof(double), this->stream));
+	CUSH_CHECK(cudaMallocAsync(&this->devJ2, (3 * N) * (3 * N) * sizeof(double), this->stream));
 
-	checkCuda(cudaMallocAsync(&this->devM, 4 * (3 * N) * (3 * N) * sizeof(double), this->stream), __func__, __FILE__, __LINE__);
-	checkCuda(cudaMallocAsync(&this->dK, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->devM, 4 * (3 * N) * (3 * N) * sizeof(double), this->stream));
+	CUSH_CHECK(cudaMallocAsync(&this->dK, 2 * stateSizeBytes, this->stream));
 	this->dK1 = this->dK;
 	this->dK2 = this->dK + 3 * N;
 
-	checkCuda(cudaMallocAsync(&this->ktrial, 2 * stateSizeBytes, this->stream), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMallocAsync(&this->ktrial, 2 * stateSizeBytes, this->stream));
 	this->ktrial1 = this->ktrial;
 	this->ktrial2 = this->ktrial + 3 * N;
 }
@@ -393,7 +387,7 @@ int GaussLegendre2<N>::copyTimesToHost(double** hostTimes, size_t* countHost)
 			return -1; // memory allocation failed
 		}
 		// copy times to host
-		checkCuda(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
 		*hostTimes = t;
 		*countHost = devTimes.size();
 	}
@@ -416,7 +410,7 @@ int GaussLegendre2<N>::copyStatesToHost(double** hostStates, size_t* countHost)
 			return -1; // memory allocation failed
 		}
 		// copy states to host
-		checkCuda(cudaMemcpyAsync(s, thrust::raw_pointer_cast(devYs.data()), devYs.size() * 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(s, thrust::raw_pointer_cast(devYs.data()), devYs.size() * 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
 		*hostStates = s;
 		*countHost = devYs.size();
 	}
@@ -427,7 +421,7 @@ int GaussLegendre2<N>::copyStatesToHost(double** hostStates, size_t* countHost)
 		if (!s) {
 			return -1; // memory allocation failed
 		}
-		checkCuda(cudaMemcpyAsync(s, this->devTempState, 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(s, this->devTempState, 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
 
 		*hostStates = s;
 		*countHost = 1;
@@ -439,22 +433,22 @@ template<size_t N>
 void GaussLegendre2<N>::freeDeviceMemory()
 {
 	if (this->devStateOwned) {
-		cudaFreeAsync(this->devState, this->stream);
+		CUSH_CHECK(cudaFreeAsync(this->devState, this->stream));
 	}
-	cudaFreeAsync(this->devTempState, this->stream);
-	cudaFreeAsync(this->devTempNextState, this->stream);
-	cudaFreeAsync(this->k1, this->stream);
-	cudaFreeAsync(this->y1, this->stream);
-	cudaFreeAsync(this->R, this->stream);
-	cudaFreeAsync(this->devfY1, this->stream);
-	cudaFreeAsync(this->devJFrozen, this->stream);
-	cudaFreeAsync(this->devJ1, this->stream);
-	cudaFreeAsync(this->devJ2, this->stream);
-	cudaFreeAsync(this->devM, this->stream);
-	cudaFreeAsync(this->dK, this->stream);
-	cudaFreeAsync(this->ktrial, this->stream);
+	CUSH_CHECK(cudaFreeAsync(this->devTempState, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->devTempNextState, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->k1, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->y1, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->R, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->devfY1, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->devJFrozen, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->devJ1, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->devJ2, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->devM, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->dK, this->stream));
+	CUSH_CHECK(cudaFreeAsync(this->ktrial, this->stream));
 
-	cublasDestroy(this->cublasHandle);
+	CUSH_CHECK(cublasDestroy(this->cublasHandle));
 }
 
 template<size_t N>
@@ -482,7 +476,7 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 	// initial guess for k1, k2
 	problem.setStream(this->stream);
 	problem.run(devCurrentState, k_local);
-	cudaMemcpyAsync(k2_local, k_local, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream);
+	CUSH_CHECK(cudaMemcpyAsync(k2_local, k_local, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream));
 	int iteration;
 	for (iteration = 0; iteration < this->options.maxNewtonIterations; ++iteration)
 	{
@@ -507,11 +501,11 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 
 		// solve the system
 		fillMMatrix << <gridSize, blockSize, 0, this->stream >> > (this->devJ1, this->devJ2, stepSize, this->glCoeffs, this->devM, N);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 
 		// prepare the right-hand side by multiplying R by -1
 		multiplyVector << <(6 * N + 255) / 256, 256, 0, this->stream >> > (-1.0, this->R, this->R, 6 * N);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		matrixSolver.setStream(this->stream);
 		matrixSolver.solve(this->devM, this->R, this->dK); // solution is stored in dK
 
@@ -523,6 +517,7 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 		while (true) 
 		{
 			createKTrial << <(3 * N + 255) / 256, 256, 0, this->stream >> > (k1_local, k2_local, alpha, this->dK1, this->dK2, ktrial1_local, ktrial2_local, N);
+			CUSH_CHECK_LAUNCH();
 			// compute the residual and phi at the trial step
 			this->residualAndPhi(devCurrentState, ktrial1_local, ktrial2_local, stepSize, this->stagingRes);
 
@@ -574,6 +569,7 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 	}
 	// calculate next y
 	calculateNextStateKernel << <(3 * N + 255) / 256, 256, 0, this->stream >> > (devCurrentState, stepSize, k1_local, k2_local, devDestination, this->glCoeffs, N);
+	CUSH_CHECK_LAUNCH();
 	result.numberIterations = iteration;
 	result.residualNorm = this->stagingRes.residualNorm;
 	result.simplifiedFallbackUsed = simplifiedUsed;
@@ -589,6 +585,7 @@ void GaussLegendre2<N>::stageStates(const double* devY, const double stepSize)
 	size_t threadsPerBlock = 256;
 	size_t blocks = (3 * N + threadsPerBlock - 1) / threadsPerBlock;
 	stageStatesKernel << <blocks, threadsPerBlock, 0, this->stream >> > (devY, stepSize, this->k1, this->k2, this->y1, this->y2, this->glCoeffs, N);
+	CUSH_CHECK_LAUNCH();
 }
 
 template<size_t N>
@@ -597,7 +594,7 @@ void GaussLegendre2<N>::residualAndPhi(const double* devY, const double* k1, con
 	// stage the states
 	this->stageStates(devY, stepSize);
 	// sync the stream
-	cudaStreamSynchronize(this->stream);
+	CUSH_CHECK(cudaStreamSynchronize(this->stream));
 	// compute f(y1) and f(y2)
 	problem.setStream(this->stream);
 	problem.run(this->y1, this->devfY1);
@@ -605,9 +602,10 @@ void GaussLegendre2<N>::residualAndPhi(const double* devY, const double* k1, con
 	
 	// compute the residuals
 	computeResidualsKernel << <(3 * N + 255) / 256, 256, 0, this->stream >> > (this->devfY1, this->devfY2, k1, k2, this->R1, this->R2, N);
+	CUSH_CHECK_LAUNCH();
 	// compute R dot R
-	cublasDdot(cublasHandle, 3*N, this->R, 1, this->R, 1, &stagingResult.phi);
-	cublasDdot(cublasHandle, 6 * N, k1, 1, k1, 1, &stagingResult.normK); // important that k1 and k2 are contiguous in memory!
+	CUSH_CHECK(cublasDdot(cublasHandle, 3*N, this->R, 1, this->R, 1, &stagingResult.phi));
+	CUSH_CHECK(cublasDdot(cublasHandle, 6 * N, k1, 1, k1, 1, &stagingResult.normK)); // important that k1 and k2 are contiguous in memory!
 	
 	stagingResult.residualNorm = std::sqrt(stagingResult.phi);
 	stagingResult.phi *= 0.5;

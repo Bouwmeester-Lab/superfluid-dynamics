@@ -3,7 +3,8 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdio.h>
-#include "Physics/ProblemProperties.hpp"
+#include "Physics/DimensionlessParameters.h"
+#include "Physics/NonDimensionalization.h"
 #include "cufft.h"
 #include "Core/constants.cuh"
 #include "Math/Derivatives.cuh"
@@ -38,10 +39,11 @@ inline double Phi(double j, double h, double omega, double t, double rho) {
 }
 
 template <size_t N>
-int dispersionTest(double wavelength, double simulationTime, ProblemProperties problemProperties, int targetSteps = 15000);
+/// problemProperties.depth (m) and problemProperties.kappa (N/m) are given in SI units here.
+int dispersionTest(double wavelength, double simulationTime, DimensionlessParameters problemProperties, double hamakerConstant, double filmDensity, int targetSteps = 15000);
 
 template <size_t N>
-int dispersionTest<N>(double wavelength, double simulationTime, ProblemProperties problemProperties, int targetSteps)
+int dispersionTest<N>(double wavelength, double simulationTime, DimensionlessParameters problemProperties, double hamakerConstant, double filmDensity, int targetSteps)
 {
 
     problemProperties.rho = 0;
@@ -59,15 +61,17 @@ int dispersionTest<N>(double wavelength, double simulationTime, ProblemPropertie
     double finalTime = simulationTime;
 
     const double H0 = problemProperties.depth; // m
-    double g = 3 * 2.6e-24 / std::pow(H0, 4); //
-    double L0 = wavelength / (2.0 * PI_d); // 6mm
-    //double c;
-    double _t0 = std::sqrt(L0 / g);
+    const PhysicalParameters physical{ .L = wavelength, .depth = H0, .rho = 0.0, .kappa = problemProperties.kappa,
+                                       .hamakerConstant = hamakerConstant, .filmDensity = filmDensity };
+    const DimensionlessParameters dimensionless = NonDimensionalization::nonDimensionalize(physical);
+    const double g = dimensionless.scales.acceleration;
+    const double L0 = dimensionless.scales.length;
+    const double _t0 = dimensionless.scales.time;
+    const double surfaceTensionFactor = filmDensity * L0 * L0 * L0 / (_t0 * _t0);
 
-    double surfaceTensionFactor = 150 * L0 * L0 * L0 / (_t0 * _t0);
-    problemProperties.kappa = problemProperties.kappa / surfaceTensionFactor; // non-dimensionalize kappa divide by 150 kg/m3 the density of helium to fully adimensionalize
-
-    problemProperties.depth = 2.0 * CUDART_PI * H0 / wavelength;
+    problemProperties.kappa = dimensionless.kappa;
+    problemProperties.depth = dimensionless.depth;
+    problemProperties.scales = dimensionless.scales;
     double test = problemProperties.depth / 3.0;
 
     double h = 0.0001 * problemProperties.depth;

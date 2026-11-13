@@ -89,7 +89,7 @@ int RungeKuttaStepperBase<T, N>::copyTimesToHost(double** hostTimes, size_t* cou
 			return -1; // memory allocation failed
 		}
 		// copy times to host
-		checkCuda(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
 		*hostTimes = t;
 		*countHost = devTimes.size();
 	}
@@ -113,7 +113,7 @@ int RungeKuttaStepperBase<T, N>::copyStatesToHost(std_complex** hostStates, size
 			return -1; // memory allocation failed
 		}
 		// copy states to host
-		checkCuda(cudaMemcpyAsync(s, thrust::raw_pointer_cast(devYs.data()), devYs.size() * N * sizeof(std_complex), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(s, thrust::raw_pointer_cast(devYs.data()), devYs.size() * N * sizeof(std_complex), cudaMemcpyDeviceToHost, this->stream));
 		*hostStates = s;
 		*countHost = devYs.size();
 	}
@@ -124,7 +124,7 @@ int RungeKuttaStepperBase<T, N>::copyStatesToHost(std_complex** hostStates, size
 		if (!s) {
 			return -1; // memory allocation failed
 		}
-		checkCuda(cudaMemcpyAsync(s, this->devY0, N * sizeof(std_complex), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(s, this->devY0, N * sizeof(std_complex), cudaMemcpyDeviceToHost, this->stream));
 
 		*hostStates = s;
 		*countHost = 1;
@@ -138,15 +138,15 @@ int RungeKuttaStepperBase<T, N>::copyStatesToHost(std_complex** hostStates, size
 template <typename T, int N>
 RungeKuttaStepperBase<T, N>::RungeKuttaStepperBase(TimedProblem<T, N>& timedProblem, double tstep) : timedProblem(timedProblem)
 {
-	cublasCreate(&handle);
-	cudaMalloc(&k1, N * sizeof(T)); // allocate memory for k1
-	cudaMalloc(&k2, N * sizeof(T)); // allocate memory for k2
-	cudaMalloc(&k3, N * sizeof(T)); // allocate memory for k3
-	cudaMalloc(&k4, N * sizeof(T)); // allocate memory for k4
+	CUSH_CHECK(cublasCreate(&handle));
+	CUSH_CHECK(cudaMalloc(&k1, N * sizeof(T))); // allocate memory for k1
+	CUSH_CHECK(cudaMalloc(&k2, N * sizeof(T))); // allocate memory for k2
+	CUSH_CHECK(cudaMalloc(&k3, N * sizeof(T))); // allocate memory for k3
+	CUSH_CHECK(cudaMalloc(&k4, N * sizeof(T))); // allocate memory for k4
 
-	cudaMalloc(&devY1, N * sizeof(T)); // allocate memory for devZphi1
-	cudaMalloc(&devY2, N * sizeof(T)); // allocate memory for devZphi2
-	cudaMalloc(&devY3, N * sizeof(T)); // allocate memory for devZphi3
+	CUSH_CHECK(cudaMalloc(&devY1, N * sizeof(T))); // allocate memory for devZphi1
+	CUSH_CHECK(cudaMalloc(&devY2, N * sizeof(T))); // allocate memory for devZphi2
+	CUSH_CHECK(cudaMalloc(&devY3, N * sizeof(T))); // allocate memory for devZphi3
 
 	setTimeStep(tstep);
 }
@@ -155,16 +155,16 @@ template <typename T, int N>
 RungeKuttaStepperBase<T, N>::~RungeKuttaStepperBase()
 {
 	if (allocatedY0)
-		cudaFree(devY0);
-	cudaFree(k1);
-	cudaFree(k2);
-	cudaFree(k3);
-	cudaFree(k4);
+		CUSH_CHECK_NOTHROW(cudaFree(devY0));
+	CUSH_CHECK_NOTHROW(cudaFree(k1));
+	CUSH_CHECK_NOTHROW(cudaFree(k2));
+	CUSH_CHECK_NOTHROW(cudaFree(k3));
+	CUSH_CHECK_NOTHROW(cudaFree(k4));
 
-	cudaFree(devY1);
-	cudaFree(devY2);
-	cudaFree(devY3);
-	cublasDestroy(handle);
+	CUSH_CHECK_NOTHROW(cudaFree(devY1));
+	CUSH_CHECK_NOTHROW(cudaFree(devY2));
+	CUSH_CHECK_NOTHROW(cudaFree(devY3));
+	CUSH_CHECK_NOTHROW(cublasDestroy(handle));
 }
 
 template <typename T, int N>
@@ -199,7 +199,8 @@ void RungeKuttaStepperBase<T, N>::runStep(int _step)
 	//copyk(4); // copy k4 from the autonomousProblem
 
 
-	add_k_vectors << <blocks, threads >> > (k1, k2, k3, k4, k1, N); // add the four vectors together
+	add_k_vectors << <blocks, threads >> > (k1, k2, k3, k4, k1, N);
+	CUSH_CHECK_LAUNCH(); // add the four vectors together
 
 	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
 
@@ -228,17 +229,17 @@ void RungeKuttaStepperBase<T, N>::initialize(T* devY0, bool onDevice)
 	if (onDevice)
 	{
 		this->devY0 = devY0; // store the initial state
-		cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY1
-		cudaMemcpy(devY2, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY2
-		cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice); // copy initial state to devY3
+		CUSH_CHECK(cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice)); // copy initial state to devY1
+		CUSH_CHECK(cudaMemcpy(devY2, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice)); // copy initial state to devY2
+		CUSH_CHECK(cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyDeviceToDevice)); // copy initial state to devY3
 	}
 	else {
 		allocatedY0 = true;
-		cudaMalloc(&this->devY0, N * sizeof(T)); // allocate memory for devZphi1
-		cudaMemcpy(this->devY0, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY1
-		cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY1
-		cudaMemcpy(devY2, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY2
-		cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyHostToDevice); // copy initial state to devY3
+		CUSH_CHECK(cudaMalloc(&this->devY0, N * sizeof(T))); // allocate memory for devZphi1
+		CUSH_CHECK(cudaMemcpy(this->devY0, devY0, N * sizeof(T), cudaMemcpyHostToDevice)); // copy initial state to devY1
+		CUSH_CHECK(cudaMemcpy(devY1, devY0, N * sizeof(T), cudaMemcpyHostToDevice)); // copy initial state to devY1
+		CUSH_CHECK(cudaMemcpy(devY2, devY0, N * sizeof(T), cudaMemcpyHostToDevice)); // copy initial state to devY2
+		CUSH_CHECK(cudaMemcpy(devY3, devY0, N * sizeof(T), cudaMemcpyHostToDevice)); // copy initial state to devY3
 	}
 	
 	//cudaMemcpy(devZPhi4, devY0, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToDevice); // copy initial state to devZPhi4
@@ -310,15 +311,11 @@ protected:
 		}
 		else
 		{
-			fprintf(stderr, "Invalid step index: %d\n", i);
-			return;
+			throw std::logic_error("Invalid Runge-Kutta stage index " + std::to_string(i));
 		}
 
 
-		if (result != CUBLAS_STATUS_SUCCESS) {
-			fprintf(stderr, "cublasZaxpy failed with error code %d\n", result);
-			return;
-		}
+		CUSH_CHECK(result);
 	}
 };
 

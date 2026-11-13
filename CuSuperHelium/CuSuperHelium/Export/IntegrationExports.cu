@@ -16,13 +16,10 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 	SimProperties* simProperties, GaussLegendreOptions* glCOptions)
 {
 	try {
-		ProblemProperties properties;
-		copyProperties(*simProperties, properties);
+		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
 		std::cout << "Properties copied." << std::endl;
 		std::cout << "Using expansions: " << properties.use_expansions << " with order " << properties.expansion_order << std::endl;
 		
-		// adimensionalize properties
-		properties = adimensionalizeProperties(properties);
 		std::cout << "depth: " << properties.depth << ", kappa: " << properties.kappa << ", rho: " << properties.rho << std::endl;
 		// create the options for GL
 		GaussLegendre2Options glOptions = createOptionsFromCOptions(*glCOptions);
@@ -43,7 +40,7 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 		integrator.runEvolution(glCOptions->t0, glCOptions->t1);
 
 		// copy results to output
-		cudaStreamSynchronize(cudaStreamPerThread);
+		CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
 		integrator.copyTimesToHost(timesOut, timesCount);
 		integrator.copyStatesToHost(statesOut, statesCount);
 	}

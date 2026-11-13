@@ -35,7 +35,7 @@ int TrajectoryLogger<T, N>::copyTimesToHost(double** times, size_t* count)
 		{
 			return -1; // Allocation failed
 		}
-		checkCuda(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
 
 		*times = t;
 		*count = devTimes.size();
@@ -55,7 +55,7 @@ int TrajectoryLogger<T, N>::copyStatesToHost(T** hostStates, size_t* countHost)
 		{
 			return -1; // Allocation failed
 		}
-		checkCuda(cudaMemcpyAsync(h, thrust::raw_pointer_cast(devYs.data()), devYs.size() * N * sizeof(T), cudaMemcpyDeviceToHost, this->stream), __func__, __FILE__, __LINE__);
+		CUSH_CHECK(cudaMemcpyAsync(h, thrust::raw_pointer_cast(devYs.data()), devYs.size() * N * sizeof(T), cudaMemcpyDeviceToHost, this->stream));
 		*hostStates = h;
 		*countHost = devYs.size();
 		return 0; // Success

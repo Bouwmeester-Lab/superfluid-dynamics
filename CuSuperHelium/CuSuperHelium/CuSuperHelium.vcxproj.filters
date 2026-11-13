@@ -57,6 +57,9 @@
     <ClInclude Include="BoundaryIntegral\Periodic2D\Energies.cuh">
       <Filter>BoundaryIntegral\Periodic2D</Filter>
     </ClInclude>
+    <ClInclude Include="BoundaryIntegral\Periodic2D\InterfaceParameters.h">
+      <Filter>BoundaryIntegral\Periodic2D</Filter>
+    </ClInclude>
     <ClInclude Include="BoundaryIntegral\Periodic2D\MatrixKernels.cuh">
       <Filter>BoundaryIntegral\Periodic2D</Filter>
     </ClInclude>
@@ -219,7 +222,19 @@
     <ClInclude Include="Physics\HeliumBoundaryProblem.cuh">
       <Filter>Physics</Filter>
     </ClInclude>
-    <ClInclude Include="Physics\ProblemProperties.hpp">
+    <ClInclude Include="Physics\PhysicalParameters.h">
+      <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Physics\Scales.h">
+      <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Physics\NonDimensionalization.h">
+      <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Optomechanics\OptomechanicalNonDimensionalization.h">
+      <Filter>Optomechanics</Filter>
+    </ClInclude>
+    <ClInclude Include="Physics\DimensionlessParameters.h">
       <Filter>Physics</Filter>
     </ClInclude>
     <ClInclude Include="Physics\SimulationOptions.h">

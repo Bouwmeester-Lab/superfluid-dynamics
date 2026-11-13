@@ -10,7 +10,7 @@
 #include <vector>
 
 #include <highfive/H5File.hpp>
-#include "Physics/ProblemProperties.hpp"
+#include <map>
 
 /// <summary>
 /// Loads the data in an H5 file containing two datasets with 2 columns each (x, y) pairs representing complex numbers.
@@ -66,22 +66,23 @@ inline int loadStateFile(const std::string path, std::vector<std::complex<double
     }
 	return 0;
 }
-inline void createPropertiesAttributes(HighFive::File& file, const ProblemProperties& properties) 
+/// <summary>
+/// Writes each (name, value) pair as a double attribute of the file.
+/// </summary>
+inline void createPropertiesAttributes(HighFive::File& file, const std::map<std::string, double>& attributes)
 {
-    // add properties to the file
-    file.createAttribute<double>("rho", properties.rho);
-    file.createAttribute<double>("kappa", properties.kappa);
-    file.createAttribute<double>("U", properties.U);
-    file.createAttribute<double>("depth", properties.depth);
-	file.createAttribute<double>("initial_amplitude", properties.initial_amplitude);
+	for (const auto& [name, value] : attributes)
+	{
+		file.createAttribute<double>(name, value);
+	}
 }
 
-inline int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, ProblemProperties properties, bool rhs = false)
+inline int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, const std::map<std::string, double>& attributes, bool rhs = false)
 {
 	HighFive::File file(path, HighFive::File::Overwrite);
 
 	// add properties to the file
-	createPropertiesAttributes(file, properties);
+	createPropertiesAttributes(file, attributes);
 	file.createAttribute<bool>("rhs", rhs);
 
 	auto dataset = file.createDataSet<double>("interface", HighFive::DataSpace({ N, 2 }));

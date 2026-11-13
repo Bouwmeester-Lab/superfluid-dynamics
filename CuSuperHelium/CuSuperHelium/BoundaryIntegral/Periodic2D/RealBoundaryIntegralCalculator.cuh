@@ -1,5 +1,4 @@
 #pragma once
-#include "Physics/ProblemProperties.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cufft.h"
@@ -72,12 +71,12 @@ void RealBoundaryIntegralCalculator<N>::run(double* initialState, double* rhs)
 	// convert real state to complex state
 	
 	convertToComplexStateKernel<<<numBlocks, blockSize, 0, stream>>>(initialState, devComplexState, N);
-	checkCuda(cudaGetLastError(), __func__, __FILE__, __LINE__);
+	CUSH_CHECK_LAUNCH();
 	
 	// calculate complex RHS
 	boundaryIntegralCalculator.run(devComplexState, devComplexRHS);
 	convertToRealRhsKernel<<<numBlocks, blockSize, 0, stream >> > (devComplexRHS, rhs, N);
-	checkCuda(cudaGetLastError(), __func__, __FILE__, __LINE__);
+	CUSH_CHECK_LAUNCH();
 }
 
 template<size_t N>
@@ -90,13 +89,13 @@ void RealBoundaryIntegralCalculator<N>::setStream(cudaStream_t stream)
 template<size_t N>
 RealBoundaryIntegralCalculator<N>::RealBoundaryIntegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator) : boundaryIntegralCalculator(boundaryIntegralCalculator)
 {
-	checkCuda(cudaMalloc(&devComplexState, 2 * N * sizeof(std_complex)), __func__, __FILE__, __LINE__);
-	checkCuda(cudaMalloc(&devComplexRHS, 2 * N * sizeof(std_complex)), __func__, __FILE__, __LINE__);
+	CUSH_CHECK(cudaMalloc(&devComplexState, 2 * N * sizeof(std_complex)));
+	CUSH_CHECK(cudaMalloc(&devComplexRHS, 2 * N * sizeof(std_complex)));
 }
 
 template<size_t N>
 RealBoundaryIntegralCalculator<N>::~RealBoundaryIntegralCalculator()
 {
-	checkCuda(cudaFree(devComplexState), __func__, __FILE__, __LINE__);
-	checkCuda(cudaFree(devComplexRHS), __func__, __FILE__, __LINE__);
+	CUSH_CHECK_NOTHROW(cudaFree(devComplexState));
+	CUSH_CHECK_NOTHROW(cudaFree(devComplexRHS));
 }

@@ -27,27 +27,27 @@ HostSurfaceNodes buildHostSurfaceNodes(const std::vector<double>& r, const std::
 	const std::vector<double>* sources[6] = { &r, &eta, &etaPrime, &etaPrimePrime, &zeros, &zeros };
 	for (int i = 0; i < 6; ++i)
 	{
-		CHECK_CUDA(cudaMalloc(&dev[i], bytes));
-		CHECK_CUDA(cudaMemcpy(dev[i], sources[i]->data(), bytes, cudaMemcpyHostToDevice));
+		CUSH_CHECK(cudaMalloc(&dev[i], bytes));
+		CUSH_CHECK(cudaMemcpy(dev[i], sources[i]->data(), bytes, cudaMemcpyHostToDevice));
 	}
 
 	const RadialSurfaceState surface{ dev[0], dev[1], dev[2], dev[3], dev[4], dev[5], N };
 	BoundaryNodeBuffers buffers(N, 0);
 	buffers.buildSurface(surface, R);
-	CHECK_CUDA(cudaDeviceSynchronize());
+	CUSH_CHECK(cudaDeviceSynchronize());
 
 	const BoundaryNodes view = buffers.view();
 	HostSurfaceNodes host{ std::vector<double>(N), std::vector<double>(N), std::vector<double>(N), std::vector<double>(N), std::vector<double>(N), std::vector<double>(N) };
-	CHECK_CUDA(cudaMemcpy(host.r.data(), view.r, bytes, cudaMemcpyDeviceToHost));
-	CHECK_CUDA(cudaMemcpy(host.z.data(), view.z, bytes, cudaMemcpyDeviceToHost));
-	CHECK_CUDA(cudaMemcpy(host.nr.data(), view.nr, bytes, cudaMemcpyDeviceToHost));
-	CHECK_CUDA(cudaMemcpy(host.nz.data(), view.nz, bytes, cudaMemcpyDeviceToHost));
-	CHECK_CUDA(cudaMemcpy(host.ds.data(), view.ds, bytes, cudaMemcpyDeviceToHost));
-	CHECK_CUDA(cudaMemcpy(host.curvature.data(), view.curvature, bytes, cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(host.r.data(), view.r, bytes, cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(host.z.data(), view.z, bytes, cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(host.nr.data(), view.nr, bytes, cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(host.nz.data(), view.nz, bytes, cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(host.ds.data(), view.ds, bytes, cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(host.curvature.data(), view.curvature, bytes, cudaMemcpyDeviceToHost));
 
 	for (double* p : dev)
 	{
-		CHECK_CUDA(cudaFree(p));
+		CUSH_CHECK(cudaFree(p));
 	}
 	return host;
 }

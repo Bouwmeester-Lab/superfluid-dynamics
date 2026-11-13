@@ -57,23 +57,23 @@ public:
 		solver(static_cast<int>(nSurface))
 	{
 		const size_t n = nodes.total();
-		CHECK_CUDA(cudaMalloc((void**)&devS, n * n * sizeof(double)));
-		CHECK_CUDA(cudaMalloc((void**)&devD, n * n * sizeof(double)));
-		CHECK_CUDA(cudaMalloc((void**)&devb, n * sizeof(double)));
-		CHECK_CUDA(cudaMalloc((void**)&devNormalVelocities, n * sizeof(double)));
-		CHECK_CUDA(cudaMalloc((void**)&devTangentialVelocities, nSurface * sizeof(double)));
-		checkCublas(cublasCreate(&cublasHandle));
+		CUSH_CHECK(cudaMalloc((void**)&devS, n * n * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devD, n * n * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devb, n * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devNormalVelocities, n * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devTangentialVelocities, nSurface * sizeof(double)));
+		CUSH_CHECK(cublasCreate(&cublasHandle));
 		blocksPerGrid = static_cast<unsigned>((nSurface + threadsPerBlock - 1) / threadsPerBlock);
 	}
 
 	~RadialVelocityCalculator()
 	{
-		cublasDestroy(cublasHandle);
-		cudaFree(devS);
-		cudaFree(devD);
-		cudaFree(devb);
-		cudaFree(devNormalVelocities);
-		cudaFree(devTangentialVelocities);
+		CUSH_CHECK_NOTHROW(cublasDestroy(cublasHandle));
+		CUSH_CHECK_NOTHROW(cudaFree(devS));
+		CUSH_CHECK_NOTHROW(cudaFree(devD));
+		CUSH_CHECK_NOTHROW(cudaFree(devb));
+		CUSH_CHECK_NOTHROW(cudaFree(devNormalVelocities));
+		CUSH_CHECK_NOTHROW(cudaFree(devTangentialVelocities));
 	}
 
 	RadialVelocityCalculator(const RadialVelocityCalculator&) = delete;
@@ -102,10 +102,10 @@ public:
 		calculateNormalVelocities(surface);
 		// tangential velocity from the derivative of the potential and of the height
 		calculateTangentialVelocitiesKernel<<<blocksPerGrid, threadsPerBlock>>>(surface.etaPrime, surface.phiPrime, devTangentialVelocities, nSurface);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		// transform the normal and tangential velocities to the radial and vertical velocities
 		calculateVelocitiesKernel<<<blocksPerGrid, threadsPerBlock>>>(devNormalVelocities, devTangentialVelocities, surface.etaPrime, devVelocitiesR, devVelocitiesZ, nSurface);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 	}
 
 private:
@@ -132,21 +132,21 @@ private:
 		const int n = static_cast<int>(nodes.total());
 		const double alpha = 1.0;
 		const double beta = 0.0;
-		checkCublas(cublasDgemv(cublasHandle, CUBLAS_OP_N, n, n, &alpha, devD, n, surface.phi, 1, &beta, devb, 1));
+		CUSH_CHECK(cublasDgemv(cublasHandle, CUBLAS_OP_N, n, n, &alpha, devD, n, surface.phi, 1, &beta, devb, 1));
 
 		solver.solve(devS, devb, devNormalVelocities);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 	}
 
 #ifdef TEST
 	void dumpMatrices()
 	{
-		CHECK_CUDA(cudaDeviceSynchronize());
+		CUSH_CHECK(cudaDeviceSynchronize());
 		const size_t n = nodes.total();
 		std::vector<double> hostS(n * n);
 		std::vector<double> hostD(n * n);
-		CHECK_CUDA(cudaMemcpy(hostS.data(), devS, sizeof(double) * n * n, cudaMemcpyDeviceToHost));
-		CHECK_CUDA(cudaMemcpy(hostD.data(), devD, sizeof(double) * n * n, cudaMemcpyDeviceToHost));
+		CUSH_CHECK(cudaMemcpy(hostS.data(), devS, sizeof(double) * n * n, cudaMemcpyDeviceToHost));
+		CUSH_CHECK(cudaMemcpy(hostD.data(), devD, sizeof(double) * n * n, cudaMemcpyDeviceToHost));
 
 		std::cout << "Matrix S, D calculated" << std::endl;
 		for (size_t i = 0; i < n; ++i)

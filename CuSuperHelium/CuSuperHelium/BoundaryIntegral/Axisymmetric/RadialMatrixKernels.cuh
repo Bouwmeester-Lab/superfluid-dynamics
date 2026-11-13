@@ -59,7 +59,7 @@ inline void launchFormRadialSDMatrices(double* S, double* D, const BoundaryNodes
 	const dim3 threads(16, 16);
 	const dim3 blocks(static_cast<unsigned>((n + 15) / 16), static_cast<unsigned>((n + 15) / 16));
 	formRadialSDMatrices<KernelView><<<blocks, threads>>>(S, D, nodes, greens);
-	CHECK_CUDA(cudaGetLastError());
+	CUSH_CHECK_LAUNCH();
 }
 
 #endif // RADIAL_MATRIX_KERNELS_H

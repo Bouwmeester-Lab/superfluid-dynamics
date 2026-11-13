@@ -14,9 +14,9 @@ TEST(DeviceBuffer, RoundTripsData)
 	EXPECT_EQ(buffer.size(), host.size());
 	EXPECT_EQ(buffer.bytes(), host.size() * sizeof(double));
 
-	CHECK_CUDA(cudaMemcpy(buffer.get(), host.data(), buffer.bytes(), cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMemcpy(buffer.get(), host.data(), buffer.bytes(), cudaMemcpyHostToDevice));
 	std::vector<double> back(host.size());
-	CHECK_CUDA(cudaMemcpy(back.data(), buffer.get(), buffer.bytes(), cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(back.data(), buffer.get(), buffer.bytes(), cudaMemcpyDeviceToHost));
 	EXPECT_EQ(back, host);
 }
 

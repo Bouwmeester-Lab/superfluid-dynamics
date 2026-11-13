@@ -44,7 +44,7 @@ Plotting lives only in `CuSuperHelium.App` and `CuSuperHelium.Tests`, never in t
 | `Ode/` | Time integrators behind `OdeSolver` (RK4, RK45, Gauss-Legendre, Euler), the `AutonomousProblem` interface, Jacobians, solver options |
 | `BoundaryIntegral/Periodic2D/` | Roberts-method solver for a periodic 2D interface: boundary problem, integral calculators, matrix and potential kernels, velocities, energies |
 | `BoundaryIntegral/Axisymmetric/` | Axisymmetric (radial) solver: `BoundaryNodes`, self terms, matrix assembly, the velocity calculator. `GreenFunctions/` holds the Bessel-series kernel and the elliptic ring kernel (option A) |
-| `Physics/` | Helium-film and water problem definitions, `ProblemProperties`, simulation options |
+| `Physics/` | Helium-film and water problem definitions; `PhysicalParameters` (SI inputs, including the caller's material), `Scales`, `DimensionlessParameters`, and `NonDimensionalization`, the one place SI inputs become dimensionless; simulation options |
 | `Optomechanics/` | Light intensity, delayed-intensity terms and integrators, driven and augmented problems |
 | `IO/` | `DataLogger`, `ValueLogger`, `TrajectoryLogger`, HDF5 state files |
 | `Export/` | The C ABI and its helpers: entry points, ABI types, size dispatch, host-to-device loading |
@@ -52,14 +52,18 @@ Plotting lives only in `CuSuperHelium.App` and `CuSuperHelium.Tests`, never in t
 
 ## Known layering violations
 
-These are the include edges that break the rules above, measured after the Phase 2 move. They are left as they are because Phase 2 only moves files. Each one is assigned to a later phase.
+These are the include edges that break the rules above. There were 23 after the Phase 2 move. Phase 3 removed the 8 caused by the parameter struct, which leaves 15. Each remaining one is assigned to a later phase.
 
 **The rules should change to fit the code:**
 - `Ode` uses `Math` (Gauss-Legendre coefficients, FFT kernels) and `IO` (loggers). Both are legitimate dependencies, so the layer order above already puts `IO` below `Ode` and lets `Ode` see `Math`.
 - `BoundaryIntegral` implements `Ode/AutonomousProblem.h`. That interface could move to `Core/`, or `BoundaryIntegral` could be allowed to see `Ode`. Decide in Phase 4, when the steppers are unified.
 
-**The code should change (Phase 3, parameters):**
-- `ProblemProperties.hpp` (`Physics/`) is included by `Math/Derivatives.cuh`, `IO/StateFile.h`, three `Ode/` steppers and three `Periodic2D/` files. Phase 3 replaces it with a `PhysicalParameters` struct that the lower layers do not need.
+**Fixed in Phase 3 (parameters):**
+- No file below `Physics/` includes a parameter struct any more.
+  - The periodic-2D solver defines what it reads in `BoundaryIntegral/Periodic2D/InterfaceParameters.h`, and `Physics/DimensionlessParameters` extends it.
+  - `Math/Derivatives` takes ρ and U as numbers.
+  - `IO/StateFile` takes an attribute map.
+  - The `Ode/` steppers lost an include they did not use.
 
 **The code should change (Phase 4, duplication):**
 - `Ode/RK4_Time_Dependent.cuh` includes `BoundaryIntegral/Periodic2D/` integrators. The stepper should depend only on the `OdeSolver`/problem interfaces.

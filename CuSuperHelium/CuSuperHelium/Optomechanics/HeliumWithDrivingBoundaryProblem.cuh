@@ -18,17 +18,19 @@ class HeliumWithOptomechanicalDrivingProblem : public TimedBoundaryProblem<N, 1>
 
 	std::unique_ptr<LightIntensity> intensity;
 	GaussianDistribution lightShape;
+	DimensionlessParameters parameters; ///< Full parameters (with scales) for the drive terms
 public:
-	HeliumWithOptomechanicalDrivingProblem(ProblemProperties& properties, OptomechanicalVariables optomechanicalVariables, std::unique_ptr<LightIntensity> lightIntensity) : TimedBoundaryProblem<N, 1>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)),
-		velocityCalculator(), delayedIntensityTerm(optomechanicalVariables), variables(optomechanicalVariables), intensity(std::move(lightIntensity))
+	HeliumWithOptomechanicalDrivingProblem(DimensionlessParameters& properties, OptomechanicalVariables optomechanicalVariables, std::unique_ptr<LightIntensity> lightIntensity) : TimedBoundaryProblem<N, 1>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)),
+		velocityCalculator(), delayedIntensityTerm(optomechanicalVariables), variables(optomechanicalVariables), intensity(std::move(lightIntensity)), parameters(properties)
 	{
 		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
 		intensity->allocate(N);
 	}
 
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, InterfaceParameters& properties) override
 	{
 		createFiniteDepthMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, N, 1, properties.infinite_depth);
+		CUSH_CHECK_LAUNCH();
 	}
 
 	virtual void CalculateVelocities(const std_complex* Z,
@@ -39,15 +41,16 @@ public:
 		std_complex* V1,
 		std_complex* V2,
 		std_complex* velocities,
-		ProblemProperties& properties,
+		InterfaceParameters& properties,
 		bool lower) override
 	{
 		// create the V1 matrix and V2 diagonal vector
 		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, properties.depth, N, V1, V2, lower, 1, properties.infinite_depth);
+		CUSH_CHECK_LAUNCH();
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
 
-	virtual void CalculateTimeDependentRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time, bool saveProgress = true) 
+	virtual void CalculateTimeDependentRhsPhi(const ProblemPointers problemPointers, std_complex* result, InterfaceParameters& properties, double time, bool saveProgress = true) 
 	{
 		/// add the driving terms
 		/// TODO: N here witll break when using batches.
@@ -56,24 +59,26 @@ public:
 		lightShape.sigma = variables.sigma_optical_mode;
 		intensity->compute_weights<GaussianDistribution>(problemPointers.Z, variables, lightShape);
 		// calculate the frequency shift due to the optomechanical shift
-		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables, properties);
+		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables, this->parameters);
 		
 
-		add_optical_field_drive_terms<N><<<this->blocks, this->threads>>> (result, time, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, properties, saveProgress);
+		add_optical_field_drive_terms<N><<<this->blocks, this->threads>>> (result, time, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, this->parameters, saveProgress);
+		CUSH_CHECK_LAUNCH();
 	}
 
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, InterfaceParameters& properties) override
 	{
 		// do all the calculations as it was without the driving or loss terms.
 		if (properties.use_expansions)
 		{
 			compute_rhs_helium_phi_expression_expansion_terms << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, 1 * N, properties.expansion_order);
+			CUSH_CHECK_LAUNCH();
 			return;
 		}
 		if (properties.kappa != 0.0)
-			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, 1 * N);
+			{ compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, 1 * N); CUSH_CHECK_LAUNCH(); }
 		else
-			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, 1 * N);
+			{ compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, 1 * N); CUSH_CHECK_LAUNCH(); }
 	}
 
 	virtual void SetStartingTime(double time) override

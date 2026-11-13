@@ -47,17 +47,17 @@ public:
 
 	DelayedIntensityTerm(OptomechanicalVariables h_variables) : variables(h_variables)
     {
-        cudaMalloc(&delayed_intensity, N * sizeof(double));
-		cudaMalloc(&prev_time, sizeof(double));
+        CUSH_CHECK(cudaMalloc(&delayed_intensity, N * sizeof(double)));
+		CUSH_CHECK(cudaMalloc(&prev_time, sizeof(double)));
 		double initial_time = variables.initial_time;
 		// copy the intial time to the device
-		cudaMemcpy(prev_time, &initial_time, sizeof(double), cudaMemcpyHostToDevice);
+		CUSH_CHECK(cudaMemcpy(prev_time, &initial_time, sizeof(double), cudaMemcpyHostToDevice));
     }
 
     ~DelayedIntensityTerm()
     {
-        cudaFree(delayed_intensity);
-		cudaFree(prev_time);
+        CUSH_CHECK_NOTHROW(cudaFree(delayed_intensity));
+		CUSH_CHECK_NOTHROW(cudaFree(prev_time));
     }
 
     DelayedIntensityTermDevice<N> device_view()
@@ -67,7 +67,7 @@ public:
 
     void setInitialTime(double initial_time)
     {
-        cudaMemcpy(prev_time, &initial_time, sizeof(double), cudaMemcpyHostToDevice);
+        CUSH_CHECK(cudaMemcpy(prev_time, &initial_time, sizeof(double), cudaMemcpyHostToDevice));
 	}
 };
 

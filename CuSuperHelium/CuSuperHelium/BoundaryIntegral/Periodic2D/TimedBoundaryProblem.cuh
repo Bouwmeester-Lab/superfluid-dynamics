@@ -1,4 +1,5 @@
 #pragma once
+#include "BoundaryIntegral/Periodic2D/InterfaceParameters.h"
 #ifndef TIMED_BOUNDARY_PROBLEM_H
 
 #include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
@@ -14,7 +15,7 @@ public:
 
 	virtual ~TimedBoundaryProblem() {}
 
-	virtual void CalculateTimeDependentRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties, double time, bool saveProgress = true) = 0;
+	virtual void CalculateTimeDependentRhsPhi(const ProblemPointers problemPointers, std_complex* result, InterfaceParameters& properties, double time, bool saveProgress = true) = 0;
 
 	virtual void SetStartingTime(double time) = 0;
 };

@@ -4,7 +4,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdio.h>
-#include "Physics/ProblemProperties.hpp"
+#include "Physics/DimensionlessParameters.h"
 #include "cufft.h"
 #include "Core/constants.cuh"
 #include "Math/Derivatives.cuh"
@@ -102,7 +102,7 @@ public:
 
 template <int numParticles, size_t batchSize, typename TSolver, typename TOptions>
 requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
-int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, const int numSteps, ProblemProperties& properties, ParticleData data, TOptions solverOptions, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
+int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, const int numSteps, DimensionlessParameters& properties, ParticleData data, TOptions solverOptions, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
     cudaError_t cudaStatus;
     cudaStatus = setDevice();
@@ -149,7 +149,7 @@ int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, con
      //TODO: value loggers to update: { kineticEnergyLogger, potentialEnergyLogger, volumeFluxLogger, totalEnergyLogger }
     TSolver solver(boundaryIntegrator, dt);
 	solver.setOptions(solverOptions);
-    solver.initialize(deviceData.devZ, true);
+    solver.initialize(deviceData.devZ(), true);
     //rungeKunta.setTimeStep(dt);
   //  for (;;) {
 		//// inifinite loop to test if we still get the growing memory consumption with RK45
@@ -316,21 +316,21 @@ int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, con
 
 template<int numParticles, size_t batchSize, typename TSolver, typename TOptions>
 requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
-int runSimulationHelium(const int numSteps, ProblemProperties& properties, ParticleData data, TOptions rk45Options, SimulationOptions simOptions,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationHelium(const int numSteps, DimensionlessParameters& properties, ParticleData data, TOptions rk45Options, SimulationOptions simOptions,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumBoundaryProblem<numParticles, batchSize> boundaryProblem(properties);
     return runSimulation<numParticles, batchSize, TSolver, TOptions>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }
 
 template <int numParticles, size_t batchSize>
-int runSimulationWater(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationWater(const int numSteps, DimensionlessParameters& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     WaterBoundaryProblem<numParticles, batchSize> boundaryProblem(properties);
     return runSimulation<numParticles, batchSize>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);
 }
 
 template <int numParticles, size_t batchSize>
-int runSimulationHeliumInfiniteDepth(const int numSteps, ProblemProperties& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
+int runSimulationHeliumInfiniteDepth(const int numSteps, DimensionlessParameters& properties, ParticleData data, RK45_Options rk45Options, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumInfiniteDepthBoundaryProblem<numParticles, batchSize> boundaryProblem(properties);
     return runSimulation<numParticles, batchSize>(boundaryProblem, numSteps, properties, data, rk45Options, simOptions, loggingPeriod, plot, show, t0, fps);

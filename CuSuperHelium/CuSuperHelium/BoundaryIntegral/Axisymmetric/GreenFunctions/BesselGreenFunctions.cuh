@@ -160,19 +160,19 @@ public:
 		{
 			throw std::invalid_argument("DirichletNeumannBesselGreenFunctions requires at least one mode and one node");
 		}
-		CHECK_CUDA(cudaMalloc((void**)&devKappa, nModes * sizeof(double)));
-		CHECK_CUDA(cudaMalloc((void**)&devWn, nModes * sizeof(double)));
-		CHECK_CUDA(cudaMalloc((void**)&devBn, nNodes * nModes * sizeof(double)));
-		CHECK_CUDA(cudaMalloc((void**)&devJ1, nNodes * nModes * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devKappa, nModes * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devWn, nModes * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devBn, nNodes * nModes * sizeof(double)));
+		CUSH_CHECK(cudaMalloc((void**)&devJ1, nNodes * nModes * sizeof(double)));
 		matrixBlocks = dim3(static_cast<unsigned>((nModes + 15) / 16), static_cast<unsigned>((nNodes + 15) / 16));
 	}
 
 	~DirichletNeumannBesselGreenFunctions()
 	{
-		cudaFree(devKappa);
-		cudaFree(devWn);
-		cudaFree(devBn);
-		cudaFree(devJ1);
+		CUSH_CHECK_NOTHROW(cudaFree(devKappa));
+		CUSH_CHECK_NOTHROW(cudaFree(devWn));
+		CUSH_CHECK_NOTHROW(cudaFree(devBn));
+		CUSH_CHECK_NOTHROW(cudaFree(devJ1));
 	}
 
 	DirichletNeumannBesselGreenFunctions(const DirichletNeumannBesselGreenFunctions&) = delete;
@@ -197,8 +197,8 @@ public:
 			Wn_host.push_back(1.0 / (R * R * j1 * j1 * kappa_host[n]));
 		}
 
-		CHECK_CUDA(cudaMemcpy(devKappa, kappa_host.data(), nModes * sizeof(double), cudaMemcpyHostToDevice));
-		CHECK_CUDA(cudaMemcpy(devWn, Wn_host.data(), nModes * sizeof(double), cudaMemcpyHostToDevice));
+		CUSH_CHECK(cudaMemcpy(devKappa, kappa_host.data(), nModes * sizeof(double), cudaMemcpyHostToDevice));
+		CUSH_CHECK(cudaMemcpy(devWn, Wn_host.data(), nModes * sizeof(double), cudaMemcpyHostToDevice));
 	}
 
 	/// <summary>
@@ -215,9 +215,9 @@ public:
 			throw std::invalid_argument("Node count does not match the Bessel Green function tables");
 		}
 		calculateBnMatrix<<<matrixBlocks, matrixThreads>>>(nodes.r, devKappa, devBn, nModes, nNodes);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 		calculateJ1CollocationMatrix<<<matrixBlocks, matrixThreads>>>(nodes.r, devKappa, devJ1, nModes, nNodes);
-		CHECK_CUDA(cudaGetLastError());
+		CUSH_CHECK_LAUNCH();
 	}
 
 	DirichletNeumannBesselGreenFunctionsDeviceView createDeviceView(RadialProperties properties) const

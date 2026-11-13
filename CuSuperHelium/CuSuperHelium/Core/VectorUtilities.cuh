@@ -10,7 +10,7 @@ void appendToVector(thrust::device_vector<cuda::std::array<T, N>>& vec, T* devSt
 	// get the raw pointer to the newly added element
 	cuda::std::array<T, N>* rawPtr = thrust::raw_pointer_cast(&vec[(vec.size() - 1)]);
 
-	cudaMemcpyAsync(rawPtr, devState, N * sizeof(T), cudaMemcpyDeviceToDevice, stream);
+	CUSH_CHECK(cudaMemcpyAsync(rawPtr, devState, N * sizeof(T), cudaMemcpyDeviceToDevice, stream));
 }
 
 template <size_t N>
@@ -20,5 +20,5 @@ void appendToVector(thrust::device_vector<cuda::std::array<std_complex, N>>& vec
 	// get the raw pointer to the newly added element
 	cuda::std::array<std_complex, N>* rawPtr = thrust::raw_pointer_cast(&vec[(vec.size() - 1)]);
 
-	cudaMemcpyAsync(rawPtr, devState, N * sizeof(std_complex), cudaMemcpyDeviceToDevice, stream);
+	CUSH_CHECK(cudaMemcpyAsync(rawPtr, devState, N * sizeof(std_complex), cudaMemcpyDeviceToDevice, stream));
 }

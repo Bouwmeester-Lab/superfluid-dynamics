@@ -36,8 +36,8 @@ public:
     void solve(double* devM, double* devb, double* deva);
     void setStream(cudaStream_t stream) {
 		this->stream = stream;
-        cusolverDnSetStream(handle, stream);
-		cublasSetStream(blas, stream);
+        CUSH_CHECK(cusolverDnSetStream(handle, stream));
+		CUSH_CHECK(cublasSetStream(blas, stream));
     }
 private:
     cublasHandle_t blas;
@@ -67,21 +67,21 @@ template <int N, size_t batchSize>
 MatrixSolver<N, batchSize>::MatrixSolver()  
 {  
     // Initialize cuSolver handle  
-    checkCusolver(cusolverDnCreate(&handle));  
-    checkCublas(cublasCreate(&blas));
+    CUSH_CHECK(cusolverDnCreate(&handle));  
+    CUSH_CHECK(cublasCreate(&blas));
     // Allocate device memory for pivot and info  
-    CHECK_CUDA(cudaMalloc(&devPivot, N * sizeof(int)));
-    CHECK_CUDA(cudaMalloc(&devInfo, sizeof(int)));
+    CUSH_CHECK(cudaMalloc(&devPivot, N * sizeof(int)));
+    CUSH_CHECK(cudaMalloc(&devInfo, sizeof(int)));
 
     // Query working space size for LU factorization  
-    checkCusolver(cusolverDnDgetrf_bufferSize(handle, N, N, nullptr, N, &work_size));  
+    CUSH_CHECK(cusolverDnDgetrf_bufferSize(handle, N, N, nullptr, N, &work_size));  
 	// Allocate device memory for workspace
-    CHECK_CUDA(cudaMalloc(&devWork, work_size * sizeof(double)));
+    CUSH_CHECK(cudaMalloc(&devWork, work_size * sizeof(double)));
 
-    CHECK_CUDA(cudaMalloc(&devMarray, batchSize * sizeof(double*)));
-    CHECK_CUDA(cudaMalloc(&devbarray, batchSize * sizeof(double*)));
-    CHECK_CUDA(cudaMalloc(&devPivotArray, batchSize * N * sizeof(int)));
-    CHECK_CUDA(cudaMalloc(&devInfoArray, batchSize * sizeof(int)));
+    CUSH_CHECK(cudaMalloc(&devMarray, batchSize * sizeof(double*)));
+    CUSH_CHECK(cudaMalloc(&devbarray, batchSize * sizeof(double*)));
+    CUSH_CHECK(cudaMalloc(&devPivotArray, batchSize * N * sizeof(int)));
+    CUSH_CHECK(cudaMalloc(&devInfoArray, batchSize * sizeof(int)));
 
 	// Match surrounding kernel launches that use the default stream.
     this->setStream(cudaStreamLegacy);
@@ -94,30 +94,30 @@ template <int N, size_t batchSize>
 MatrixSolver<N, batchSize>::~MatrixSolver()
 {
     // Free device memory and cuSolver handle if allocated
-    if (devPivot) cudaFree(devPivot);
-    if (devInfo) cudaFree(devInfo);
-    if (devWork) cudaFree(devWork);
-    if (handle) cusolverDnDestroy(handle);
+    if (devPivot) CUSH_CHECK_NOTHROW(cudaFree(devPivot));
+    if (devInfo) CUSH_CHECK_NOTHROW(cudaFree(devInfo));
+    if (devWork) CUSH_CHECK_NOTHROW(cudaFree(devWork));
+    if (handle) CUSH_CHECK_NOTHROW(cusolverDnDestroy(handle));
 
-	if (blas) cublasDestroy(blas);
-	if (devMarray) cudaFree(devMarray);
-	if (devbarray) cudaFree(devbarray);
-	if (devPivotArray) cudaFree(devPivotArray);
-	if (devInfoArray) cudaFree(devInfoArray);
+	if (blas) CUSH_CHECK_NOTHROW(cublasDestroy(blas));
+	if (devMarray) CUSH_CHECK_NOTHROW(cudaFree(devMarray));
+	if (devbarray) CUSH_CHECK_NOTHROW(cudaFree(devbarray));
+	if (devPivotArray) CUSH_CHECK_NOTHROW(cudaFree(devPivotArray));
+	if (devInfoArray) CUSH_CHECK_NOTHROW(cudaFree(devInfoArray));
 }
 
 template<int N, size_t batchSize>
 inline void MatrixSolver<N, batchSize>::checkSolverInfo(const char* operation)
 {
     int hostInfo = 0;
-    checkCuda(cudaMemcpyAsync(&hostInfo, devInfo, sizeof(int), cudaMemcpyDeviceToHost, this->stream));
-    checkCuda(cudaStreamSynchronize(this->stream));
+    CUSH_CHECK(cudaMemcpyAsync(&hostInfo, devInfo, sizeof(int), cudaMemcpyDeviceToHost, this->stream));
+    CUSH_CHECK(cudaStreamSynchronize(this->stream));
 
     if (hostInfo < 0) {
-        throw std::runtime_error(std::string(operation) + " failed: argument " + std::to_string(-hostInfo) + " had an illegal value");
+        cush::throwNumericalError("cuSOLVER", hostInfo, std::string(operation) + ": argument " + std::to_string(-hostInfo) + " had an illegal value");
     }
     if (hostInfo > 0) {
-        throw std::runtime_error(std::string(operation) + " failed: matrix is singular at U(" + std::to_string(hostInfo) + "," + std::to_string(hostInfo) + ")");
+        cush::throwNumericalError("cuSOLVER", hostInfo, std::string(operation) + ": matrix is singular at U(" + std::to_string(hostInfo) + "," + std::to_string(hostInfo) + ")");
     }
 }
 
@@ -133,22 +133,16 @@ template<int N, size_t batchSize>
 inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double* deva)
 {
     if (deva != devb) {
-        checkCuda(cudaMemcpyAsync(deva, devb, batchSize * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream)); // Copy b to a if they are different this avoids overwriting b if deva is a different pointer than devb.
+        CUSH_CHECK(cudaMemcpyAsync(deva, devb, batchSize * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream)); // Copy b to a if they are different this avoids overwriting b if deva is a different pointer than devb.
         
 		//std::cout << "Copied devb to deva to avoid overwriting devb." << std::endl;
     }
     if (batchSize == 1) {
 		// use cuSolver to perform LU factorization of M if batchSize is 1
-        cusolverStatus_t getrfStatus = cusolverDnDgetrf(handle, N, N, devM, N, devWork, devPivot, devInfo);
-        if (getrfStatus != CUSOLVER_STATUS_SUCCESS) {
-            throw std::runtime_error("cusolverDnDgetrf failed with status " + std::to_string(static_cast<int>(getrfStatus)));
-        }
+        CUSH_CHECK(cusolverDnDgetrf(handle, N, N, devM, N, devWork, devPivot, devInfo));
         checkSolverInfo("cusolverDnDgetrf");
         // Solve: LU * x = b -> a = x
-        cusolverStatus_t getrsStatus = cusolverDnDgetrs(handle, CUBLAS_OP_N, N, 1, devM, N, devPivot, deva, N, devInfo); // Use the matrix as-is (no transpose) CUBLAS_OP_N
-        if (getrsStatus != CUSOLVER_STATUS_SUCCESS) {
-            throw std::runtime_error("cusolverDnDgetrs failed with status " + std::to_string(static_cast<int>(getrsStatus)));
-        }
+        CUSH_CHECK(cusolverDnDgetrs(handle, CUBLAS_OP_N, N, 1, devM, N, devPivot, deva, N, devInfo)); // Use the matrix as-is (no transpose) CUBLAS_OP_N
         checkSolverInfo("cusolverDnDgetrs");
     }
     else {
@@ -160,22 +154,22 @@ inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double
             hbptrs[i] = deva + i * N;
         }
 		//std::cout << "Preparing to solve batch of size " << batchSize << " with matrix size " << N << "x" << N << std::endl;
-        checkCuda(cudaMemcpyAsync(devMarray, hMptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream));
-        checkCuda(cudaMemcpyAsync(devbarray, hbptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream));
+        CUSH_CHECK(cudaMemcpyAsync(devMarray, hMptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream));
+        CUSH_CHECK(cudaMemcpyAsync(devbarray, hbptrs.data(), batchSize * sizeof(double*), cudaMemcpyHostToDevice, this->stream));
         
 		// LU Factorization
-		checkCublas(cublasDgetrfBatched(blas, N, devMarray, N, devPivotArray, devInfoArray, batchSize));
+		CUSH_CHECK(cublasDgetrfBatched(blas, N, devMarray, N, devPivotArray, devInfoArray, batchSize));
 		//std::cout << "LU factorization completed for batch of size " << batchSize << std::endl;
         // check info array
-		checkCuda(cudaMemcpyAsync((void*)hostInfoArray.data(), devInfoArray, batchSize * sizeof(int), cudaMemcpyDeviceToHost, this->stream));
+		CUSH_CHECK(cudaMemcpyAsync((void*)hostInfoArray.data(), devInfoArray, batchSize * sizeof(int), cudaMemcpyDeviceToHost, this->stream));
 
-		checkCuda(cudaStreamSynchronize(this->stream)); // ensure the info array is ready before checking it
+		CUSH_CHECK(cudaStreamSynchronize(this->stream)); // ensure the info array is ready before checking it
 
         for(int i =0; i < batchSize; ++i) {
             // check info for each batch
 			int hInfo = hostInfoArray[i];
             if (hInfo != 0) {
-                throw std::runtime_error("LU factorization failed in batch " + std::to_string(i) + " with info = " + std::to_string(hInfo));
+                cush::throwNumericalError("cuBLAS", hInfo, "getrfBatched: LU factorization failed in batch " + std::to_string(i));
             }
 		}
 		//std::cout << "LU factorization successful for all batches." << std::endl;
@@ -188,11 +182,11 @@ inline void MatrixSolver<N, batchSize>::solve(double* devM, double* devb, double
 		//std::cout << "devInfoArray address: " << devInfoArray << std::endl;
 
 		// Solve the systems
-		checkCublas(cublasDgetrsBatched(blas, CUBLAS_OP_N, N, 1, devMarray, N, devPivotArray, devbarray, N, hostInfoArray.data(), batchSize));
+		CUSH_CHECK(cublasDgetrsBatched(blas, CUBLAS_OP_N, N, 1, devMarray, N, devPivotArray, devbarray, N, hostInfoArray.data(), batchSize));
         //std::cout << "Solved batch of size " << batchSize << std::endl;
 		// check info array again
         if(hostInfoArray[0] != 0) {
-            throw std::runtime_error("Solve failed in batched getrs on batch = " + std::to_string(hostInfoArray[0]));
+            cush::throwNumericalError("cuBLAS", hostInfoArray[0], "getrsBatched: argument " + std::to_string(-hostInfoArray[0]) + " had an illegal value");
 	    }
     }
     

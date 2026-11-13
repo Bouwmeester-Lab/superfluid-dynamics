@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "Radial/BoundaryNodes.cuh"
+#include "BoundaryIntegral/Axisymmetric/BoundaryNodes.cuh"
 
 namespace
 {

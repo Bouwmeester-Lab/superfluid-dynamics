@@ -2,7 +2,7 @@
 #ifndef FFT_KERNELS_H
 #define FFT_KERNELS_H
 
-#include "../constants.cuh"
+#include "Core/constants.cuh"
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"

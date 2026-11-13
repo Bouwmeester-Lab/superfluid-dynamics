@@ -3,12 +3,12 @@
 #include <gtest/gtest.h>
 #include <complex>
 #include <array>
-#include "Derivatives.cuh"
-#include "WaterVelocities.cuh"
+#include "Math/Derivatives.cuh"
+#include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
 #include "matplotlibcpp.h"
-#include "AutonomousProblem.h"
-#include "AutonomousRungeKuttaStepper.cuh"
-#include "RK45.cuh"
+#include "Ode/AutonomousProblem.h"
+#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "Ode/RK45.cuh"
 
 __global__ void flip_x_y(cuDoubleComplex* data, cuDoubleComplex* out, int size) 
 {

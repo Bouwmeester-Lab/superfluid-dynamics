@@ -4,20 +4,20 @@
 #include <memory>
 #include <vector>
 
-#include "AugmentedBoundaryIntegrator.cuh"
-#include "AutonomousRungeKuttaStepper.cuh"
-#include "BaseBoundaryIntegrator.cuh"
-#include "DelayedIntensityIntegrator.cuh"
-#include "HeliumDrivenAutonomousProblem.cuh"
-#include "HeliumWithDrivingBoundaryProblem.cuh"
-#include "LightIntensity.cuh"
-#include "RK4_Time_Dependent.cuh"
-#include "TimedBoundaryIntegrator.cuh"
-#include "TrajectoryLogger.cuh"
-#include "Common/CudaChecks.cuh"
+#include "Optomechanics/AugmentedBoundaryIntegrator.cuh"
+#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
+#include "Optomechanics/DelayedIntensityIntegrator.cuh"
+#include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
+#include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
+#include "Optomechanics/LightIntensity.cuh"
+#include "Ode/RK4_Time_Dependent.cuh"
+#include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
+#include "IO/TrajectoryLogger.cuh"
+#include "Core/CudaChecks.cuh"
 #include "matplotlibcpp.h"
-#include "AugmentedIntensityBoundaryIntegrator.cuh"
-#include "HeliumRampedIntensityAutonomousProblem.cuh"
+#include "Optomechanics/AugmentedIntensityBoundaryIntegrator.cuh"
+#include "Optomechanics/HeliumRampedIntensityAutonomousProblem.cuh"
 
 TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 {

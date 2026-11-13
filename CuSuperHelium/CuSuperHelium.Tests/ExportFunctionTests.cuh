@@ -7,8 +7,8 @@
 
 #include <gtest/gtest.h>
 
-#include "constants.cuh"
-#include "ExportTypes.cuh"
+#include "Core/constants.cuh"
+#include "Export/ExportTypes.cuh"
 
 extern "C"
 {

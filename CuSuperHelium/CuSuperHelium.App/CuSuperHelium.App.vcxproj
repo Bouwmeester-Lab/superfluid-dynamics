@@ -44,10 +44,10 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;D:\repos\superfluid-dynamics\CuSuperHelium\CuSuperHelium;$(IncludePath)</IncludePath>
+    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(ProjectDir)..\CuSuperHelium;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;D:\repos\superfluid-dynamics\CuSuperHelium\CuSuperHelium;$(IncludePath);C:\vcpkg\packages\hdf5_x64-windows\include;C:\vcpkg\packages\highfive_x64-windows\include;C:\vcpkg\packages\opencv4_x64-windows\include\opencv4;C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\opencv4_x64-windows\include\opencv4</IncludePath>
+    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(ProjectDir)..\CuSuperHelium;$(IncludePath);C:\vcpkg\packages\hdf5_x64-windows\include;C:\vcpkg\packages\highfive_x64-windows\include;C:\vcpkg\packages\opencv4_x64-windows\include\opencv4;C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\opencv4_x64-windows\include\opencv4</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);C:\vcpkg\packages\hdf5_x64-windows\lib;C:\vcpkg\packages\opencv4_x64-windows\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(CudaToolkitLibDir);C:\Users\emore\anaconda3\libs;C:\ProgramData\anaconda3\libs</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -97,6 +97,12 @@
     <ProjectReference Include="..\CuSuperHelium\CuSuperHelium.vcxproj">
       <Project>{6a1329a0-244a-41d8-b5a1-f43908bdebaf}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SimulationRunner.cuh" />
+    <ClInclude Include="SimulationFunctions.cuh" />
+    <ClInclude Include="VideoMaking.h" />
+    <ClInclude Include="SolitonPeak.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

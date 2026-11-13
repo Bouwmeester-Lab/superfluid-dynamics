@@ -3,7 +3,7 @@
 //#define DEBUG_RUNGE_KUTTA
 //#define DEBUG_DERIVATIVES_3
 //#define DEBUG_VELOCITIES
-#include "ProblemProperties.hpp"
+#include "Physics/ProblemProperties.hpp"
 #include "array"
 #include "vector"
 
@@ -16,21 +16,21 @@
 
 #include <cufft.h>
 
-#include "constants.cuh"
+#include "Core/constants.cuh"
 #include <complex>
 
-#include "Derivatives.cuh"
-#include "WaterVelocities.cuh"
-#include "MatrixSolver.cuh"
-#include "AutonomousProblem.h"
-#include "Energies.cuh"
-#include "DelayedIntensityTerm.cuh"
-#include "BoundaryProblem.cuh"
-#include "BaseBoundaryIntegrator.cuh"
-#include "TimedBoundaryIntegrator.cuh"
-#include "SimpleEuler.cuh"
-#include "AutonomousRungeKuttaStepper.cuh"
-#include "ValueLogger.h"
+#include "Math/Derivatives.cuh"
+#include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
+#include "LinearAlgebra/MatrixSolver.cuh"
+#include "Ode/AutonomousProblem.h"
+#include "BoundaryIntegral/Periodic2D/Energies.cuh"
+#include "Optomechanics/DelayedIntensityTerm.cuh"
+#include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
+#include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
+#include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
+#include "Ode/SimpleEuler.cuh"
+#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "IO/ValueLogger.h"
 #include "SolitonPeak.h"
 #include <stdfloat>
 #include <format>
@@ -39,12 +39,12 @@
 #include "matplotlibcpp.h"
 #include "SimulationRunner.cuh"
 #include "SimulationFunctions.cuh"
-#include "HeliumWithDrivingBoundaryProblem.cuh"
-#include "HeliumDrivenAutonomousProblem.cuh"
-#include "RK4_Time_Dependent.cuh"
+#include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
+#include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
+#include "Ode/RK4_Time_Dependent.cuh"
 #include "Export/ExportApi.cuh"
-#include <AugmentedBoundaryIntegrator.cuh>
-#include "TrajectoryLogger.cuh"
+#include "Optomechanics/AugmentedBoundaryIntegrator.cuh"
+#include "IO/TrajectoryLogger.cuh"
 
 namespace plt = matplotlibcpp;
 

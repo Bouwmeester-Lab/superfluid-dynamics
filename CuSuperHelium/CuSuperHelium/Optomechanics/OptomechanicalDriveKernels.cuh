@@ -2,11 +2,11 @@
 #ifndef OPTOMECHANICAL_DRIVE_KERNELS_H
 #define OPTOMECHANICAL_DRIVE_KERNELS_H
 
-#include "../constants.cuh"
-#include "../DelayedIntensityTerm.cuh"
-#include "../LightIntensity.cuh"
-#include "../OptomechanicalVariables.h"
-#include "../ProblemProperties.hpp"
+#include "Core/constants.cuh"
+#include "Optomechanics/DelayedIntensityTerm.cuh"
+#include "Optomechanics/LightIntensity.cuh"
+#include "Optomechanics/OptomechanicalVariables.h"
+#include "Physics/ProblemProperties.hpp"
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"

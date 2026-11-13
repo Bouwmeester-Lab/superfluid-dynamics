@@ -197,6 +197,16 @@ Done once, right after Phase 1 merges and before Phase 2. Rewriting history chan
 - Add `docs/architecture.md` with the layer diagram and a one-line purpose for each folder.
 - **Done when:** the build is green, goldens match, and no file is left at the project root except the `.vcxproj` files.
 - **Timing:** land this while no large feature branch is open, because it conflicts with everything. In particular, do it before or right after the option A (half-space kernel) work.
+- **Status: done** on branch `reorg/phase-2-layout`. After a full rebuild, 29 gtests and 20 pytest tests pass, and the goldens match.
+  - **The move.** `scripts/reorganize_layout.py` moved 68 files, and git detects all 68 as renames. The script also rewrote the includes and the project files.
+  - **Placement of files the table doesn't list:**
+    - `Common/DeviceBuffer.cuh` → `Core/`; `Common/DenseLuSolver.cuh` → `LinearAlgebra/`;
+    - `StateFile.h` → `IO/`;
+    - `DeviceParticleLoading.cuh` and `ExportTypes.cuh` → `Export/`;
+    - the Bessel and elliptic Green functions → `BoundaryIntegral/Axisymmetric/GreenFunctions/`;
+    - `indicators/` (third-party) stays at the project root.
+  - **Include roots.** Each project now uses the DLL directory as its only include root. The absolute `D:\` path and the stale second-checkout path were removed from all three projects.
+  - **`docs/architecture.md`** lists the 23 include edges that still break the layer rules. Each one is assigned to a later phase.
 
 ### Phase 3 — Parameters and the export boundary
 

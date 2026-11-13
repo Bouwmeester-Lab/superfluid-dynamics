@@ -1,12 +1,12 @@
-#include "ExportInternal.cuh"
+#include "Export/ExportInternal.cuh"
 
-#include "../AutonomousProblem.h"
-#include "../BaseBoundaryIntegrator.cuh"
-#include "../GaussLegendre.cuh"
-#include "../HeliumBoundaryProblem.cuh"
-#include "../JacobianCalculator.cuh"
-#include "../RealBoundaryIntegralCalculator.cuh"
-#include "../RK4_Time_Dependent.cuh"
+#include "Ode/AutonomousProblem.h"
+#include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
+#include "Ode/GaussLegendre.cuh"
+#include "Physics/HeliumBoundaryProblem.cuh"
+#include "Ode/JacobianCalculator.cuh"
+#include "BoundaryIntegral/Periodic2D/RealBoundaryIntegralCalculator.cuh"
+#include "Ode/RK4_Time_Dependent.cuh"
 
 #include <memory>
 

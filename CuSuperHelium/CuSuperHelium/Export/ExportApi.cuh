@@ -2,10 +2,10 @@
 #ifndef EXPORT_API_H
 #define EXPORT_API_H
 
-#include "../ExportTypes.cuh"
-#include "../OptomechanicalVariables.h"
-#include "../ProblemProperties.hpp"
-#include "../RadialVelocityCalculator.cuh"
+#include "Export/ExportTypes.cuh"
+#include "Optomechanics/OptomechanicalVariables.h"
+#include "Physics/ProblemProperties.hpp"
+#include "BoundaryIntegral/Axisymmetric/RadialVelocityCalculator.cuh"
 #include <cstddef>
 
 extern "C" 

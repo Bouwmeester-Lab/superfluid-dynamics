@@ -1,11 +1,11 @@
-#include "ExportInternal.cuh"
+#include "Export/ExportInternal.cuh"
 
-#include "../HeliumWithDrivingBoundaryProblem.cuh"
-#include "../LightIntensity.cuh"
-#include "../RK4_Time_Dependent.cuh"
-#include "../DeviceParticleLoading.cuh"
-#include "../TimedBoundaryIntegrator.cuh"
-#include "../TrajectoryLogger.cuh"
+#include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
+#include "Optomechanics/LightIntensity.cuh"
+#include "Ode/RK4_Time_Dependent.cuh"
+#include "Export/DeviceParticleLoading.cuh"
+#include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
+#include "IO/TrajectoryLogger.cuh"
 
 #include <complex>
 #include <memory>

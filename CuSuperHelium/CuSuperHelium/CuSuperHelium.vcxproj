@@ -45,10 +45,10 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <LibraryPath>$(CudaToolkitLibDir);$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
-    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(IncludePath);</IncludePath>
+    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(ProjectDir);$(IncludePath);</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;C:\vcpkg\packages\hdf5_x64-windows\include;C:\vcpkg\packages\highfive_x64-windows\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\vcpkg\packages\opencv4_x64-windows\include\opencv4</IncludePath>
+    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(ProjectDir);C:\vcpkg\packages\hdf5_x64-windows\include;C:\vcpkg\packages\highfive_x64-windows\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath)</IncludePath>
     <LibraryPath>C:\vcpkg\packages\hdf5_x64-windows\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(CudaToolkitLibDir)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -110,78 +110,74 @@
     <CudaCompile Include="Export\RhsExports.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AugmentedBoundaryIntegrator.cuh" />
-    <ClInclude Include="AugmentedIntensityBoundaryIntegrator.cuh" />
-    <ClInclude Include="AutonomousProblem.h" />
-    <ClInclude Include="BaseBoundaryIntegrator.cuh" />
-    <ClInclude Include="Math\BesselGreenFunctions.cuh" />
-    <ClInclude Include="BoundaryKernels\RadialMatrixKernels.cuh" />
-    <ClInclude Include="Radial\BoundaryNodes.cuh" />
-    <ClInclude Include="Radial\SelfTerms.cuh" />
-    <ClInclude Include="Common\DenseLuSolver.cuh" />
-    <ClInclude Include="BoundaryProblem.cuh" />
-    <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
-    <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh" />
-    <ClInclude Include="Common\CudaChecks.cuh" />
-    <ClInclude Include="Common\DeviceBuffer.cuh" />
-    <ClInclude Include="Common\VectorKernels.cuh" />
-    <ClInclude Include="constants.cuh" />
-    <ClInclude Include="cuDoubleComplexOperators.cuh" />
-    <ClInclude Include="DataLogger.cuh" />
-    <ClInclude Include="DelayedIntensityIntegrator.cuh" />
-    <ClInclude Include="DelayedIntensityTerm.cuh" />
-    <ClInclude Include="DerivativeCalculator.cuh" />
-    <ClInclude Include="Derivatives.cuh" />
-    <ClInclude Include="DevicePointers.cuh" />
-    <ClInclude Include="EllipticGreenFunctions.cuh" />
-    <ClInclude Include="EllipticIntegrals.cuh" />
-    <ClInclude Include="Energies.cuh" />
+    <ClInclude Include="Optomechanics\AugmentedBoundaryIntegrator.cuh" />
+    <ClInclude Include="Optomechanics\AugmentedIntensityBoundaryIntegrator.cuh" />
+    <ClInclude Include="Ode\AutonomousProblem.h" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\BaseBoundaryIntegrator.cuh" />
+    <ClInclude Include="BoundaryIntegral\Axisymmetric\GreenFunctions\BesselGreenFunctions.cuh" />
+    <ClInclude Include="BoundaryIntegral\Axisymmetric\RadialMatrixKernels.cuh" />
+    <ClInclude Include="BoundaryIntegral\Axisymmetric\BoundaryNodes.cuh" />
+    <ClInclude Include="BoundaryIntegral\Axisymmetric\SelfTerms.cuh" />
+    <ClInclude Include="LinearAlgebra\DenseLuSolver.cuh" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\BoundaryProblem.cuh" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\MatrixKernels.cuh" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\PhiRhsKernels.cuh" />
+    <ClInclude Include="Core\CudaChecks.cuh" />
+    <ClInclude Include="Core\DeviceBuffer.cuh" />
+    <ClInclude Include="Core\VectorKernels.cuh" />
+    <ClInclude Include="Core\constants.cuh" />
+    <ClInclude Include="Core\cuDoubleComplexOperators.cuh" />
+    <ClInclude Include="IO\DataLogger.cuh" />
+    <ClInclude Include="Optomechanics\DelayedIntensityIntegrator.cuh" />
+    <ClInclude Include="Optomechanics\DelayedIntensityTerm.cuh" />
+    <ClInclude Include="Math\DerivativeCalculator.cuh" />
+    <ClInclude Include="Math\Derivatives.cuh" />
+    <ClInclude Include="Core\DevicePointers.cuh" />
+    <ClInclude Include="BoundaryIntegral\Axisymmetric\GreenFunctions\EllipticGreenFunctions.cuh" />
+    <ClInclude Include="Math\EllipticIntegrals.cuh" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\Energies.cuh" />
     <ClInclude Include="Export\ExportApi.cuh" />
     <ClInclude Include="Export\ExportInternal.cuh" />
-    <ClInclude Include="ExportTypes.cuh" />
-    <ClInclude Include="GaussLegendre.cuh" />
-    <ClInclude Include="GeneralAugmentedBoundaryIntegrator.cuh" />
-    <ClInclude Include="GLCoefficients.hpp" />
-    <ClInclude Include="HeliumDrivenAutonomousProblem.cuh" />
-    <ClInclude Include="HeliumBoundaryProblem.cuh" />
-    <ClInclude Include="HeliumRampedIntensityAutonomousProblem.cuh" />
-    <ClInclude Include="HeliumSineAutonomousProblem.cuh" />
-    <ClInclude Include="HeliumWithDrivingBoundaryProblem.cuh" />
-    <ClInclude Include="JacobianCalculator.cuh" />
-    <CudaCompile Include="LightIntensity.cuh" />
-    <ClInclude Include="LinearAlgebra.cuh" />
-    <ClInclude Include="Math\ComplexMath.cuh" />
+    <ClInclude Include="Export\ExportTypes.cuh" />
+    <ClInclude Include="Ode\GaussLegendre.cuh" />
+    <ClInclude Include="Optomechanics\GeneralAugmentedBoundaryIntegrator.cuh" />
+    <ClInclude Include="Math\GLCoefficients.hpp" />
+    <ClInclude Include="Optomechanics\HeliumDrivenAutonomousProblem.cuh" />
+    <ClInclude Include="Physics\HeliumBoundaryProblem.cuh" />
+    <ClInclude Include="Optomechanics\HeliumRampedIntensityAutonomousProblem.cuh" />
+    <ClInclude Include="Optomechanics\HeliumSineAutonomousProblem.cuh" />
+    <ClInclude Include="Optomechanics\HeliumWithDrivingBoundaryProblem.cuh" />
+    <ClInclude Include="Ode\JacobianCalculator.cuh" />
+    <CudaCompile Include="Optomechanics\LightIntensity.cuh" />
+    <ClInclude Include="LinearAlgebra\LinearAlgebra.cuh" />
+    <ClInclude Include="Core\ComplexMath.cuh" />
     <ClInclude Include="Math\FftKernels.cuh" />
-    <ClInclude Include="MatrixSolver.cuh" />
-    <ClInclude Include="OdeSolver.h" />
+    <ClInclude Include="LinearAlgebra\MatrixSolver.cuh" />
+    <ClInclude Include="Ode\OdeSolver.h" />
     <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh" />
-    <ClInclude Include="OptomechanicalVariables.h" />
-    <ClInclude Include="PrecisionMath.cuh" />
-    <ClInclude Include="ProblemProperties.hpp" />
-    <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
-    <ClInclude Include="RadialVelocityCalculator.cuh" />
-    <ClInclude Include="RadialModels.h" />
-    <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
-    <ClInclude Include="Reductions.cuh" />
-    <ClInclude Include="RK45.cuh" />
-    <ClInclude Include="RK45_Kernels.cuh" />
-    <ClInclude Include="RK4Options.h" />
-    <ClInclude Include="RK4_Time_Dependent.cuh" />
-    <ClInclude Include="SimpleEuler.cuh" />
-    <ClInclude Include="SimulationFunctions.cuh" />
-    <ClInclude Include="SimulationOptions.h" />
-    <ClInclude Include="DeviceParticleLoading.cuh" />
-    <ClInclude Include="StateFile.h" />
-    <ClInclude Include="SimulationRunner.cuh" />
-    <ClInclude Include="SolitonPeak.h" />
-    <ClInclude Include="TimedBoundaryIntegrator.cuh" />
-    <ClInclude Include="TimedBoundaryProblem.cuh" />
-    <ClInclude Include="TrajectoryLogger.cuh" />
-    <ClInclude Include="ValueLogger.h" />
-    <ClInclude Include="VectorUtilities.cuh" />
-    <ClInclude Include="VideoMaking.h" />
-    <ClInclude Include="WaterBoundaryProblem.cuh" />
-    <ClInclude Include="WaterVelocities.cuh" />
+    <ClInclude Include="Optomechanics\OptomechanicalVariables.h" />
+    <ClInclude Include="Core\PrecisionMath.cuh" />
+    <ClInclude Include="Physics\ProblemProperties.hpp" />
+    <ClInclude Include="Ode\AutonomousRungeKuttaStepper.cuh" />
+    <ClInclude Include="BoundaryIntegral\Axisymmetric\RadialVelocityCalculator.cuh" />
+    <ClInclude Include="BoundaryIntegral\Axisymmetric\RadialModels.h" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\RealBoundaryIntegralCalculator.cuh" />
+    <ClInclude Include="Core\Reductions.cuh" />
+    <ClInclude Include="Ode\RK45.cuh" />
+    <ClInclude Include="Ode\RK45_Kernels.cuh" />
+    <ClInclude Include="Ode\RK4Options.h" />
+    <ClInclude Include="Ode\RK4_Time_Dependent.cuh" />
+    <ClInclude Include="Ode\SimpleEuler.cuh" />
+    <ClInclude Include="Physics\SimulationOptions.h" />
+    <ClInclude Include="Export\DeviceParticleLoading.cuh" />
+    <ClInclude Include="IO\StateFile.h" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\TimedBoundaryIntegrator.cuh" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\TimedBoundaryProblem.cuh" />
+    <ClInclude Include="IO\TrajectoryLogger.cuh" />
+    <ClInclude Include="IO\ValueLogger.h" />
+    <ClInclude Include="Core\VectorUtilities.cuh" />
+    <ClInclude Include="Physics\WaterBoundaryProblem.cuh" />
+    <ClInclude Include="BoundaryIntegral\Periodic2D\WaterVelocities.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

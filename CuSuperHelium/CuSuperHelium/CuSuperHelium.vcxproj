@@ -132,8 +132,8 @@
     <ClInclude Include="DerivativeCalculator.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
-    <ClInclude Include="ElipticalGreenFunctions.cuh" />
-    <ClInclude Include="ElipticalIntegrals.cuh" />
+    <ClInclude Include="EllipticGreenFunctions.cuh" />
+    <ClInclude Include="EllipticIntegrals.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export\ExportApi.cuh" />
     <ClInclude Include="Export\ExportInternal.cuh" />

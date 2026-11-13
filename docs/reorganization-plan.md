@@ -96,10 +96,10 @@ Includes are written relative to the project root (`#include "Core/CudaChecks.cu
 |---|---|
 | `Common/CudaChecks.cuh`, `Common/VectorKernels.cuh`, `constants.cuh`, `cuDoubleComplexOperators.cuh`, `PrecisionMath.cuh`, `Math/ComplexMath.cuh`, `Reductions.cuh`, `VectorUtilities.cuh`, `DevicePointers.cuh` | `Core/` |
 | `MatrixSolver.cuh`, `Common/DenseLuSolver.cuh`, `LinearAlgebra.cuh` | `LinearAlgebra/` (merged, see Phase 4) |
-| `Math/FftKernels.cuh`, `Derivatives.cuh`, `DerivativeCalculator.cuh`, `ElipticalIntegrals.cuh`, `GLCoefficients.hpp` | `Math/` |
+| `Math/FftKernels.cuh`, `Derivatives.cuh`, `DerivativeCalculator.cuh`, `EllipticIntegrals.cuh`, `GLCoefficients.hpp` | `Math/` |
 | `OdeSolver.h`, `RK4_Time_Dependent.cuh`, `AutonomousRungeKuttaStepper.cuh`, `RK45.cuh`, `RK45_Kernels.cuh`, `GaussLegendre.cuh`, `SimpleEuler.cuh`, `JacobianCalculator.cuh`, `RK4Options.h`, `AutonomousProblem.h` | `Ode/` |
 | `BoundaryProblem.cuh`, `BaseBoundaryIntegrator.cuh`, `TimedBoundaryIntegrator.cuh`, `TimedBoundaryProblem.cuh`, `RealBoundaryIntegralCalculator.cuh`, `WaterVelocities.cuh`, `Energies.cuh`, `BoundaryKernels/MatrixKernels.cuh`, `BoundaryKernels/PhiRhsKernels.cuh` | `BoundaryIntegral/Periodic2D/` |
-| `Radial/*`, `RadialModels.h`, `RadialVelocityCalculator.cuh`, `BoundaryKernels/RadialMatrixKernels.cuh`, `Math/BesselGreenFunctions.cuh`, `ElipticalGreenFunctions.cuh` | `BoundaryIntegral/Axisymmetric/` |
+| `Radial/*`, `RadialModels.h`, `RadialVelocityCalculator.cuh`, `BoundaryKernels/RadialMatrixKernels.cuh`, `Math/BesselGreenFunctions.cuh`, `EllipticGreenFunctions.cuh` | `BoundaryIntegral/Axisymmetric/` |
 | `HeliumBoundaryProblem.cuh`, `WaterBoundaryProblem.cuh`, `ProblemProperties.hpp`, `SimulationOptions.h` | `Physics/` |
 | `LightIntensity.cuh`, `DelayedIntensity*.cuh`, `OptomechanicalVariables.h`, `Helium*AutonomousProblem.cuh`, `HeliumWithDrivingBoundaryProblem.cuh`, `Augmented*Integrator.cuh`, `GeneralAugmentedBoundaryIntegrator.cuh`, `Optomechanics/*` | `Optomechanics/` |
 | `DataLogger.cuh`, `ValueLogger.h`, `TrajectoryLogger.cuh` | `IO/` |

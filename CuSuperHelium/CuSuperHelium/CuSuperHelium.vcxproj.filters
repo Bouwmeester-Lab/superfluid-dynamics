@@ -223,10 +223,10 @@
     <ClInclude Include="GeneralAugmentedBoundaryIntegrator.cuh">
       <Filter>Boundary Integrators</Filter>
     </ClInclude>
-    <ClInclude Include="ElipticalGreenFunctions.cuh">
+    <ClInclude Include="EllipticGreenFunctions.cuh">
       <Filter>Math\Green Functions</Filter>
     </ClInclude>
-    <ClInclude Include="ElipticalIntegrals.cuh">
+    <ClInclude Include="EllipticIntegrals.cuh">
       <Filter>Math\Green Functions</Filter>
     </ClInclude>
     <ClInclude Include="Math\BesselGreenFunctions.cuh">

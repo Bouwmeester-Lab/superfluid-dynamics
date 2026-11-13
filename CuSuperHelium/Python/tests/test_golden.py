@@ -245,7 +245,7 @@ def relative_error(new: np.ndarray, ref: np.ndarray) -> float:
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
 def test_golden(case: Case, sim, update_goldens: bool) -> None:
-    import integration.rhs as rhs
+    import cusuperhelium as rhs
 
     outputs = {k: np.asarray(v) for k, v in case.run(sim, rhs).items()}
     for key, value in outputs.items():

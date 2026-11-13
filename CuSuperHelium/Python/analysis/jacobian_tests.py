@@ -1,4 +1,4 @@
-import rhs
+import cusuperhelium as rhs
 from numpy.typing import NDArray
 import numpy as np
 import tqdm

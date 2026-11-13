@@ -6,11 +6,8 @@ from pathlib import Path
 import numpy as np
 from scipy.special import j0, j1, jn_zeros
 
-python_dir = Path(__file__).resolve().parents[1]
-repo_dir = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(python_dir))
 
-import integration.rhs as rhs
+import cusuperhelium as rhs
 
 
 DEFAULT_N = 4096
@@ -54,7 +51,8 @@ class DeepWaterModeResult:
 
 
 def default_dll_path() -> Path:
-    return repo_dir / "x64" / "Release" / "CuSuperHelium.dll"
+    """CUSUPERHELIUM_DLL, otherwise this checkout's build output (see cusuperhelium.library)."""
+    return rhs.find_dll()
 
 
 def make_simulation_properties(depth: float) -> rhs.CSimulationProperties:

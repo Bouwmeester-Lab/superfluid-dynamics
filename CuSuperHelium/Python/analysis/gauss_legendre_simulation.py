@@ -1,5 +1,5 @@
-import rhs
-import gauss_legendre as gl
+import cusuperhelium as rhs
+from cusuperhelium import gauss_legendre as gl
 import numpy as np
 import matplotlib.pyplot as plt
 

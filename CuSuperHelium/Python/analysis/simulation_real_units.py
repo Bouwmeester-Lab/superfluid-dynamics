@@ -4,15 +4,13 @@ from time import sleep
 from tokenize import group
 
 from matplotlib.animation import FuncAnimation
-python_dir = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(python_dir))
 
-import integration.rhs as rhs
+import cusuperhelium as rhs
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 import scipy.special as sp
-import FourierSeries as fs
+from cusuperhelium import fourier_series as fs
 from scipy.integrate import solve_ivp
 import os
 from matplotlib.widgets import Slider
@@ -232,7 +230,7 @@ def load_results(filename):
         optomechanical_props = rhs.COptomechanicalProperties(**f["optomechanical_props"].attrs)
         rk4_props = rhs.CRK4Options(**f["rk4_props"].attrs)
         return T, Y, sim_props, optomechanical_props, rk4_props
-simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
+simManager = rhs.SimulationManager()
 for i, omega_drive in enumerate(omegas_drive):
     det = detunings[3]
     optomechanical_props.omega_drive = omega_drive

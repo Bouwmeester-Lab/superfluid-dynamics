@@ -1,14 +1,43 @@
 <Project>
   <!--
-    Machine-local overrides (git-ignored), e.g. pinning the MSVC host compiler:
-      <Project>
-        <PropertyGroup>
-          <VCToolsVersion>14.44.35207</VCToolsVersion>
-        </PropertyGroup>
-      </Project>
-    CUDA 13.3's cudafe++ crashes (0xC0000005) with MSVC 14.52, so a working older
-    toolset has to be pinned until NVIDIA supports it.
+    Shared build settings for the three projects (DLL, Tests, App). Imported by MSBuild before each .vcxproj.
+    Settings that must win over the CUDA build customization's defaults live in Directory.Build.targets.
+
+    Machine-specific values come from the git-ignored Directory.Build.user.props, which
+    scripts/configure.ps1 writes:
+      CushPythonRoot     Python installation used for matplotlib-cpp plots (Tests and App only)
+      CushNumpyInclude   numpy.get_include() of that Python
+      CushPythonLib      import library name, e.g. python312
+      VCToolsVersion     MSVC pin. CUDA 13.3's cudafe++ crashes (0xC0000005) with MSVC 14.52, so a working
+                         older toolset (14.44) has to be pinned until NVIDIA supports it.
   -->
   <Import Project="$(MSBuildThisFileDirectory)Directory.Build.user.props"
           Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.user.props')" />
+
+  <PropertyGroup>
+    <!-- CUDA: the version selects the build customization; the toolkit is found through CUDA_PATH_Vxx_y. -->
+    <CushCudaVersion Condition="'$(CushCudaVersion)' == ''">13.3</CushCudaVersion>
+    <CushCudaPathVariable>CUDA_PATH_V$(CushCudaVersion.Replace('.', '_'))</CushCudaPathVariable>
+    <CushCudaRoot Condition="'$(CushCudaRoot)' == ''">$([System.Environment]::GetEnvironmentVariable('$(CushCudaPathVariable)'))</CushCudaRoot>
+    <CushCudaRoot Condition="'$(CushCudaRoot)' == ''">$(CUDA_PATH)</CushCudaRoot>
+    <CudaToolkitDir>$([MSBuild]::EnsureTrailingSlash('$(CushCudaRoot)'))</CudaToolkitDir>
+    <CudaBuildCustomizationsDir>$(CudaToolkitDir)extras\visual_studio_integration\MSBuildExtensions\</CudaBuildCustomizationsDir>
+
+    <!-- The DLL source directory is the single include root of every project. -->
+    <CushIncludeRoot>$(MSBuildThisFileDirectory)CuSuperHelium\</CushIncludeRoot>
+
+    <!-- vcpkg in manifest mode (vcpkg.json next to this file). The user-wide `vcpkg integrate install`
+         is switched off, so the build only depends on VCPKG_ROOT. -->
+    <VCPkgLocalAppDataDisabled>true</VCPkgLocalAppDataDisabled>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgManifestRoot>$(MSBuildThisFileDirectory)</VcpkgManifestRoot>
+    <!-- One install tree for every project and configuration. The default (vcpkg_installed\<triplet>\<triplet>\)
+         nests the triplet twice, which pushes boost's longest header paths past Windows' 260-character limit
+         in deep checkouts. -->
+    <VcpkgInstalledDir>$(MSBuildThisFileDirectory)vcpkg_installed\</VcpkgInstalledDir>
+    <CushVcpkgRoot Condition="'$(CushVcpkgRoot)' == ''">$(VCPKG_ROOT)</CushVcpkgRoot>
+  </PropertyGroup>
+
+  <Import Project="$(CushVcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props"
+          Condition="'$(CushVcpkgRoot)' != '' and Exists('$(CushVcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props')" />
 </Project>

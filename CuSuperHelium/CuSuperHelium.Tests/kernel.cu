@@ -1,4 +1,5 @@
 ﻿#define TEST
+#include "PythonInclude.h" // first: Python.h must be included before matplotlibcpp.h (see the header)
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"

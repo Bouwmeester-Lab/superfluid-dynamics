@@ -1,0 +1,70 @@
+<Project>
+  <!--
+    Shared compile and link settings. This file is imported after the project's own settings and after the
+    CUDA build customization's props, so these values are the ones used.
+  -->
+  <Target Name="CushCheckEnvironment" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(CushCudaRoot)' == '' or !Exists('$(CudaToolkitDir)bin\nvcc.exe')"
+           Text="CUDA $(CushCudaVersion) not found: set $(CushCudaPathVariable) or CUDA_PATH (the CUDA installer does), or set CushCudaRoot in Directory.Build.user.props." />
+    <Error Condition="'$(CushVcpkgRoot)' == '' or !Exists('$(CushVcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props')"
+           Text="vcpkg not found: set the VCPKG_ROOT environment variable to a vcpkg checkout, or set CushVcpkgRoot in Directory.Build.user.props." />
+    <Error Condition="'$(CushUsesPython)' == 'true' and ('$(CushPythonRoot)' == '' or '$(CushNumpyInclude)' == '' or '$(CushPythonLib)' == '')"
+           Text="$(MSBuildProjectName) needs Python for its plots. Run scripts/configure.ps1 to write Directory.Build.user.props." />
+  </Target>
+
+  <PropertyGroup>
+    <IncludePath>$(CushIncludeRoot);$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(IncludePath)</IncludePath>
+    <LibraryPath>$(CudaToolkitLibDir);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CushUsesPython)' == 'true'">
+    <!-- Plotting/ holds the shared plotting support of the Tests and App (never of the DLL). -->
+    <IncludePath>$(IncludePath);$(MSBuildThisFileDirectory)Plotting;$(CushPythonRoot)\include;$(CushNumpyInclude)</IncludePath>
+    <LibraryPath>$(LibraryPath);$(CushPythonRoot)\libs</LibraryPath>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+    <CudaCompile>
+      <TargetMachinePlatform>64</TargetMachinePlatform>
+      <!-- sm_86 (RTX 30xx) and sm_120 (RTX 50xx), for every configuration. -->
+      <CodeGeneration>compute_86,sm_86;compute_120,sm_120</CodeGeneration>
+      <AdditionalOptions>-std=c++20 -Xcompiler /Zc:preprocessor -Xcompiler /bigobj %(AdditionalOptions)</AdditionalOptions>
+    </CudaCompile>
+    <CudaLink>
+      <AdditionalDependencies>cufft.lib;cusolver.lib;cublas.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </CudaLink>
+    <!-- Third-party libraries (hdf5, gtest, opencv, ...) are linked by vcpkg's auto-link. -->
+    <Link>
+      <AdditionalDependencies>cusolver.lib;cublas.lib;cufft.lib;cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(CushUsesPython)' == 'true'">
+    <Link>
+      <AdditionalDependencies>$(CushPythonLib).lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)' == 'Release'">
+    <CudaCompile>
+      <!-- Host code of .cu files is compiled with /Od in Release; device code is optimized by nvcc.
+           Switching the host side to /O2 is a separate change (see the reorganization plan, Phase 5). -->
+      <Optimization>Od</Optimization>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
+    </CudaCompile>
+  </ItemDefinitionGroup>
+
+  <Import Project="$(CushVcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets"
+          Condition="'$(CushVcpkgRoot)' != '' and Exists('$(CushVcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets')" />
+
+  <!-- OpenCV installs its headers under include\opencv4. vcpkg's current installed tree is only known after
+       vcpkg.targets, hence here. -->
+  <PropertyGroup Condition="'$(CushUsesOpenCV)' == 'true'">
+    <IncludePath>$(IncludePath);$(_ZVcpkgCurrentInstalledDir)include\opencv4</IncludePath>
+  </PropertyGroup>
+
+  <!-- vcpkg installs the manifest before ClCompile, but these projects compile only .cu files and the CUDA
+       compile (CudaBuild) runs earlier. Install before it. -->
+  <Target Name="CushVcpkgInstallBeforeCuda" BeforeTargets="CudaBuild"
+          DependsOnTargets="CushCheckEnvironment;VcpkgInstallManifestDependencies" />
+</Project>

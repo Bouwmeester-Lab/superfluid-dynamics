@@ -1,0 +1,7 @@
+{
+  "name": "matplotlib-cpp",
+  "version-date": "2020-08-27",
+  "port-version": 3,
+  "description": "Extremely simple yet powerful header-only C++ plotting library built on the popular matplotlib. Overlay of the vcpkg port with a Windows int64 fix.",
+  "homepage": "https://github.com/lava/matplotlib-cpp"
+}

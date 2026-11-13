@@ -318,12 +318,50 @@ What changed against the plan above:
 
 ### Phase 5 — Portable build
 
-The build stays on MSBuild.
+The build stays on MSBuild. Today every project hard-codes the CUDA toolkit path, `C:\vcpkg\packages\<pkg>_x64-windows\...` directories, two Anaconda roots, `numpy\core\include` and `python312.lib`. It also relies on the user-wide `vcpkg integrate`. Debug is broken for the App and Tests: nvcc gets no `-std` flag in Debug and falls back to C++17, which libcu++ rejects, and Tests Debug lacks the DLL include root. Debug also builds sm_75 while Release builds sm_86 and sm_120.
 
-- Add a vcpkg manifest (`vcpkg.json`: gtest, boost-math, hdf5/highfive, opencv for the App only) and a `Directory.Build.props` holding CUDA architectures, the C++ standard (one value for Debug and Release) and include roots. This removes every user-specific absolute path.
-- The Python include and lib paths (needed by Tests and App for plotting) come from one property, `CushPythonRoot`, set in a user-local `Directory.Build.user.props` that git ignores.
-- Document the required toolset (v145 / VS 18) in the README, or retarget the solution.
-- **Done when:** a fresh clone builds on another Windows machine following the README alone.
+- **vcpkg manifest.** Add `CuSuperHelium/vcpkg.json` in manifest mode, with a `builtin-baseline` that pins versions.
+  - Dependencies: gtest, boost-math, hdf5, highfive, indicators, matplotlib-cpp, and `opencv4` with `default-features: false`, enough for `VideoWriter` (OpenCV's own MJPEG `.avi` writer) and images.
+  - HDF5 and HighFive belong to the DLL, not only the App: `Export/RhsExports.cu` includes `IO/StateFile.h`.
+  - All projects share one install tree, so opencv is installed for every project. Per-project features would make vcpkg reinstall each time the project switches.
+  - Delete the vendored `CuSuperHelium/indicators/`. The vcpkg copy is the one that actually compiles today.
+- **`Directory.Build.props`** holds what every project shares, so no absolute path is left in a `.vcxproj`:
+  - the CUDA version (13.3), with the toolkit and build-customization paths derived from `CUDA_PATH`;
+  - the GPU architectures, sm_86 and sm_120, for every configuration;
+  - C++20 for both `cl` and nvcc, for every configuration;
+  - the DLL include root;
+  - the vcpkg MSBuild import from `$(VCPKG_ROOT)`, so `vcpkg integrate install` is not needed.
+- **`scripts/configure.ps1`** writes the git-ignored `Directory.Build.user.props`:
+  - `CushPythonRoot`, from the Python it is given;
+  - the numpy include, from `numpy.get_include()` (numpy 2 moved it to `numpy\_core\include`);
+  - the `pythonXY.lib` name;
+  - the MSVC pin (`VCToolsVersion`) when CUDA 13.3 sits next to MSVC 14.5x, whose cudafe++ crashes.
+
+  Python is needed only by the Tests and App, for matplotlib-cpp plots.
+- **README:** requirements (VS 18 / v145 toolset, CUDA 13.3, vcpkg with `VCPKG_ROOT`, Python with numpy and matplotlib), the MSVC pin and why it exists, then the configure, build and test steps.
+- **Cleanups:**
+  - delete the empty, tracked `CuSuperHelium/CuSuperHelium.vcxproj` at solution level;
+  - drop `/ZI` (Edit and Continue) from the Release Tests;
+  - drop the redundant `-prec-div=true -prec-sqrt=true -ftz=false`.
+- **Not in this phase:** Release compiles the host side of `.cu` files with `/Od` (`CudaCompile` `Optimization` is `Od`). Device code is optimized, so the kernels are not affected. Switching to `/O2` may change host-side floating point, so it is a separate small change afterwards, made only if the goldens stay bit-identical or you accept the difference.
+- **Done when:**
+  - a fresh clone builds Release and Debug following the README alone, on this machine without the user-wide vcpkg integration and on a second Windows PC, reached through a Remote Control session;
+  - on both machines, gtest and pytest pass;
+  - the goldens are bit-identical to `main` in Release.
+
+**Status: done on this machine** on branch `reorg/phase-5-portable-build`; the second-PC run is pending. Results here:
+- Release and Debug build all three projects, and both pass 35 gtests and 22 pytest tests.
+- The 47 golden output arrays are bit-identical to `main` in Release. vcpkg's baseline moved boost-math from 1.86 to 1.88; the outputs did not change.
+- A clean copy of the tree, with no `Directory.Build.user.props` and no `vcpkg_installed`, passes configure, build and test following only the README.
+
+What changed against the plan above:
+- **CUDA's compile runs before ClCompile.** vcpkg installs the manifest before `ClCompile`, but these projects compile only `.cu` files, so the install never ran. `Directory.Build.targets` runs it before `CudaBuild`.
+- **Shared settings live in `Directory.Build.targets`,** not only in `.props`. The CUDA build customization's props are imported after `Directory.Build.props`, and its `CudaCompile` defaults (sm_75) would win.
+- **matplotlib-cpp needs a patch on Windows.** The stock header defines `select_npy_type<long long>` next to `select_npy_type<int64_t>`, which is the same type on Windows. The old `C:\vcpkg\installed` copy had been edited by hand. The fix is a vcpkg overlay port (`CuSuperHelium/vcpkg-ports/matplotlib-cpp`, one patch, enabled by `vcpkg-configuration.json`). `.gitattributes` keeps patches at LF.
+- **Debug and Python.** In Debug, `pyconfig.h` links `python3XY_d.lib`, which Anaconda does not ship, and defines `Py_DEBUG`. `CuSuperHelium/Plotting/PythonInclude.h` includes `Python.h` with `_DEBUG` undefined, as pybind11 does. Both `kernel.cu` files include it first.
+- **One install tree.** vcpkg installs into `CuSuperHelium/vcpkg_installed/`, not the default `vcpkg_installed\<triplet>\<triplet>\`. The default nesting pushed boost header paths past 260 characters in a deep checkout. The README asks for a short clone path or long paths.
+- **OpenCV headers** are under `include\opencv4`. The App (`CushUsesOpenCV`) gets that directory on its include path.
+- **`test.ps1`** uses the Python recorded by `configure.ps1` and puts it first on PATH for gtest, which embeds Python for its plots.
 
 ### Phase 6 — Python package
 

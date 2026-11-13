@@ -4,7 +4,7 @@
 
 #include <string>
 #include "IO/StepObserver.h"
-#include "indicators/progress_bar.hpp"
+#include <indicators/progress_bar.hpp>
 
 /// <summary>
 /// Shows a console progress bar for an integration from t0 to t1. Opt-in: attach it with OdeSolver::addObserver.

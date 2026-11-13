@@ -7,7 +7,7 @@ CuSuperHelium/                       Visual Studio solution
   CuSuperHelium/                     the DLL; this directory is the only include root
   CuSuperHelium.App/                 simulation runner, videos, matplotlib plots
   CuSuperHelium.Tests/               gtest suite
-  Python/                            ctypes bindings, analysis scripts, notebooks, pytest
+  Python/                            the cusuperhelium package (pip install -e), analysis/, notebooks/, tests/ (pytest)
   Plotting/                          plotting support shared by Tests and App (PythonInclude.h)
   vcpkg.json, vcpkg-ports/           dependencies (manifest mode) and the patched matplotlib-cpp port
   Directory.Build.props/.targets     settings shared by the three projects

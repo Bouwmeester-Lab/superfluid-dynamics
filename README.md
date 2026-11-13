@@ -27,7 +27,7 @@ The solution `CuSuperHelium/CuSuperHelium.sln` builds three projects: the librar
   - The dependencies are listed in `CuSuperHelium/vcpkg.json` and installed automatically into `CuSuperHelium/vcpkg_installed/` on the first build. That first build takes a while, mostly for boost, hdf5 and opencv.
   - `vcpkg integrate install` is not needed.
   - Keep the clone path short (for example `D:\repos\superfluid-dynamics`), or enable Windows long paths. Some boost header paths are long, and vcpkg fails when a full path exceeds 260 characters.
-- **Python 3** with numpy, matplotlib and pytest (Anaconda works). The Tests and App draw plots with matplotlib-cpp, and the Python tests drive the DLL.
+- **Python 3.11+** with numpy, matplotlib and pytest (Anaconda works). The Tests and App draw plots with matplotlib-cpp, and the Python tests drive the DLL through the `cusuperhelium` package (`CuSuperHelium/Python`), installed from the checkout.
 
 ### Steps
 
@@ -36,6 +36,7 @@ From the repository root, in PowerShell:
 ```powershell
 ./scripts/configure.ps1 -Python C:\path\to\python.exe   # once per machine: writes CuSuperHelium/Directory.Build.user.props
 ./scripts/build.ps1                                     # Release; add -Configuration Debug for Debug
+python -m pip install -e "CuSuperHelium/Python[test]"   # once per Python environment: the cusuperhelium package (editable)
 ./scripts/test.ps1                                      # gtest, then the Python tests (CUSH_PYTHON or python on PATH)
 ```
 
@@ -43,5 +44,6 @@ From the repository root, in PowerShell:
 - `configure.ps1` records the Python installation, the numpy include directory and the MSVC pin in a git-ignored file. It also checks Visual Studio 18, CUDA and the vcpkg clone, and prints a warning for anything missing. Run it again after changing Python or Visual Studio.
 - The gtest output contains lines such as `Error (not thrown): CUDA error cudaErrorInvalidValue ...`. They come from tests that check error reporting, and are expected.
 - After editing headers, use `./scripts/build.ps1 -Rebuild` or `./scripts/test.ps1 -Rebuild`. nvcc's dependency tracking misses some included `.cuh` files.
-- The DLL is written to `CuSuperHelium/x64/<Configuration>/CuSuperHelium.dll`. The Python bindings are in `CuSuperHelium/Python/integration/rhs.py`.
+- The DLL is written to `CuSuperHelium/x64/<Configuration>/CuSuperHelium.dll`. From Python, `import cusuperhelium` and use `cusuperhelium.SimulationManager()`. It finds the DLL through `CUSUPERHELIUM_DLL`, otherwise this checkout's build output. See [CuSuperHelium/Python/README.md](CuSuperHelium/Python/README.md).
+- `pytest CuSuperHelium/Python/tests` runs from any directory once the package is installed.
 

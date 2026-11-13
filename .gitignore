@@ -429,3 +429,6 @@ test-output/
 
 # vcpkg manifest-mode install tree
 vcpkg_installed/
+
+# pip install -e metadata
+*.egg-info/

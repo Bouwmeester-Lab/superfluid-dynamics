@@ -388,6 +388,25 @@ The package stays private for now: it is installed from the local checkout and n
 - Move analysis scripts and notebooks under `analysis/` and `notebooks/`, and remove the `sys.path` hacks.
 - **Done when:** `pytest Python/tests` runs from any directory.
 
+**Status: done** on branch `reorg/phase-6-python-package`.
+- **Verification:**
+  - `pytest CuSuperHelium/Python/tests` passes (22 tests) from the repository root, from a folder outside the repository, and from `tests/`.
+  - The 47 golden output arrays are bit-identical to `main`.
+  - Every package module imports, every analysis script and notebook cell parses, and `analysis/radial_velocities.py` runs end to end through the package.
+- **Layout:**
+  - `cusuperhelium/types.py`: the C ABI structs and `HELIUM_FILM`.
+  - `bindings.py`: one table holding every export's signature, applied by `bind(lib)` at load time.
+  - `library.py`: finds and loads the DLL. It takes `CUSUPERHELIUM_DLL`, otherwise `CuSuperHelium/x64/Release`, then `Debug`, and adds the DLL's folder and CUDA's `bin\x64` to the DLL search path.
+  - `manager.py`: `SimulationManager`, the same method names, arguments and return values as before.
+  - Shared tools: `fourier_series` (was `FourierSeries.py`), `gauss_legendre`, `finite_differences` (from the bottom of `rhs.py`), `thin_film`, `plots`. The notebooks import them, so they are part of the package.
+- **Bindings:** every parameter struct is now declared `POINTER(...)` and passed with `byref`, as the C signatures say. This removes the struct-by-value TODO, which only worked through the Windows x64 calling convention.
+- **Scripts and notebooks:**
+  - `analysis/` holds every script, including the old `analysis_rhs/` and the top-level ones. The `__main__` study at the end of `rhs.py` became `analysis/rhs_mode_study.py`.
+  - `notebooks/` holds every notebook.
+  - The `sys.path` hacks and the hard-coded `D:\repos\...\CuSuperHelium.dll` paths are gone. Notebooks were edited as text, so their diffs show only the changed lines.
+- **Installation:** `python -m pip install -e "CuSuperHelium/Python[test]"`, once per Python environment. `test.ps1` stops with that command when the package is missing, and warns when it is installed from another checkout.
+- **Behaviour change:** an integration with `returnTrajectory = false` now returns the final state and an empty times array. Before, the null times pointer made the Python side return -1.
+
 ### Phase 7 — Runtime sizes for the Cartesian solver (after the reorganization)
 
 - Remove the `N` template parameter from the periodic-2D classes, following the radial solver's pattern: sizes passed to constructors, buffers allocated at runtime.

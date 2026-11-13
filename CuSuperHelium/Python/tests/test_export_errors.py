@@ -36,7 +36,7 @@ def test_rhs_rejects_missing_material(sim):
 
 
 def test_sim_properties_fill_default_material():
-    import integration.rhs as rhs
+    import cusuperhelium as rhs
 
     props = rhs.CSimulationProperties(L=L_SI, rho=RHO, kappa=KAPPA, depth=DEPTH_SI)
     assert props.hamaker_constant == rhs.HELIUM_FILM.hamaker_constant

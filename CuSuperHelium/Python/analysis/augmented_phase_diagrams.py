@@ -2,22 +2,20 @@ import sys
 from pathlib import Path
 
 from matplotlib.animation import FuncAnimation
-python_dir = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(python_dir))
 
-import integration.rhs as rhs
+import cusuperhelium as rhs
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 import scipy.special as sp
-import FourierSeries as fs
+from cusuperhelium import fourier_series as fs
 from scipy.integrate import solve_ivp
 import os
 from matplotlib.widgets import Slider
 from scipy.linalg import null_space
 from scipy.interpolate import interp1d
 
-simManager = rhs.SimulationManager(r"D:\repos\superfluid-dynamics\CuSuperHelium\x64\Release\CuSuperHelium.dll")
+simManager = rhs.SimulationManager()
 
 alpha_hammaker = 2.6e-24
 

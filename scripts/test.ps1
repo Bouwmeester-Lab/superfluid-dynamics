@@ -70,6 +70,18 @@ if (-not $SkipPython) {
         if (-not $cmd) { throw "Python not found. Put it on PATH or set CUSH_PYTHON to python.exe." }
         $python = $cmd.Source
     }
+    # The tests import the cusuperhelium package; it must be installed in this Python, from this checkout.
+    $packageDir = Join-Path $repoRoot "CuSuperHelium\Python"
+    $ErrorActionPreference = "Continue"
+    # No double quotes in the code: Windows PowerShell 5.1 strips them when passing arguments to native programs.
+    $installed = & $python -c 'import pathlib, cusuperhelium; print(pathlib.Path(cusuperhelium.__file__).resolve().parents[1])' 2>$null
+    $ErrorActionPreference = "Stop"
+    if ($LASTEXITCODE -ne 0 -or -not $installed) {
+        throw "The cusuperhelium package is not installed in $python. Run: & `"$python`" -m pip install -e `"$packageDir[test]`""
+    }
+    if ((Resolve-Path $installed).Path -ne (Resolve-Path $packageDir).Path) {
+        Write-Host "Warning: cusuperhelium is installed from $installed, not from this checkout ($packageDir). Run: & `"$python`" -m pip install -e `"$packageDir[test]`"" -ForegroundColor Yellow
+    }
     $dll = Join-Path $outDir "CuSuperHelium.dll"
     if (-not (Test-Path $dll)) { throw "DLL not found: $dll. Run scripts/build.ps1 first." }
     $env:CUSUPERHELIUM_DLL = $dll

@@ -3,7 +3,7 @@
 #include "../HeliumWithDrivingBoundaryProblem.cuh"
 #include "../LightIntensity.cuh"
 #include "../RK4_Time_Dependent.cuh"
-#include "../SimulationRunner.cuh"
+#include "../DeviceParticleLoading.cuh"
 #include "../TimedBoundaryIntegrator.cuh"
 #include "../TrajectoryLogger.cuh"
 

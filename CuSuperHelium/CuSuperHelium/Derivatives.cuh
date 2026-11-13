@@ -15,12 +15,6 @@
 #include "Math/FftKernels.cuh"
 #include <iostream>
 #include "constants.cuh"
-#include "matplotlibcpp.h"
-namespace plt = matplotlibcpp;
-#if DEBUG_FFT
-#include "matplotlibcpp.h"
-namespace plt = matplotlibcpp;
-#endif // DEBUG_FFT
 
 __device__ __host__ inline double filterIndexTanh(int m, int N);
 
@@ -147,8 +141,6 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 	//		// std::cout << der[batchSize * i + j].y << std::endl;
 	//	}
 	//}
-	/*plt::figure();
-	plt::plot(derReal, { {"label", "filter coefficients"} });*/
 
 
 
@@ -328,48 +320,6 @@ inline void ZPhiDerivative<N, batchSize>::exec(const std_complex* Z, const std_c
 
 	//cudaDeviceSynchronize();
 	// calculate the double derivative of Z.
-//#define DEBUG_FFT
-#ifdef DEBUG_FFT
-	cudaDeviceSynchronize();
-	std::array<cufftDoubleComplex,  1* N> periodicPhiHost;
-	std::array<cufftDoubleComplex, 1 * N> PhiHost;
-	std::array<cufftDoubleComplex, 1 * N> phiPrimeHost;
-	//std::array<cufftDoubleComplex, 2*N> ZPhiHost;
-	//std::vector<double> xp(N, 0);
-	//std::vector<double> yp(N, 0);
-
-	//std::vector<double> xpp(N, 0);
-	//std::vector<double> ypp(N, 0);
-
-	std::vector<double> phiPeriodic(N, 0);
-	std::vector<double> phiOriginal(N, 0);
-	std::vector<double> phiPrime(N, 0);
-	cudaMemcpy(periodicPhiHost.data(), devPeriodicPhi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	cudaMemcpy(PhiHost.data(), Phi, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	cudaMemcpy(phiPrimeHost.data(), PhiPrime, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-
-	//printf("Zphi prime\n");
-	for (int i = 0; i < N; i++)
-	{
-		
-		phiPeriodic[i] = periodicPhiHost[i].x;
-		phiOriginal[i] = PhiHost[i].x;
-		phiPrime[i] = phiPrimeHost[i].x;
-	}
-	plt::figure();
-	/*plt::plot(x, { {"label", "x"} });
-	plt::plot(y, { {"label", "y"} });*/
-	//plt::plot(phiPeriodic, { {"label", "phi periodic"} });
-	//plt::plot(phiOriginal, { {"label", "phi"} });
-	plt::plot(phiPrime, { {"label", "phi prime'"} });
-	//plt::plot(yp, { {"label", "yp"} });
-
-	//plt::plot(xpp, { {"label", "xpp"} });
-	//plt::plot(ypp, { {"label", "ypp"} });
-	plt::legend();
-	plt::show();
-	std::cin.get();
-#endif
 	//cudaDeviceSynchronize();
 	// add the linear part back
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPrime, 2.0* PI_d/N, ZPrime, N * batchSize, 0);

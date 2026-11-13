@@ -3,24 +3,14 @@
 #include "../BaseBoundaryIntegrator.cuh"
 #include "../Derivatives.cuh"
 #include "../HeliumBoundaryProblem.cuh"
-#include "../SimulationFunctions.cuh"
-#include "../SimulationRunner.cuh"
+#include "../DeviceParticleLoading.cuh"
+#include "../StateFile.h"
 #include "../DerivativeCalculator.cuh"
 
 #include <algorithm>
 #include <complex>
 #include <string>
 #include <vector>
-
-int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps)
-{
-	ProblemProperties properties;
-	properties.rho = rho;
-	properties.kappa = kappa;
-	properties.depth = depth;
-
-	return dispersionTest<256>(wavelength, simulationTime, properties, steps);
-}
 
 int calculateRHS256FromFile(const char* inputFile, const char* outputFile, double L, double rho, double kappa, double depth)
 {

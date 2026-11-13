@@ -146,119 +146,17 @@ void BaseBoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex
 	const ProblemPointers problemPointers{ devZ, devZp, devZpp, devPhi, devVelocitiesUpper, devVelocitiesLower };
 
 	calculateVorticities(initialState); // Calculate the vorticities based on the current state
-#ifdef DEBUG_DERIVATIVES_2
-	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
-
-	//cudaDeviceSynchronize(); // wait for the solver to finish
-
-
-	//cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
-	std::vector<double> PhiPrime_host(N, 0);
-	std::vector<double> xprime(N, 0.0);
-	std::vector<double> yprime(N, 0.0);
-
-	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
-	std::vector<double> y(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
-
-	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));
-	std::vector<cuDoubleComplex> ZPhiPrime_host(2 * N, make_cuDoubleComplex(0, 0)); // Host vectors to store the results of  ZPhiPrime
-	std::vector<double> Phi(N, 0);
-
-	cudaMemcpy(ZPhiPrime_host.data(), devZ, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-	cudaMemcpy(ZPhi_host.data(), devZ, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the Phi from device to host for debugging or further processing
-	cudaMemcpy(PhiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-
-	for (int i = 0; i < 2 * N; i++)
-	{
-		if (i < N)
-		{
-			x[i] = ZPhi_host[i].x; // Store the real part of ZPhi for plotting
-			y[i] = ZPhi_host[i].y; // Store the imaginary part of ZPhi for plotting
-			xprime[i] = ZPhiPrime_host[i].x; // Store the real part of ZPhi for plotting
-			yprime[i] = ZPhiPrime_host[i].y; // Store the imaginary part of ZPhi for plotting
-		}
-		else
-		{
-			Phi[i - N] = ZPhi_host[i].x;
-		}
-	}
-	plt::figure();
-	plt::title("Phi and Phi Prime");
-	plt::plot(Phi); // Plot the Phi values
-	plt::plot(PhiPrime_host);
-	plt::figure();
-	plt::title("x and x prime");
-	plt::plot(x); // Plot the real part of ZPhi
-	plt::plot(xprime);
-	plt::figure();
-	plt::title("y and y prime");
-	plt::plot(y); // Plot the imaginary part of ZPhi
-	plt::plot(yprime);
-
-	std::vector<cuDoubleComplex> a_host(N, make_cuDoubleComplex(0, 0));
-
-#endif
 	real_to_complex << <blocks, threads >> > (deva, devaComplex, batchSize * N); // Convert the real vorticities to complex form for velocity calculations
 	//
 	fftDerivative.exec(devaComplex, devaprime, false, 2.0 * PI_d / N); // Calculate the derivative of a (vorticities) 2.0*PI_d / static_cast<double>(N)
 
 	//force_real_only << <blocks, threads >> > (devaprime, N); // Force the imaginary part of the primed vorticities to be zero
-#ifdef DEBUG_DERIVATIVES_3
-	std::vector<double> x(N, 0.0); // Host vectors to store the real and imaginary parts of ZPhiPrime for plotting
-	std::vector<cuDoubleComplex> ZPhi_host(2 * N, make_cuDoubleComplex(0, 0));
-	std::vector<cuDoubleComplex> ZPhiPrime_host(2 * N, make_cuDoubleComplex(0, 0)); // Host vectors to store the results of  ZPhiPrime
-	std::vector<cuDoubleComplex> aPrimeHost(N, make_cuDoubleComplex(0, 0));
-	std::vector<double> aHost(N, 0.0);
-	std::vector<double> aPrimeReal(N, 0.0); // Real part of the vorticities for debugging or further processing
-	std::vector<double> Phi(N, 0);
-	std::vector<double> PhiPrime_host(N, 0);
-	cudaDeviceSynchronize();
-	cudaMemcpy(ZPhiPrime_host.data(), devZ, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-	cudaMemcpy(ZPhi_host.data(), devZ, 2 * N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-	cudaMemcpy(aHost.data(), deva, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
-	cudaMemcpy(aPrimeHost.data(), devaprime, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost); // Copy the vorticities from device to host for debugging or further processing
-	cudaMemcpy(PhiPrime_host.data(), devPhiPrime, N * sizeof(double), cudaMemcpyDeviceToHost); // Copy the ZPhiPrime from device to host for debugging or further processing
-
-	for (int i = 0; i < N; i++) {
-		printf("%f\n", aHost[i]);
-		aPrimeReal[i] = aPrimeHost[i].x; // Store the real part of the vorticities for further processing
-		x[i] = ZPhi_host[i].x; // Store the real part of ZPhi for plotting
-		Phi[i] = ZPhiPrime_host[N + i].x; // Store the real part of ZPhi for plotting
-		//Phi[i] = ZPhiPrime_host[N + i].y; // Store the imaginary part of ZPhi for plotting
-	}
-	plt::figure();
-	//plt::plot(x, Phi, { {"label", "Phi'"} });
-	plt::title("a, aprime");
-	plt::plot(x, aHost, { {"label", "a"} });
-	plt::plot(x, aPrimeReal, { {"label", "a prime"} });
-	plt::legend();
-#endif
-	//plt::show();
 
 	// std::cin.get(); // Wait for user input to continue
 	// this calculates the rhsPhi for X,Y directly
 	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesLower, problemProperties, true); // Calculate the velocities based on the vorticities and matrices
 
 	boundaryProblem.CalculateVelocities(devZ, devZp, devZpp, devaComplex, devaprime, devV1, devV2, devVelocitiesUpper, problemProperties, false); // Calculate the velocities for the upper fluid
-#ifdef DEBUG_VELOCITIES
-	cudaDeviceSynchronize(); // Ensure all previous operations are complete before proceeding
-	std::array<cufftDoubleComplex, N> VelocitiesLower; // Host array to store the velocities for the lower fluid
-	std::vector<double> xVelocitiesLower(N, 0.0); // Host vector to store the real part of the velocities for the lower fluid
-	std::vector<double> yVelocitiesLower(N, 0.0); // Host vector to store the imaginary part of the velocities for the lower fluid
-
-	cudaMemcpy(VelocitiesLower.data(), devVelocitiesLower, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // Copy the velocities for the lower fluid from device to host
-	for (int i = 0; i < N; i++) {
-		xVelocitiesLower[i] = VelocitiesLower[i].x; // Store the real part of the velocities for the lower fluid
-		yVelocitiesLower[i] = VelocitiesLower[i].y; // Store the imaginary part of the velocities for the lower fluid
-	}
-
-	plt::figure();
-	plt::title("Velocities Lower Fluid");
-	plt::plot(xVelocitiesLower, { {"label", "X Velocities Lower Fluid"} }); // Plot the velocities for the lower fluid
-	plt::plot(yVelocitiesLower, { {"label", "Y Velocities Lower Fluid"} }); // Plot the imaginary part of the velocities for the lower fluid
-	plt::legend();
-	plt::show(); // Show the plot for the velocities of the lower fluid
-#endif
 	// 7. the RHS of the X, Y are the velocities above.
 	// this calculates the RHS of Phi.
 	this->calculateRhsPhi(problemPointers, initialState, devRhsPhi); // Calculate the right-hand side of the equations based on the current state and velocities

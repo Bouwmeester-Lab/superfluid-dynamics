@@ -16,12 +16,10 @@
 #include "DelayedIntensityTerm.cuh"
 #include "BoundaryProblem.cuh"
 
-#include "matplotlibcpp.h"
 
 #include "BaseBoundaryIntegrator.cuh"
 #include "TimedBoundaryIntegrator.cuh"
 
-namespace plt = matplotlibcpp;
 
 
 

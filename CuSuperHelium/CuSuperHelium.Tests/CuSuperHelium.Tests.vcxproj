@@ -98,6 +98,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ComplexFunctionsTests.cuh" />
+    <ClInclude Include="DeviceBufferTests.cuh" />
     <ClInclude Include="ExportFunctionTests.cuh" />
     <ClInclude Include="IntegrationPathEquivalenceTests.cuh" />
     <ClInclude Include="MatrixMTests.cuh" />

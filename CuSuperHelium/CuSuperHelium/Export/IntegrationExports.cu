@@ -30,7 +30,7 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 		// calculators for the f(y)
 		HeliumBoundaryProblem<N, 1> heliumProblem(properties);
 		BaseBoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
-		RealBoundaryItegralCalculator<N> realCalculator(calculator);
+		RealBoundaryIntegralCalculator<N> realCalculator(calculator);
 		// calculators for the jacobian
 		HeliumBoundaryProblem<N, 3 * N> heliumJacProblem(properties);
 		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);
@@ -80,28 +80,6 @@ int integrateSimulationGL2(double* initialState, double** statesOut, size_t* sta
 }
 
 int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut)
-{
-	std::free(statesOut);
-	std::free(timesOut);
-	return 0;
-}
-
-template <size_t N>
-int integrateSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4Options* rkOptions)
-{
-	try {
-		ProblemProperties properties;
-		copyProperties(*simProperties, properties);
-		// adimensionalize properties
-		properties = adimensionalizeProperties(properties);
-	}
-	catch (const std::exception& e) {
-		std::cerr << "Error: " << e.what() << std::endl;
-		return -1;
-	}
-}
-
-int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut)
 {
 	std::free(statesOut);
 	std::free(timesOut);

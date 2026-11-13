@@ -5,16 +5,28 @@
 #include "device_launch_parameters.h"
 #include <stdio.h>
 #include "ProblemProperties.hpp"
-#include "WaterBoundaryIntegralCalculator.cuh"
+#include "cufft.h"
+#include "constants.cuh"
+#include "Derivatives.cuh"
+#include "WaterVelocities.cuh"
+#include "MatrixSolver.cuh"
+#include "AutonomousProblem.h"
+#include "Energies.cuh"
+#include "DelayedIntensityTerm.cuh"
+#include "BoundaryProblem.cuh"
+#include "BaseBoundaryIntegrator.cuh"
+#include "TimedBoundaryIntegrator.cuh"
 #include "SimpleEuler.cuh"
 #include "AutonomousRungeKuttaStepper.cuh"
 #include "ValueLogger.h"
 #include "matplotlibcpp.h"
 #include "VideoMaking.h"
 #include <highfive/H5File.hpp>
+#include "StateFile.h"
 #include "RK45.cuh"
 #include "SimulationOptions.h"
 #include "ExportTypes.cuh"
+#include "DeviceParticleLoading.cuh"
 #include "HeliumBoundaryProblem.cuh"
 #include "WaterBoundaryProblem.cuh"
 //#include "H"
@@ -87,283 +99,6 @@ public:
     }
 };
 
-/// <summary>
-/// Loads the data in an H5 file containing two datasets with 2 columns each (x, y) pairs representing complex numbers.
-/// The first dataset must be "interface" representing the interface shape.
-/// The second dataset must be "potential" representing the potential (only the first column is used).
-/// </summary>
-/// <param name="path"></param>
-/// <param name="Z"></param>
-/// <param name="phi"></param>
-/// <returns></returns>
-inline int loadStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, const double scaleY = 1.0) 
-{
-    
-    HighFive::File file(path, HighFive::File::ReadOnly);
-
-    auto interfaceDataSet = file.getDataSet("interface");
-    auto potential = file.getDataSet("potential");
-
-    // check dimentsions and make sure its N x 2
-    auto dims = interfaceDataSet.getSpace().getDimensions();
-    if (dims.size() != 2 || dims[1] != 2 || dims[0] != N) {
-        if (dims.size() == 1) {
-            throw std::runtime_error(std::format("Interface must have shape ({}, 2), instead it has ({},)", N, dims[0]));
-        }
-        else if (dims.size() == 2){
-            throw std::runtime_error(std::format("Interface must have shape ({}, 2), instead it has ({}, {})", N, dims[0], dims[1]));
-        }
-        else {
-            throw std::runtime_error(std::format("Interface must have shape ({}, 2), instead it has a higher dimensionality than 2 ({})!", N, dims.size()));
-        }
-        
-    }
-
-    // check dimensions for potential
-    auto potDims = potential.getSpace().getDimensions();
-    if (potDims.size() == 0) {
-        throw std::runtime_error("potential dataset is empty.");
-    }
-    std::vector<std::array<double, 2>> dataInterface;
-	//std::vector<double> dataPotential;
-
-    phi.clear();
-	potential.read(phi);
-
-	// read the interface data
-    interfaceDataSet.read(dataInterface);
-
-	// convert to complex numbers
-    Z.clear();
-    Z.resize(dataInterface.size());
-    for (size_t i = 0; i < dataInterface.size(); ++i) {
-        Z[i] = std::complex<double>(dataInterface[i][0], scaleY * dataInterface[i][1]);
-    }
-	return 0;
-}
-inline void createPropertiesAttributes(HighFive::File& file, const ProblemProperties& properties) 
-{
-    // add properties to the file
-    file.createAttribute<double>("rho", properties.rho);
-    file.createAttribute<double>("kappa", properties.kappa);
-    file.createAttribute<double>("U", properties.U);
-    file.createAttribute<double>("depth", properties.depth);
-	file.createAttribute<double>("initial_amplitude", properties.initial_amplitude);
-}
-
-inline int saveStateFile(const std::string path, std::vector<std::complex<double>>& Z, std::vector<double>& phi, const size_t N, ProblemProperties properties, bool rhs = false)
-{
-	HighFive::File file(path, HighFive::File::Overwrite);
-
-	// add properties to the file
-	createPropertiesAttributes(file, properties);
-	file.createAttribute<bool>("rhs", rhs);
-
-	auto dataset = file.createDataSet<double>("interface", HighFive::DataSpace({ N, 2 }));
-	auto potential = file.createDataSet<double>("potential", HighFive::DataSpace({ N, }));
-
-    std::vector<std::array<double, 2>> dataInterface(N);
-    for (size_t i = 0; i < Z.size(); ++i) {
-        dataInterface[i] = { Z[i].real(), Z[i].imag() };
-    }
-
-	// write the interface data into the dataset
-    dataset.write(dataInterface);
-	// write the potential data into the dataset
-	potential.write(phi);
-
-	file.flush();
-
-	return 0;
-}
-
-inline int loadDataToDevice(const double* x, const double* y, const double* phi, DeviceParticleData& deviceData, const size_t N, const size_t batchSize = 1, cudaStream_t stream = cudaStreamPerThread)
-{
-    cudaError_t cudaStatus;
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-	//std::cout << "Allocating device memory..." << std::endl;
-    cudaStatus = cudaMallocAsync(&deviceData.devZ, 2 * N * batchSize * sizeof(std_complex), stream); // we need space for both positions and potentials
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        return cudaStatus;
-    }
-	//std::cout << "Device memory allocated." << std::endl;
-    // Copy input vectors from host memory to GPU buffers.
-    std::vector<std_complex> ZHost(batchSize * N);
-	std::vector<std_complex> PhiHost(batchSize * N);
-
-	//std::cout << "Loading data to host complex vectors..." << std::endl;
-    for (size_t i = 0; i < batchSize * N; ++i)
-    {
-        ZHost[i] = std_complex(x[i], y[i]);
-		PhiHost[i] = std_complex(phi[i], 0.0);
-    }
-
-    cudaStatus = cudaMemcpyAsync(deviceData.devZ, ZHost.data(), batchSize * N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        return cudaStatus;
-    }
-
-    // copy to device
-    cudaStatus = cudaMemcpyAsync(deviceData.devZ + batchSize * N, PhiHost.data(), batchSize * N * sizeof(std_complex), cudaMemcpyHostToDevice, stream);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        return cudaStatus;
-    }
-	//std::cout << "Data loaded to device." << std::endl;
-    //cudaDeviceSynchronize();
-    //std::vector<std_complex> checkZ(2 * N);
-    //cudaStatus = cudaMemcpy(checkZ.data(), deviceData.devZ, 2 * N * sizeof(std_complex), cudaMemcpyDeviceToHost);
-    //if (cudaStatus != cudaSuccess) {
-    //    fprintf(stderr, "cudaMemcpy failed!");
-    //    return cudaStatus;
-    //}
-
-    //std::vector<double> X(N);
-    //std::vector<double> Y(N);
-    //std::vector<double> Phi(N);
-    //std::vector<double> PhiImag(N);
-
-    //for (size_t i = 0; i < N; ++i)
-    //{
-    //    X[i] = checkZ[i].real();
-    //    Y[i] = checkZ[i].imag();
-    //    Phi[i] = checkZ[i + N].real();
-    //    PhiImag[i] = checkZ[i + N].imag(); // should be 0
-    //}
-    /*plt::figure();
-    plt::plot(X, Y);
-    plt::plot(X, Phi);
-    plt::plot(X, PhiImag);
-    plt::title("Initial Condition");
-    plt::show();*/
-    return 0;
-}
-
-inline int loadDataToDevice(const c_double* Z, const c_double* phi, DeviceParticleData& deviceData, size_t N, cudaStream_t stream = cudaStreamPerThread)
-{
-    cudaError_t cudaStatus;
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    checkCuda(cudaMallocAsync(&deviceData.devZ, 2 * N * sizeof(std_complex), stream)); // we need space for both positions and potentials
-    checkCuda(cudaMemcpyAsync(deviceData.devZ, Z, N * sizeof(std_complex), cudaMemcpyHostToDevice, stream));
-
-    checkCuda(cudaMemcpyAsync(deviceData.devZ + N, phi, N * sizeof(std_complex), cudaMemcpyHostToDevice, stream));
-	
-    /*cudaDeviceSynchronize();
-	std::vector<c_double> ZHost(2 * N);
-	checkCuda(cudaMemcpy(ZHost.data(), deviceData.devZ, 2 * N * sizeof(c_double), cudaMemcpyDeviceToHost));
-
-    for (size_t i = 0; i < N; ++i) {
-        if (Z[i].re != ZHost[i].re || Z[i].im != ZHost[i].im)
-        {
-			std::cout << "Mismatch at " << i << ": " << Z[i].re << " != " << ZHost[i].re << std::endl;
-			std::cout << "Mismatch at " << i << ": " << Z[i].im << " != " << ZHost[i].im << std::endl;
-        }
-        if (phi[i].re != ZHost[i + N].re || phi[i].im != ZHost[i + N].im)
-        {
-			std::cout << "Mismatch at " << i << ": " << phi[i].re << " != " << ZHost[i + N].re << std::endl;
-			std::cout << "Mismatch at " << i << ": " << phi[i].im << " != " << ZHost[i + N].im << std::endl;
-        }
-    }*/
-
-	return 0;
-}
-
-inline int loadDataToDevice(ParticleData& data, DeviceParticleData& deviceData, const size_t N) 
-{
-    cudaError_t cudaStatus;
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-	cudaStatus = cudaMalloc(&deviceData.devZ, 2 * N * sizeof(std_complex)); // we need space for both positions and potentials
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        return cudaStatus;
-    }
-    // Copy input vectors from host memory to GPU buffers.
-	std::vector<std_complex> ZHost(N);
-    for (size_t i = 0; i < N; ++i)
-    {
-		ZHost[i] = std_complex(data.Z[i].real(), data.Z[i].imag());
-    }
-
-    cudaStatus = cudaMemcpy(deviceData.devZ,  ZHost.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        return cudaStatus;
-    }
-
-	// copy the potentials
-	std::vector<std_complex> potentialComplex(N);
-    for (size_t i = 0; i < N; ++i) 
-    {
-		potentialComplex[i] = std_complex(data.Potential[i], 0.0);
-    }
-	// copy to device
-	cudaStatus = cudaMemcpy(deviceData.devZ + N, potentialComplex.data(), N * sizeof(std_complex), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        return cudaStatus;
-    }
-	cudaDeviceSynchronize();
-	std::vector<std_complex> checkZ(2*N);
-	cudaStatus = cudaMemcpy(checkZ.data(), deviceData.devZ, 2 * N * sizeof(std_complex), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        return cudaStatus;
-	}
-
-	//std::vector<double> X(N);
-	//std::vector<double> Y(N);
-	//std::vector<double> Phi(N);
-	//std::vector<double> PhiImag(N);
-
- //   for (size_t i = 0; i < N; ++i)
- //   {
-	//	X[i] = checkZ[i].real();
-	//	Y[i] = checkZ[i].imag();
-	//	Phi[i] = checkZ[i + N].real();
-	//	PhiImag[i] = checkZ[i + N].imag(); // should be 0
- //   }
-	/*plt::figure();
-	plt::plot(X, Y);
-	plt::plot(X, Phi);
-	plt::plot(X, PhiImag);
-	plt::title("Initial Condition");
-	plt::show();*/
-    return 0;
-}
-
-
-inline int freeDeviceData(DeviceParticleData& deviceData) 
-{
-    cudaError_t cudaStatus;
-    cudaStatus = cudaFree(deviceData.devZ);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaFree failed!");
-        return cudaStatus;
-    }
-    return 0;
-}
-
-/// <summary>
-/// Sets the device data for the simulation. This function assumes that the device hasn't already been set using setDevice().
-/// </summary>
-template<int numParticles>
-int setDeviceData(ParticleData data, DeviceParticleData& deviceData)
-{
-    cudaError_t cudaStatus;
-    cudaStatus = setDevice();
-    if (cudaStatus != cudaSuccess) {
-        return cudaStatus;
-    }
-    loadDataToDevice(data, deviceData, numParticles);
-}
-
-template <int numParticles>
-RK45_std_complex<2 * numParticles> createRK45Solver() 
-{
-
-}
 
 template <int numParticles, size_t batchSize, typename TSolver, typename TOptions>
 requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>

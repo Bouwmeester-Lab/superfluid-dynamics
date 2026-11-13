@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Machine-local overrides (git-ignored), e.g. pinning the MSVC host compiler:
+      <Project>
+        <PropertyGroup>
+          <VCToolsVersion>14.44.35207</VCToolsVersion>
+        </PropertyGroup>
+      </Project>
+    CUDA 13.3's cudafe++ crashes (0xC0000005) with MSVC 14.52, so a working older
+    toolset has to be pinned until NVIDIA supports it.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.user.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.user.props')" />
+</Project>

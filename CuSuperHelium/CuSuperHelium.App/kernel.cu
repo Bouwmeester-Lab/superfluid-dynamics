@@ -19,7 +19,15 @@
 #include "constants.cuh"
 #include <complex>
 
-#include "WaterBoundaryIntegralCalculator.cuh"
+#include "Derivatives.cuh"
+#include "WaterVelocities.cuh"
+#include "MatrixSolver.cuh"
+#include "AutonomousProblem.h"
+#include "Energies.cuh"
+#include "DelayedIntensityTerm.cuh"
+#include "BoundaryProblem.cuh"
+#include "BaseBoundaryIntegrator.cuh"
+#include "TimedBoundaryIntegrator.cuh"
 #include "SimpleEuler.cuh"
 #include "AutonomousRungeKuttaStepper.cuh"
 #include "ValueLogger.h"
@@ -34,7 +42,7 @@
 #include "HeliumWithDrivingBoundaryProblem.cuh"
 #include "HeliumDrivenAutonomousProblem.cuh"
 #include "RK4_Time_Dependent.cuh"
-#include "Export.cuh"
+#include "Export/ExportApi.cuh"
 #include <AugmentedBoundaryIntegrator.cuh>
 #include "TrajectoryLogger.cuh"
 

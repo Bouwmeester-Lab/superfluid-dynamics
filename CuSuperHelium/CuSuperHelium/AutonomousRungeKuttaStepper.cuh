@@ -6,7 +6,6 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "AutonomousProblem.h"
-#include "matplotlibcpp.h"
 #include "cuDoubleComplexOperators.cuh"
 #include "cublas_v2.h"
 #include "DataLogger.cuh"
@@ -19,7 +18,6 @@
 #include <indicators/progress_bar.hpp>
 #include <memory>
 
-namespace plt = matplotlibcpp;
 
 template <typename T, int N>
 class AutonomousRungeKuttaStepperBase : public OdeSolver
@@ -126,65 +124,9 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 	autonomousProblem.run(devY0, k1); // run the autonomous problem with the initial state devY0 and store the result in k1
 
 	// copyk(1); // copy k1 from the autonomousProblem
-#ifdef DEBUG_RUNGE_KUTTA
-	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	std::vector<cufftDoubleComplex> k1_host(N);
-	std::vector<cufftDoubleComplex> y_host(N);
-
-	std::vector<double> x(N);
-	std::vector<double> y(N);
-	std::vector<double> Phi(N);
-	std::vector<double> dx(N);
-	std::vector<double> dy(N);
-	std::vector<double> dPhi(N);
-
-	cudaMemcpy(k1_host.data(), k1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy k1 to host for debugging
-	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY0 to host for debugging
-
-	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(y_host[i]);
-		y[i] = cuCimag(y_host[i]);
-		// Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
-
-		dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
-		dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
-		// dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
-	}
-
-	plt::figure();
-	plt::plot(x, y, { {"label", "initial pos"} }); // plot the positions
-	//plt::plot(x, Phi, { {"label", "initial phi"} }); // plot the Phi values
-	plt::plot(dx, dy, { {"label", "perturbed pos"} });
-	//plt::plot(x, dy, { {"label", "k1 y + dy"} });
-	// plt::plot(dx, dPhi, { {"label", "k1 phi + phi"} }); // plot the Phi component of k1
-
-	/*plt::xlabel("x");
-	plt::ylabel("y");*/
-	plt::legend();
-	plt::title("Positions after Runge-Kutta Step");
-
-#endif
 	// x_n+1 = x_n + h*0.5 * v_n -> x_n is a N dimensional vector, h is the time step, v_n is the velocity at time n
 	step(1); // step 1 of the Runge-Kutta method
 
-#ifdef DEBUG_RUNGE_KUTTA
-	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(y_host.data(), devY1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
-
-	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(y_host[i]);
-		y[i] = cuCimag(y_host[i]);
-		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
-		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
-		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
-		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
-	}
-	plt::figure();
-	plt::plot(x, y, { {"label", "pertubed calculated positions"} }); // plot the positions
-	//plt::plot(x, Phi, { {"label", "pertubed calculated phi"} }); // plot the Phi values
-
-	
-#endif
 
 	autonomousProblem.run(devY1, k2);
 
@@ -192,24 +134,6 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 
 	step(2); // step 2 of the Runge-Kutta method
 
-#ifdef DEBUG_RUNGE_KUTTA
-	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(y_host.data(), devY2,  N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
-
-	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(y_host[i]);
-		y[i] = cuCimag(y_host[i]);
-		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
-		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
-		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
-		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
-	}
-
-	plt::plot(x, y, { {"label", "3rd pertubed calculated positions"} }); // plot the positions
-	//plt::plot(x, Phi, { {"label", "3rd pertubed calculated phi"} }); // plot the Phi values
-
-	//plt::legend();
-#endif
 
 	autonomousProblem.run(devY2, k3);
 
@@ -221,24 +145,6 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 
 	//copyk(4); // copy k4 from the autonomousProblem
 
-#ifdef DEBUG_RUNGE_KUTTA
-	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(y_host.data(), devY3, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
-
-	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(y_host[i]);
-		y[i] = cuCimag(y_host[i]);
-		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
-		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
-		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
-		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
-	}
-
-	plt::plot(x, y, { {"label", "4th pertubed calculated positions"} }); // plot the positions
-	//plt::plot(x, Phi, { {"label", "4th pertubed calculated phi"} }); // plot the Phi values
-
-	plt::legend();
-#endif
 	
 	add_k_vectors << <blocks, threads >> > (k1, k2, k3, k4, k1, N); // add the four vectors together
 
@@ -252,54 +158,11 @@ void AutonomousRungeKuttaStepperBase<T, N>::runStep(int _step)
 	//	printf("k[%d] = (%f, %f)\n", i, cuCreal(k1_host[i]), cuCimag(k1_host[i]));
 	//}
 	//std::cin.get(); // wait for user input to continue
-#ifdef DEBUG_RUNGE_KUTTA
-	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
-	cudaMemcpy(k1_host.data(), k1, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
-
-	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(y_host[i]); // +sixthTimeStep.x * k1_host[i].x;
-		y[i] = cuCimag(y_host[i]);// +sixthTimeStep.x * k1_host[i].y;
-		//Phi[i] = cuCreal(y_host[i + N]);// +sixthTimeStep.x * k1_host[i + N].x; // assuming the second half of the array contains Phi values
-		//dx[i] = x[i] + halfTimeStep.x * cuCreal(k1_host[i]);
-		//dy[i] = y[i] + halfTimeStep.x * cuCimag(k1_host[i]);
-		//dPhi[i] = Phi[i] + halfTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
-	}
-	plt::figure();
-	plt::plot(x, y, { {"label", "Initial"}}); // plot the positions
-	//plt::plot(x, Phi, { {"label", "Initial phi"} }); // plot the Phi values
-
-#endif
 
 	//logger.waitForCopy(); // wait for the logger to finish copying data before proceeding
 
 	step(4); // step 4 of the Runge-Kutta method, which combines the results of the previous steps, it should overwrite devY0 with the final result
 
-#ifdef DEBUG_RUNGE_KUTTA
-	cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed
-	cudaMemcpy(y_host.data(), devY0, N * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost); // copy devY1 to host for debugging
-
-	for (int i = 0; i < N; i++) {
-		x[i] = cuCreal(y_host[i]);
-		y[i] = cuCimag(y_host[i]);
-		//Phi[i] = cuCreal(y_host[i + N]); // assuming the second half of the array contains Phi values
-		dx[i] = sixthTimeStep.x * cuCreal(k1_host[i]);
-
-		dy[i] = sixthTimeStep.x * cuCimag(k1_host[i]);
-		//dPhi[i] = sixthTimeStep.x * cuCreal(k1_host[i + N]); // assuming the second half of k1 contains Phi values
-	}
-
-	plt::plot(x, y, { {"label", "Final"} }); // plot the positions
-	//plt::plot(x, Phi, { {"label", "Final phi"} }); // plot the Phi values
-
-	plt::legend();
-
-	plt::figure();
-	plt::plot(dx, { {"label", "dx"} }); // plot the x component of k1
-	plt::plot(dy, { {"label", "dy"} }); // plot the y component of k1
-	//plt::plot(dPhi, { {"label", "dPhi"} }); // plot the Phi component of k1
-	plt::legend();
-#endif
 	//if(logger.shouldCopy(_step))
 	//	logger.setReadyToCopy(devY0, cudaStreamPerThread, currentTime + CastFrom<T>(timeStep), true); //TODO: make this work with a custom stream.
 	//cudaDeviceSynchronize(); // synchronize the device to ensure all operations are completed

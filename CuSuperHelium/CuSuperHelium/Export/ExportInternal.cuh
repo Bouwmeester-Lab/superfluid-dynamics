@@ -5,6 +5,7 @@
 #include "ExportApi.cuh"
 
 #include "../Common/CudaChecks.cuh"
+#include "../Common/DeviceBuffer.cuh"
 #include "../constants.cuh"
 #include "../ExportTypes.cuh"
 #include "../OptomechanicalVariables.h"

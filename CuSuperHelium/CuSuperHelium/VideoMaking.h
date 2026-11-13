@@ -6,6 +6,9 @@
 #include <iostream>
 #include <string>
 
+#include "matplotlibcpp.h"
+namespace plt = matplotlibcpp;
+
 namespace fs = std::filesystem;  
 
 inline void createVideo(const std::string name, int width, int height, std::vector<std::string>& paths_pngs, int fps = 30) {

@@ -1,5 +1,18 @@
 #pragma once
-#include "WaterBoundaryIntegralCalculator.cuh"
+#include "ProblemProperties.hpp"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cufft.h"
+#include "constants.cuh"
+#include "Derivatives.cuh"
+#include "WaterVelocities.cuh"
+#include "MatrixSolver.cuh"
+#include "AutonomousProblem.h"
+#include "Energies.cuh"
+#include "DelayedIntensityTerm.cuh"
+#include "BoundaryProblem.cuh"
+#include "BaseBoundaryIntegrator.cuh"
+#include "TimedBoundaryIntegrator.cuh"
 
 __global__ void convertToComplexStateKernel(const double* realState, std_complex* complexState, size_t N)
 {
@@ -34,7 +47,7 @@ __global__ void convertToRealRhsKernel(const std_complex* complexRHS, double* re
 /// </summary>
 /// <typeparam name="N"></typeparam>
 template <size_t N>
-class RealBoundaryItegralCalculator final : public AutonomousProblem<double, 3 * N> 
+class RealBoundaryIntegralCalculator final : public AutonomousProblem<double, 3 * N> 
 {
 	BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator;
 	cudaStream_t stream = cudaStreamPerThread;
@@ -49,12 +62,12 @@ public:
 	virtual void run(double* initialState, double* rhs) override;
 	virtual void setStream(cudaStream_t stream) override;
 
-	RealBoundaryItegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator);
-	~RealBoundaryItegralCalculator();
+	RealBoundaryIntegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator);
+	~RealBoundaryIntegralCalculator();
 };
 
 template<size_t N>
-void RealBoundaryItegralCalculator<N>::run(double* initialState, double* rhs)
+void RealBoundaryIntegralCalculator<N>::run(double* initialState, double* rhs)
 {
 	// convert real state to complex state
 	
@@ -68,21 +81,21 @@ void RealBoundaryItegralCalculator<N>::run(double* initialState, double* rhs)
 }
 
 template<size_t N>
-void RealBoundaryItegralCalculator<N>::setStream(cudaStream_t stream)
+void RealBoundaryIntegralCalculator<N>::setStream(cudaStream_t stream)
 {
 	this->stream = stream;
 	boundaryIntegralCalculator.setStream(stream);
 }
 
 template<size_t N>
-RealBoundaryItegralCalculator<N>::RealBoundaryItegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator) : boundaryIntegralCalculator(boundaryIntegralCalculator)
+RealBoundaryIntegralCalculator<N>::RealBoundaryIntegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator) : boundaryIntegralCalculator(boundaryIntegralCalculator)
 {
 	checkCuda(cudaMalloc(&devComplexState, 2 * N * sizeof(std_complex)), __func__, __FILE__, __LINE__);
 	checkCuda(cudaMalloc(&devComplexRHS, 2 * N * sizeof(std_complex)), __func__, __FILE__, __LINE__);
 }
 
 template<size_t N>
-RealBoundaryItegralCalculator<N>::~RealBoundaryItegralCalculator()
+RealBoundaryIntegralCalculator<N>::~RealBoundaryIntegralCalculator()
 {
 	checkCuda(cudaFree(devComplexState), __func__, __FILE__, __LINE__);
 	checkCuda(cudaFree(devComplexRHS), __func__, __FILE__, __LINE__);

@@ -3,24 +3,14 @@
 #include "../BaseBoundaryIntegrator.cuh"
 #include "../Derivatives.cuh"
 #include "../HeliumBoundaryProblem.cuh"
-#include "../SimulationFunctions.cuh"
-#include "../SimulationRunner.cuh"
+#include "../DeviceParticleLoading.cuh"
+#include "../StateFile.h"
 #include "../DerivativeCalculator.cuh"
 
 #include <algorithm>
 #include <complex>
 #include <string>
 #include <vector>
-
-int dispertionTest256(double wavelength, double simulationTime, double rho, double kappa, double depth, int steps)
-{
-	ProblemProperties properties;
-	properties.rho = rho;
-	properties.kappa = kappa;
-	properties.depth = depth;
-
-	return dispersionTest<256>(wavelength, simulationTime, properties, steps);
-}
 
 int calculateRHS256FromFile(const char* inputFile, const char* outputFile, double L, double rho, double kappa, double depth)
 {
@@ -54,17 +44,15 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, doubl
 		ParticleData particle(Z, Phi);
 		DeviceParticleData deviceData;
 
-		std_complex* devRhs;
-
 		// set device
 		checkCuda(setDevice());
 		// copy data to device
 		loadDataToDevice(particle, deviceData, 256);
 		// allocate memory for RHS
-		checkCuda(cudaMalloc(&devRhs, 2 * sizeof(std_complex) * 256));
+		DeviceBuffer<std_complex> devRhs(2 * 256);
 
 		// calculate RHS
-		calculator.run(deviceData.devZ, devRhs);
+		calculator.run(deviceData.devZ, devRhs.get());
 
 		// copy result back to host
 		std::vector<std::complex<double>> rhs(2 * 256);
@@ -72,10 +60,10 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, doubl
 		std::vector<std::complex<double>> rhsPos(256);
 		std::vector<double> phiRhs(256);
 
-		checkCuda(cudaMemcpy(rhs.data(), devRhs, 2 * sizeof(std_complex) * 256, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(rhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
 
 		// free device memory
-		checkCuda(cudaFree(devRhs));
+		devRhs.reset();
 		freeDeviceData(deviceData);
 
 		// prepare data into two vectors, one for position RHS and one for potential RHS
@@ -113,25 +101,23 @@ int calculateRHS256FromVectors(const double* x, const double* y, const double* p
 
 		DeviceParticleData deviceData;
 
-		std_complex* devRhs;
-
 		// set device
 		checkCuda(setDevice());
 		// copy data to device
 		loadDataToDevice(x, y, phi, deviceData, 256);
 		// allocate memory for RHS
-		checkCuda(cudaMalloc(&devRhs, 2 * sizeof(std_complex) * 256));
+		DeviceBuffer<std_complex> devRhs(2 * 256);
 
 		// calculate RHS
-		calculator.run(deviceData.devZ, devRhs);
+		calculator.run(deviceData.devZ, devRhs.get());
 
 		// copy result back to host
 		std::vector<std::complex<double>> rhs(2 * 256);
 
-		checkCuda(cudaMemcpy(rhs.data(), devRhs, 2 * sizeof(std_complex) * 256, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(rhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
 
 		// free device memory
-		checkCuda(cudaFree(devRhs));
+		devRhs.reset();
 		freeDeviceData(deviceData);
 
 		// prepare data into two vectors, one for position RHS and one for potential RHS
@@ -167,25 +153,23 @@ int calculateRHSNFromVectors(const double* x, const double* y, const double* phi
 
 		DeviceParticleData deviceData;
 
-		std_complex* devRhs;
-
 		// set device
 		checkCuda(setDevice());
 		// copy data to device
 		loadDataToDevice(x, y, phi, deviceData, N, batchSize);
 		// allocate memory for RHS
-		checkCuda(cudaMalloc(&devRhs, 2 * sizeof(std_complex) * N * batchSize));
+		DeviceBuffer<std_complex> devRhs(2 * N * batchSize);
 
 		// calculate RHS
-		calculator.run(deviceData.devZ, devRhs);
+		calculator.run(deviceData.devZ, devRhs.get());
 
 		// copy result back to host
 		std::vector<std::complex<double>> rhs(2 * N * batchSize);
 
-		checkCuda(cudaMemcpy(rhs.data(), devRhs, 2 * sizeof(std_complex) * N * batchSize, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(rhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
 
 		// free device memory
-		checkCuda(cudaFree(devRhs));
+		devRhs.reset();
 		freeDeviceData(deviceData);
 
 		// prepare data into two vectors, one for position RHS and one for potential RHS
@@ -341,21 +325,6 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 
 constexpr size_t RADIAL_BESSEL_MODE_COUNT = 1024;
 
-namespace
-{
-	/// <summary>
-	/// Owns one device array of doubles; freed when it goes out of scope (also on exceptions).
-	/// </summary>
-	struct DeviceDoubles
-	{
-		double* ptr = nullptr;
-		explicit DeviceDoubles(size_t count) { CHECK_CUDA(cudaMalloc(&ptr, sizeof(double) * count)); }
-		~DeviceDoubles() { cudaFree(ptr); }
-		DeviceDoubles(const DeviceDoubles&) = delete;
-		DeviceDoubles& operator=(const DeviceDoubles&) = delete;
-	};
-}
-
 int calculateVelocitiesRadialSymmetryModes(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N, size_t nModes)
 {
 	if (N < 2)
@@ -371,37 +340,37 @@ int calculateVelocitiesRadialSymmetryModes(const double* r, const double* z, con
 
 	try
 	{
-		DeviceDoubles dev_r(N);
-		DeviceDoubles dev_z(N);
-		DeviceDoubles dev_z_prime(N);
-		DeviceDoubles dev_z_pp(N);
-		DeviceDoubles dev_phi(N);
-		DeviceDoubles dev_phi_prime(N);
-		DeviceDoubles dev_vr(N);
-		DeviceDoubles dev_vz(N);
+		DeviceBuffer<double> dev_r(N);
+		DeviceBuffer<double> dev_z(N);
+		DeviceBuffer<double> dev_z_prime(N);
+		DeviceBuffer<double> dev_z_pp(N);
+		DeviceBuffer<double> dev_phi(N);
+		DeviceBuffer<double> dev_phi_prime(N);
+		DeviceBuffer<double> dev_vr(N);
+		DeviceBuffer<double> dev_vz(N);
 
-		CHECK_CUDA(cudaMemcpy(dev_r.ptr, r, sizeof(double) * N, cudaMemcpyHostToDevice));
+		CHECK_CUDA(cudaMemcpy(dev_r.get(), r, sizeof(double) * N, cudaMemcpyHostToDevice));
 		if (z != nullptr) {
-			CHECK_CUDA(cudaMemcpy(dev_z.ptr, z, sizeof(double) * N, cudaMemcpyHostToDevice));
+			CHECK_CUDA(cudaMemcpy(dev_z.get(), z, sizeof(double) * N, cudaMemcpyHostToDevice));
 		}
 		else {
-			CHECK_CUDA(cudaMemset(dev_z.ptr, 0, sizeof(double) * N));
+			CHECK_CUDA(cudaMemset(dev_z.get(), 0, sizeof(double) * N));
 		}
-		CHECK_CUDA(cudaMemcpy(dev_phi.ptr, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
+		CHECK_CUDA(cudaMemcpy(dev_phi.get(), phi, sizeof(double) * N, cudaMemcpyHostToDevice));
 
 		FiniteDifferenceDerivativeCalculator derivativeCalculator;
 
-		derivativeCalculator.calculateFirstDerivative(dev_z.ptr, dev_r.ptr, dev_z_prime.ptr, N);
-		derivativeCalculator.calculateFirstDerivative(dev_phi.ptr, dev_r.ptr, dev_phi_prime.ptr, N);
-		derivativeCalculator.calculateFirstDerivative(dev_z_prime.ptr, dev_r.ptr, dev_z_pp.ptr, N);
+		derivativeCalculator.calculateFirstDerivative(dev_z.get(), dev_r.get(), dev_z_prime.get(), N);
+		derivativeCalculator.calculateFirstDerivative(dev_phi.get(), dev_r.get(), dev_phi_prime.get(), N);
+		derivativeCalculator.calculateFirstDerivative(dev_z_prime.get(), dev_r.get(), dev_z_pp.get(), N);
 
 		const RadialSurfaceState surface{
-			.r = dev_r.ptr,
-			.eta = dev_z.ptr,
-			.etaPrime = dev_z_prime.ptr,
-			.etaPrimePrime = dev_z_pp.ptr,
-			.phi = dev_phi.ptr,
-			.phiPrime = dev_phi_prime.ptr,
+			.r = dev_r.get(),
+			.eta = dev_z.get(),
+			.etaPrime = dev_z_prime.get(),
+			.etaPrimePrime = dev_z_pp.get(),
+			.phi = dev_phi.get(),
+			.phiPrime = dev_phi_prime.get(),
 			.n = N
 		};
 
@@ -415,10 +384,10 @@ int calculateVelocitiesRadialSymmetryModes(const double* r, const double* z, con
 
 		RadialVelocityCalculator radialVelocityCalculator(N, nModes);
 		radialVelocityCalculator.initialize(radialProperties);
-		radialVelocityCalculator.calculateVelocities(dev_vr.ptr, dev_vz.ptr, surface, radialProperties);
+		radialVelocityCalculator.calculateVelocities(dev_vr.get(), dev_vz.get(), surface, radialProperties);
 
-		CHECK_CUDA(cudaMemcpy(vr, dev_vr.ptr, sizeof(double) * N, cudaMemcpyDeviceToHost));
-		CHECK_CUDA(cudaMemcpy(vz, dev_vz.ptr, sizeof(double) * N, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(vr, dev_vr.get(), sizeof(double) * N, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(vz, dev_vz.get(), sizeof(double) * N, cudaMemcpyDeviceToHost));
 	}
 	catch (const std::exception& e)
 	{
@@ -440,30 +409,24 @@ int calculateDerivativeFFT256(const c_double* input, c_double* output)
 	try
 	{
 		// copy to device
-		std_complex* devInput;
-		std_complex* devOutput;
+		CHECK_CUDA(setDevice());
+		DeviceBuffer<std_complex> devInput(256);
+		DeviceBuffer<std_complex> devOutput(256);
 
-		checkCuda(setDevice());
-		checkCuda(cudaMalloc(&devInput, sizeof(std_complex) * 256));
-		checkCuda(cudaMalloc(&devOutput, sizeof(std_complex) * 256));
-
-		checkCuda(cudaMemcpy(devInput, input, sizeof(std_complex) * 256, cudaMemcpyHostToDevice));
+		CHECK_CUDA(cudaMemcpy(devInput.get(), input, devInput.bytes(), cudaMemcpyHostToDevice));
 
 		FftDerivative<256, 1> fftDerivative;
 		fftDerivative.initialize();
-		fftDerivative.exec(devInput, devOutput, false);
+		fftDerivative.exec(devInput.get(), devOutput.get(), false);
 		checkCuda(cudaDeviceSynchronize());
 		// copy back to host
-		checkCuda(cudaMemcpy(output, devOutput, sizeof(std_complex) * 256, cudaMemcpyDeviceToHost));
-
-		// free device memory
-		checkCuda(cudaFree(devInput));
-		checkCuda(cudaFree(devOutput));
+		CHECK_CUDA(cudaMemcpy(output, devOutput.get(), devOutput.bytes(), cudaMemcpyDeviceToHost));
 	}
 	catch (const std::exception& ex)
 	{
 		// Handle exceptions
 		std::cerr << "Error: " << ex.what() << std::endl;
+		return -1;
 	}
 	return 0;
 }

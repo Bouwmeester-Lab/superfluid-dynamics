@@ -96,10 +96,10 @@ Includes are written relative to the project root (`#include "Core/CudaChecks.cu
 |---|---|
 | `Common/CudaChecks.cuh`, `Common/VectorKernels.cuh`, `constants.cuh`, `cuDoubleComplexOperators.cuh`, `PrecisionMath.cuh`, `Math/ComplexMath.cuh`, `Reductions.cuh`, `VectorUtilities.cuh`, `DevicePointers.cuh` | `Core/` |
 | `MatrixSolver.cuh`, `Common/DenseLuSolver.cuh`, `LinearAlgebra.cuh` | `LinearAlgebra/` (merged, see Phase 4) |
-| `Math/FftKernels.cuh`, `Derivatives.cuh`, `DerivativeCalculator.cuh`, `ElipticalIntegrals.cuh`, `GLCoefficients.hpp` | `Math/` |
+| `Math/FftKernels.cuh`, `Derivatives.cuh`, `DerivativeCalculator.cuh`, `EllipticIntegrals.cuh`, `GLCoefficients.hpp` | `Math/` |
 | `OdeSolver.h`, `RK4_Time_Dependent.cuh`, `AutonomousRungeKuttaStepper.cuh`, `RK45.cuh`, `RK45_Kernels.cuh`, `GaussLegendre.cuh`, `SimpleEuler.cuh`, `JacobianCalculator.cuh`, `RK4Options.h`, `AutonomousProblem.h` | `Ode/` |
 | `BoundaryProblem.cuh`, `BaseBoundaryIntegrator.cuh`, `TimedBoundaryIntegrator.cuh`, `TimedBoundaryProblem.cuh`, `RealBoundaryIntegralCalculator.cuh`, `WaterVelocities.cuh`, `Energies.cuh`, `BoundaryKernels/MatrixKernels.cuh`, `BoundaryKernels/PhiRhsKernels.cuh` | `BoundaryIntegral/Periodic2D/` |
-| `Radial/*`, `RadialModels.h`, `RadialVelocityCalculator.cuh`, `BoundaryKernels/RadialMatrixKernels.cuh`, `Math/BesselGreenFunctions.cuh`, `ElipticalGreenFunctions.cuh` | `BoundaryIntegral/Axisymmetric/` |
+| `Radial/*`, `RadialModels.h`, `RadialVelocityCalculator.cuh`, `BoundaryKernels/RadialMatrixKernels.cuh`, `Math/BesselGreenFunctions.cuh`, `EllipticGreenFunctions.cuh` | `BoundaryIntegral/Axisymmetric/` |
 | `HeliumBoundaryProblem.cuh`, `WaterBoundaryProblem.cuh`, `ProblemProperties.hpp`, `SimulationOptions.h` | `Physics/` |
 | `LightIntensity.cuh`, `DelayedIntensity*.cuh`, `OptomechanicalVariables.h`, `Helium*AutonomousProblem.cuh`, `HeliumWithDrivingBoundaryProblem.cuh`, `Augmented*Integrator.cuh`, `GeneralAugmentedBoundaryIntegrator.cuh`, `Optomechanics/*` | `Optomechanics/` |
 | `DataLogger.cuh`, `ValueLogger.h`, `TrajectoryLogger.cuh` | `IO/` |
@@ -142,6 +142,30 @@ Each phase is one PR. Each must pass the gtest suite and the golden regression f
 - Add `Core/DeviceBuffer.cuh` (RAII device array) and use it in the exports in place of manual `cudaMalloc`/`cudaFree` pairs, which leak on exceptions today.
 - Stop tracking generated data: add `*.h5`, `*.avi`, `CuSuperHelium/CuSuperHelium/temp/`, `Python/figures/` and `test-output/` to `.gitignore`, and `git rm --cached` the existing files. The files stay on disk, and none of them need to be kept: they can be regenerated with the solver.
 - **Done when:** the DLL builds without Python libraries and goldens match.
+- **Status: done** on branch `reorg/phase-1-hygiene`. 29 gtests and 20 pytest tests pass after a full rebuild, and the goldens match.
+  - **Plotting.** The DLL now imports only the CUDA libraries, `hdf5.dll` and the CRT. Python and OpenCV are gone from its link line and include paths.
+    - The loaders `loadDataToDevice` and `freeDeviceData` moved from `SimulationRunner.cuh` to `DeviceParticleLoading.cuh`, and the HDF5 helpers moved to `StateFile.h`.
+    - `SimulationRunner.cuh`, `SimulationFunctions.cuh` and `VideoMaking.h` are now App-only, and Phase 2 moves them to the App.
+    - The never-enabled `DEBUG_*` plotting blocks were deleted. None of them was worth keeping as a visual test.
+  - **Removed exports:**
+    - `dispertionTest256`, which ran the full plotting/video runner, had no caller and no Python binding;
+    - `integrateSimulationRK4_freeMemory`, together with the unfinished `integrateSimulationRK4_N` template.
+  - **Dead files:**
+    - deleted: the files listed above, plus `CuSuperHelium/kernel.cu`, an old copy of the App's `kernel.cu` that no project compiled;
+    - each include of an umbrella header was replaced by the headers that umbrella pulled in;
+    - kept: `EllipticGreenFunctions.cuh` and `EllipticIntegrals.cuh`, renamed, as the starting point for option A.
+  - **`DeviceBuffer`** lives in `Common/` next to `CudaChecks.cuh` for now. Phase 2 moves both to `Core/`.
+  - **Found while doing Phase 1:**
+    - **Toolchain.** CUDA 13.3's `cudafe++` crashes (0xC0000005) with MSVC 14.52, the version that came with the November VS 18 Insiders update.
+      - `CuSuperHelium/Directory.Build.props` imports a git-ignored `Directory.Build.user.props`. On this machine that file pins `VCToolsVersion` to 14.44.35207.
+      - Remove the pin once a CUDA release supports 14.52. Phase 5 builds on this hook.
+    - **Fixed:**
+      - `calculateRhsAugmentedOptomechanical_N` freed uninitialized pointers when it threw early, and returned 0 on failure;
+      - `calculateDerivativeFFT256` also returned 0 on failure.
+      - Both now return -1.
+    - **Open (Phase 3):**
+      - `checkCuda(result)`, the single-argument form used throughout the library, calls `exit()`, so a CUDA error kills the Python process. The converted export call sites use `CHECK_CUDA`, which throws, but the library still uses `checkCuda` widely.
+      - `loadDataToDevice` returns a raw `DeviceParticleData` that leaks if the export throws before `freeDeviceData`.
 
 ### Phase 1b — Remove binaries from history
 

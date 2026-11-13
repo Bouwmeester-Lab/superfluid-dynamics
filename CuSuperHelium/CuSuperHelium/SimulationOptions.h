@@ -1,5 +1,8 @@
 #pragma once
+#include <complex>
+#include <map>
 #include <string>
+#include <vector>
 #include "constants.cuh"
 
 struct SimulationOptions

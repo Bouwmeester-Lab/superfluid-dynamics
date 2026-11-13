@@ -32,21 +32,18 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 		// adimensionalize properties
 		properties = adimensionalizeProperties(properties);
 
-		double* devState;
-		double* devJac;
-
 		//checkCuda(setDevice());
-		
-		checkCuda(cudaMallocAsync(&devState, sizeof(double) * 3 * N, cudaStreamPerThread));
-		checkCuda(cudaMallocAsync(&devJac, sizeof(double) * 9 * N * N, cudaStreamPerThread));
-		checkCuda(cudaDeviceSynchronize());
+
+		DeviceBuffer<double> devState(3 * N);
+		DeviceBuffer<double> devJac(9 * N * N);
+		CHECK_CUDA(cudaDeviceSynchronize());
 	 	auto error = cudaGetLastError();
 		if (error != cudaSuccess) {
 			std::cerr << "CUDA after trying to allocate error: " << cudaGetErrorString(error) << std::endl;
 		}
-		
-		checkCuda(cudaMemcpyAsync(devState, state, sizeof(double) * 3 * N, cudaMemcpyHostToDevice, cudaStreamPerThread));
-		
+
+		CHECK_CUDA(cudaMemcpyAsync(devState.get(), state, devState.bytes(), cudaMemcpyHostToDevice, cudaStreamPerThread));
+
 		{
 			HeliumBoundaryProblem<N, 3 * N> heliumProblem(properties);
 			std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> boundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumProblem);
@@ -55,7 +52,7 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 
 			jacobianCalculator.setEpsilon(epsilon);
 			jacobianCalculator.setStream(cudaStreamPerThread);
-			jacobianCalculator.calculateJacobian(devState, devJac);
+			jacobianCalculator.calculateJacobian(devState.get(), devJac.get());
 
 			error = cudaGetLastError();
 			if (error != cudaSuccess) {
@@ -71,26 +68,19 @@ int calculateJacobian(const double* state, double* jac, double L, double rho, do
 			}
 		
 		// copy back to host
-		checkCuda(cudaMemcpy(jac, devJac, sizeof(double) * 9 * N * N, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(jac, devJac.get(), devJac.bytes(), cudaMemcpyDeviceToHost));
 		// make sure we have finished before returning
 		error = cudaGetLastError();
 		if (error != cudaSuccess) {
-			std::cerr << "jac " << jac << std::endl;
-			std::cerr << "devJac " << devJac << std::endl;
 			std::cerr << "CUDA error after copying: " << cudaGetErrorString(error) << std::endl;
 		}
 
 		// free device memory
-		checkCuda(cudaFree(devState));
+		devState.reset();
+		devJac.reset();
 		error = cudaGetLastError();
 		if (error != cudaSuccess) {
-			std::cerr << "devState " << devState << std::endl;
 			std::cerr << "CUDA error after freeing: " << cudaGetErrorString(error) << std::endl;
-		}
-		checkCuda(cudaFree(devJac));
-		error = cudaGetLastError();
-		if (error != cudaSuccess) {
-			std::cerr << "CUDA error before freeing devJac: " << cudaGetErrorString(error) << std::endl;
 		}
 
 		auto t2 = high_resolution_clock::now();
@@ -145,27 +135,23 @@ int calculatePerturbedStates256(const double* x, const double* y, const double* 
 		const dim3 threads(256, 1, 1);
 		const dim3 blocks((2 * 256 + 255) / 256, 3 * N, 1);
 
-		std_complex* initialState;
-		std_complex* devZPhiBatched;
-		double* devState;
+		CHECK_CUDA(setDevice());
 
-		checkCuda(setDevice());
-
-		checkCuda(cudaMalloc(&devState, sizeof(double) * 3 * N));
-		checkCuda(cudaMalloc(&initialState, sizeof(std_complex) * 2 * N));
-		checkCuda(cudaMalloc(&devZPhiBatched, sizeof(std_complex) * 6 * N * N));
+		DeviceBuffer<double> devState(3 * N);
+		DeviceBuffer<std_complex> initialState(2 * N);
+		DeviceBuffer<std_complex> devZPhiBatched(6 * N * N);
 
 		// copy the initial data to the devState
-		checkCuda(cudaMemcpy(devState, x, sizeof(double) * N, cudaMemcpyHostToDevice));
-		checkCuda(cudaMemcpy((devState + N), y, sizeof(double) * N, cudaMemcpyHostToDevice));
-		checkCuda(cudaMemcpy((devState + 2 * N), phi, sizeof(double) * N, cudaMemcpyHostToDevice));
+		CHECK_CUDA(cudaMemcpy(devState.get(), x, sizeof(double) * N, cudaMemcpyHostToDevice));
+		CHECK_CUDA(cudaMemcpy(devState.get() + N, y, sizeof(double) * N, cudaMemcpyHostToDevice));
+		CHECK_CUDA(cudaMemcpy(devState.get() + 2 * N, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
 
-		createInitialState <<<N, numBlocks >> > (devState, initialState, N);
+		createInitialState <<<N, numBlocks >> > (devState.get(), initialState.get(), N);
 
 		std::cout << "Initial state created on device." << std::endl;
 		std::cout << "Threads: " << threads.x << "y: " << threads.y << "z: " << threads.z << std::endl;
 		std::cout << "Blocks : x:" << blocks.x << "y :" << blocks.y << " z: " << blocks.z << std::endl;
-		createInitialBatchedZ<<<blocks, threads >>> (initialState, devZPhiBatched, epsilon, N);
+		createInitialBatchedZ<<<blocks, threads >>> (initialState.get(), devZPhiBatched.get(), epsilon, N);
 		std::cout << "Perturbed state created on device." << std::endl;
 		std::cout << "N: " << N << std::endl;
 		std::cout << "Output address: " << Zperturbed << std::endl;
@@ -173,16 +159,11 @@ int calculatePerturbedStates256(const double* x, const double* y, const double* 
 		cudaDeviceSynchronize();
 
 		// copy to host for saving
-		checkCuda(cudaMemcpy(Zperturbed, devZPhiBatched, sizeof(std_complex) * 6 * N * N , cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(Zperturbed, devZPhiBatched.get(), devZPhiBatched.bytes(), cudaMemcpyDeviceToHost));
 
 		std::cout << "Perturbed states copied to host." << std::endl;
 
 		cudaDeviceSynchronize();
-
-		// free device memory
-		checkCuda(cudaFree(devState));
-		checkCuda(cudaFree(initialState));
-		checkCuda(cudaFree(devZPhiBatched));
 
 		return 0;
 	}

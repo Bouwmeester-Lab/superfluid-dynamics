@@ -210,9 +210,54 @@ Done once, right after Phase 1 merges and before Phase 2. Rewriting history chan
 
 ### Phase 3 — Parameters and the export boundary
 
-- Introduce one internal `PhysicalParameters` struct with a `Nondimensionalization` module in `Physics/`. `SimProperties` (the C ABI struct) converts to it only in `Export/`, and `RadialProperties` derives from it.
-- Replace the per-export `switch (N)` blocks with one `dispatchSize<SupportedSizes...>(N, lambda)` helper that has a single list of supported sizes. This is a stopgap that Phase 7 removes, so keep it small.
-- **Done when:** the size list and the nondimensionalization each exist in exactly one place.
+The per-export `switch (N)` blocks stay as they are. They exist only in `Export/`, and Phase 7 deletes them, so a shared size-dispatch helper would be throwaway work.
+
+**Parameters**
+- Split `ProblemProperties` into two parts:
+  - `PhysicalParameters`: the SI inputs, which are L, depth, ρ, κ, U and the **Hamaker constant**;
+  - `Scales`: the derived characteristic values, which are base length, time, acceleration and energy.
+- Put the conversion in one `Physics/NonDimensionalization` module, replacing the `adimensionalize*` functions in `Export/ExportProperties.cu`.
+- `SimProperties` (the C ABI struct) converts to these types only in `Export/`, and `RadialProperties` derives from them.
+- **The Hamaker constant is an input, not a constant.** It determines the material being simulated, so the caller chooses it.
+  - It becomes a field of `SimProperties` and of the Python bindings.
+  - `alpha_hamaker_d` is removed from `Core/constants.cuh`.
+  - The App's hard-coded `2.6e-24` copies of the nondimensionalization, in `SimulationFunctions.cuh` and `kernel.cu`, call the shared module with an explicit value instead.
+  - The goldens pass the value they were recorded with (3.5e-24), so the results don't change.
+- Move the three `adimensionalize*` declarations out of the public `Export/ExportApi.cuh`. They are internal C++ functions declared inside `extern "C"`.
+
+**Layering**
+- Nothing below `Physics/` includes the parameter structs. Today `ProblemProperties.hpp` is included by eight such files: `Math/Derivatives`, `IO/StateFile`, three `Ode/` steppers and three `Periodic2D/` files. Each will take only the scalars it uses.
+
+**Error checking: one standard, in `Core/CudaChecks.cuh`**
+- **`CUSH_CHECK(expr)`** wraps every call that returns a status.
+  - It has overloads for `cudaError_t`, `cublasStatus_t`, `cusolverStatus_t` and `cufftResult`. cuFFT results are not checked at all today.
+  - All of them throw `cush::CudaError`, derived from `std::runtime_error`. The message gives the library, the status name, the expression text, and the file and line.
+  - The `CUSH_` prefix (CuSuperHelium) keeps the macro from colliding with the `CUDA_CHECK`/`CHECK_CUDA` macros that other headers often define. Macros ignore namespaces, so only a prefix prevents a collision.
+- **`CUSH_CHECK_LAUNCH()`** goes after every kernel launch.
+  - It checks `cudaGetLastError()`.
+  - Built with `CUSH_SYNC_CHECKS`, it also calls `cudaDeviceSynchronize()`, so that errors during kernel execution are reported at the launch that caused them. This is for debug builds.
+- **Numerical failures** reported through cuSOLVER's `devInfo` (for example a singular matrix in `getrf`) throw the same `cush::CudaError`. `MatrixSolver::checkSolverInfo` and `DenseLuSolver` both switch to it.
+- **No `exit()` anywhere in the library.** Every export catches `std::exception` and returns -1.
+- **Destructors never throw.** They log errors only, as `DeviceBuffer::reset` does.
+- **Remove the old helpers and replace all their call sites:**
+
+  | Old helper | Uses | Behaviour today |
+  |---|---|---|
+  | `checkCuda(result)` (both forms, about 124 uses in total) | | the one-argument form calls `exit()` |
+  | `CHECK_CUDA` | 97 | throws |
+  | `checkCudaErrors(from)` | 7 | prints only |
+  | `checkCusolver` | 6 | calls `exit()` |
+  | `checkCublas` | 7 | calls `exit()` |
+
+  The roughly 37 hand-written `cudaGetLastError()` checks become `CUSH_CHECK_LAUNCH()`.
+- `DeviceParticleData` owns its memory through `DeviceBuffer`, so `loadDataToDevice` no longer hands out a raw pointer that leaks when an export throws.
+
+**Done when:**
+- the non-dimensionalization exists once, in `Physics/NonDimensionalization`;
+- the Hamaker constant is passed in by every caller;
+- nothing below `Physics/` includes the parameter structs;
+- no library code calls `exit()`, and `CUSH_CHECK` / `CUSH_CHECK_LAUNCH` are the only error-check helpers;
+- the goldens match.
 
 ### Phase 4 — Remove duplication
 
@@ -242,7 +287,7 @@ The package stays private for now: it is installed from the local checkout and n
 ### Phase 7 — Runtime sizes for the Cartesian solver (after the reorganization)
 
 - Remove the `N` template parameter from the periodic-2D classes, following the radial solver's pattern: sizes passed to constructors, buffers allocated at runtime.
-- Delete the `dispatchSize` helper from Phase 3. Every export then takes `N` directly, as `calculateVelocitiesRadialSymmetryModes` does.
+- Delete the per-export `switch (N)` blocks. Every export then takes `N` directly, as `calculateVelocitiesRadialSymmetryModes` does.
 - Benchmark the Cartesian RHS and a short integration before and after. A slowdown of a few percent is acceptable. A larger one is investigated before merging, for example by keeping fixed-size kernels for the FFT step.
 - **Done when:** no class is templated on `N`, any `N` the user passes is accepted, and goldens match.
 
@@ -267,7 +312,9 @@ Recommended sequence: **0 → 1 → 1b → 2 → option A (half-space kernel) �
 Recorded November 2026.
 
 1. **Build system:** keep MSBuild, made portable with a vcpkg manifest and `Directory.Build.props` (Phase 5). CMake is not planned.
-2. **Sizes:** the Cartesian solver moves to runtime sizes, but only after the reorganization is complete (Phase 7). Until then, `dispatchSize` is the single list of supported sizes.
+2. **Sizes:** the Cartesian solver moves to runtime sizes, but only after the reorganization is complete (Phase 7). Until then, the per-export `switch (N)` blocks stay as they are, with no interim dispatch helper.
 3. **Python package:** private, installed from the checkout. Publishing on PyPI may be revisited later.
 4. **History:** large binaries are removed from history by path, with a mirror backup and a check that no code file is lost (Phase 1b). `.h5` files and other simulation output are not tracked from now on.
 5. **Plotting:** allowed in tests and the App, never in the DLL. Tests save figures and open windows only on request (section 3, "Visual tests").
+6. **Hamaker constant:** a caller-supplied parameter, because it determines the simulated material. It is not a library constant.
+7. **Error checking:** one throwing macro family, `CUSH_CHECK` / `CUSH_CHECK_LAUNCH`, with the project prefix `CUSH_` and the namespace `cush::` for the error type. The library never calls `exit()` (Phase 3).

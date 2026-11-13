@@ -6,15 +6,14 @@
 #include "Optomechanics/DelayedIntensityIntegrator.cuh"
 #include "Ode/AutonomousProblem.h"
 
-template<int N, size_t batchSize>
-class AugmentedBoundaryIntegrator : public AutonomousProblem<std_complex, 3 * N * batchSize>
+class AugmentedBoundaryIntegrator : public AutonomousProblem<std_complex>
 {
 private:
-	std::unique_ptr<BaseBoundaryIntegralCalculator<N, batchSize>> m_integrator;
-	std::unique_ptr<DelayedIntensityIntegrator<N, batchSize>> m_delayedIntensityIntegrator;
+	std::unique_ptr<BaseBoundaryIntegralCalculator> m_integrator;
+	std::unique_ptr<DelayedIntensityIntegrator> m_delayedIntensityIntegrator;
 public:
-	AugmentedBoundaryIntegrator(std::unique_ptr<BaseBoundaryIntegralCalculator<N, batchSize>> integrator, 
-								std::unique_ptr<DelayedIntensityIntegrator<N, batchSize>> delayedIntegrator) : m_integrator(std::move(integrator)), m_delayedIntensityIntegrator(std::move(delayedIntegrator))
+	AugmentedBoundaryIntegrator(std::unique_ptr<BaseBoundaryIntegralCalculator> integrator, 
+								std::unique_ptr<DelayedIntensityIntegrator> delayedIntegrator) : AutonomousProblem<std_complex>(delayedIntegrator->size()), m_integrator(std::move(integrator)), m_delayedIntensityIntegrator(std::move(delayedIntegrator))
 	{
 	}
 

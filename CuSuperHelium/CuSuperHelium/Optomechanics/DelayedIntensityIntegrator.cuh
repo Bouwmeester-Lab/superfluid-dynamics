@@ -8,10 +8,11 @@
 #include "Optomechanics/LightIntensity.cuh"
 #include "Optomechanics/OptomechanicalDriveKernels.cuh"
 
-template <int N, size_t batchSize>
-class DelayedIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N* batchSize>
+class DelayedIntensityIntegrator : public AutonomousProblem<std_complex>
 {
 private:
+	const int N;
+	const size_t batchSize;
 	DimensionlessParameters& properties;
 	OptomechanicalVariables& variables;
 	std::shared_ptr<LightIntensity> intensity;
@@ -19,7 +20,7 @@ private:
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	DelayedIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
+	DelayedIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity, int n, size_t batchSize = 1) : AutonomousProblem<std_complex>(3 * n * batchSize), N(n), batchSize(batchSize), variables(variables), properties(properties), intensity(intensity)
 	{
 	}
 
@@ -32,10 +33,10 @@ public:
 		std_complex* const devRhsDelayedIntensity = rhs + 2 * N * batchSize; // The rhs of the delayed intensity is stored at the end of the rhs vector (dZdt, dPhidt, dDelayedIntensity) each of size N*batchSize
 		double* devFrequencyShift = intensity->get_dev_frequency_shift();
 		// we need to calculate the rhs of the delayed intesity: d/dt DelayedIntensity = beta * (I(real(Z), imag(Z)) - DelayedIntensity) where I is the intensity of the optical mode
-		calculate_intensity_delayed_rhs<N* batchSize><<<this->blocks, this->threads, 0, this->stream>>>(devRhsDelayedIntensity, devFrequencyShift, devZ, devDelayedIntensity, variables);
+		calculate_intensity_delayed_rhs<<<this->blocks, this->threads, 0, this->stream>>>(N*batchSize, devRhsDelayedIntensity, devFrequencyShift, devZ, devDelayedIntensity, variables);
 		CUSH_CHECK_LAUNCH();
 		// add the delayed intensity term to the rhs of phi:
-		add_delayed_intensity_phi_rhs<N* batchSize><<<this->blocks, this->threads, 0, this->stream>>>(devRhsPhi,devDelayedIntensity, variables, properties);
+		add_delayed_intensity_phi_rhs<<<this->blocks, this->threads, 0, this->stream>>>(N*batchSize, devRhsPhi,devDelayedIntensity, variables, properties);
 		CUSH_CHECK_LAUNCH();
 
 	}
@@ -46,10 +47,11 @@ public:
 	}
 };
 
-template <int N, size_t batchSize>
-class DelayedRampedIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N * batchSize + 1>
+class DelayedRampedIntensityIntegrator : public AutonomousProblem<std_complex>
 {
 private:
+	const int N;
+	const size_t batchSize;
 	DimensionlessParameters& properties;
 	OptomechanicalVariables& variables;
 	std::shared_ptr<LightIntensity> intensity;
@@ -57,7 +59,7 @@ private:
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	DelayedRampedIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
+	DelayedRampedIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity, int n, size_t batchSize = 1) : AutonomousProblem<std_complex>(3 * n * batchSize + 1), N(n), batchSize(batchSize), variables(variables), properties(properties), intensity(intensity)
 	{}
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override
@@ -72,10 +74,10 @@ public:
 		std_complex* const devRampedIntensity = initialState + 3 * N * batchSize; // The scalar ramped intensity is stored after Z, Phi, and DelayedIntensity.
 
 		// we need to calculate the rhs of the delayed intesity: d/dt DelayedIntensity = beta * (I(real(Z), imag(Z)) - DelayedIntensity) where I is the intensity of the optical mode
-		calculate_ramped_intensity_delayed_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsDelayedIntensity, devRampedIntensity, devFrequencyShift, devZ, devDelayedIntensity, variables);
+		calculate_ramped_intensity_delayed_rhs << <this->blocks, this->threads, 0, this->stream >> > (N*batchSize, devRhsDelayedIntensity, devRampedIntensity, devFrequencyShift, devZ, devDelayedIntensity, variables);
 		CUSH_CHECK_LAUNCH();
 		// add the delayed intensity term to the rhs of phi:
-		add_delayed_intensity_phi_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsPhi, devDelayedIntensity, variables, properties);
+		add_delayed_intensity_phi_rhs << <this->blocks, this->threads, 0, this->stream >> > (N*batchSize, devRhsPhi, devDelayedIntensity, variables, properties);
 		CUSH_CHECK_LAUNCH();
 		// add the ramped intensity rhs of d/dt RampedIntensity = ramp_rate // since I = ramp_rate * t
 		
@@ -89,10 +91,11 @@ public:
 	}
 };
 
-template <int N, size_t batchSize>
-class DelayedSineIntensityIntegrator : public AutonomousProblem<std_complex, 3 * N * batchSize + 1>
+class DelayedSineIntensityIntegrator : public AutonomousProblem<std_complex>
 {
 private:
+	const int N;
+	const size_t batchSize;
 	DimensionlessParameters& properties;
 	OptomechanicalVariables& variables;
 	std::shared_ptr<LightIntensity> intensity;
@@ -100,7 +103,7 @@ private:
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	DelayedSineIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity) : variables(variables), properties(properties), intensity(intensity)
+	DelayedSineIntensityIntegrator(OptomechanicalVariables& variables, DimensionlessParameters& properties, std::shared_ptr<LightIntensity> intensity, int n, size_t batchSize = 1) : AutonomousProblem<std_complex>(3 * n * batchSize + 1), N(n), batchSize(batchSize), variables(variables), properties(properties), intensity(intensity)
 	{}
 
 	virtual void run(std_complex* initialState, std_complex* rhs) override
@@ -116,10 +119,10 @@ public:
 		std_complex* const devTheta = initialState + 3 * N * batchSize; // The scalar ramped intensity is stored after Z, Phi, and theta.
 
 		// we need to calculate the rhs of the delayed intesity: d/dt DelayedIntensity = beta * (I(real(Z), imag(Z)) - DelayedIntensity) where I is the intensity of the optical mode
-		calculate_sine_modulated_intensity_delayed_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsDelayedIntensity, devTheta, devFrequencyShift, devZ, devDelayedIntensity, variables);
+		calculate_sine_modulated_intensity_delayed_rhs << <this->blocks, this->threads, 0, this->stream >> > (N*batchSize, devRhsDelayedIntensity, devTheta, devFrequencyShift, devZ, devDelayedIntensity, variables);
 		CUSH_CHECK_LAUNCH();
 		// add the delayed intensity term to the rhs of phi:
-		add_delayed_intensity_phi_rhs<N* batchSize> << <this->blocks, this->threads, 0, this->stream >> > (devRhsPhi, devDelayedIntensity, variables, properties);
+		add_delayed_intensity_phi_rhs << <this->blocks, this->threads, 0, this->stream >> > (N*batchSize, devRhsPhi, devDelayedIntensity, variables, properties);
 		CUSH_CHECK_LAUNCH();
 		// add the ramped intensity rhs of d/dt RampedIntensity = ramp_rate // since I = ramp_rate * t
 

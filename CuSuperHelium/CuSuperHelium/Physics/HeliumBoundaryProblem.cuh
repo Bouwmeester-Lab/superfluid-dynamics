@@ -5,14 +5,13 @@
 #include "BoundaryIntegral/Periodic2D/PhiRhsKernels.cuh"
 
 
-template<int N, size_t batchSize>
-class HeliumBoundaryProblem : public BoundaryProblem<N, batchSize>
+class HeliumBoundaryProblem : public BoundaryProblem
 {
-	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	VelocityCalculator velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 protected:
 	DimensionlessParameters parameters; ///< Full parameters (with scales) for derived problems that need more than InterfaceParameters
 public:
-	HeliumBoundaryProblem(DimensionlessParameters& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator(), parameters(properties)
+	HeliumBoundaryProblem(DimensionlessParameters& properties, int n, size_t batchSize = 1) : BoundaryProblem(n, batchSize, new KineticEnergy(properties, n), new VanDerWaalsEnergy(properties, n), new SurfaceEnergy(properties, n)), velocityCalculator(n, batchSize), parameters(properties)
 	{
 		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
 	}
@@ -54,12 +53,11 @@ public:
 };
 
 
-template <int N, size_t batchSize>
-class HeliumInfiniteDepthBoundaryProblem : public BoundaryProblem<N, batchSize>
+class HeliumInfiniteDepthBoundaryProblem : public BoundaryProblem
 {
-	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	VelocityCalculator velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	HeliumInfiniteDepthBoundaryProblem(DimensionlessParameters& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	HeliumInfiniteDepthBoundaryProblem(DimensionlessParameters& properties, int n, size_t batchSize = 1) : BoundaryProblem(n, batchSize, new KineticEnergy(properties, n), new VanDerWaalsEnergy(properties, n), new SurfaceEnergy(properties, n)), velocityCalculator(n, batchSize)
 	{
 		// Constructor for the helium infinite depth boundary problem, initializing the velocity calculator with the problem properties
 	}

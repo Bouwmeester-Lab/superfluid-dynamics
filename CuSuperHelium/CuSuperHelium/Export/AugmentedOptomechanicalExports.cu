@@ -16,8 +16,7 @@
 #include <memory>
 #include <vector>
 
-template <size_t N>
-int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables) 
+static int integrateAugmentedOptomechanicalSimulationRK4_N(const size_t N, double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables) 
 {
 	try {
 		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
@@ -58,11 +57,11 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			cplx_initialState[3 * N] = std_complex(initialState[4 * N], 0); // scalar ramped intensity
 
 			auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
-			HeliumRampedIntensityAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
-			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
-			AugmentedIntensityBoundaryIntegrator<N, 1> integrator(
+			HeliumRampedIntensityAutonomousProblem heliumProblem(properties, optoVars, lightIntensity, static_cast<int>(N));
+			std::unique_ptr<BaseBoundaryIntegralCalculator> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator>(properties, heliumProblem);
+			AugmentedIntensityBoundaryIntegrator integrator(
 				std::move(boundaryIntegralCalculator),
-				std::make_unique<DelayedRampedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
+				std::make_unique<DelayedRampedIntensityIntegrator>(optoVars, properties, lightIntensity, static_cast<int>(N)));
 
 			RungeKutta4<std_complex> stepper(integrator, rk4_options.initial_timestep);
 			stepper.addObserver(logger);
@@ -127,11 +126,11 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			cplx_initialState[3 * N] = std_complex(initialState[4 * N], 0); // scalar ramped intensity
 
 			auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
-			HeliumSineAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
-			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
-			GeneralAugmentedBoundaryIntegrator<N, 1, 1> integrator(
+			HeliumSineAutonomousProblem heliumProblem(properties, optoVars, lightIntensity, static_cast<int>(N));
+			std::unique_ptr<BaseBoundaryIntegralCalculator> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator>(properties, heliumProblem);
+			GeneralAugmentedBoundaryIntegrator integrator(
 				std::move(boundaryIntegralCalculator),
-				std::make_unique<DelayedSineIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
+				std::make_unique<DelayedSineIntensityIntegrator>(optoVars, properties, lightIntensity, static_cast<int>(N)));
 
 			RungeKutta4<std_complex> stepper(integrator, rk4_options.initial_timestep);
 			stepper.addObserver(logger);
@@ -195,9 +194,9 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			}
 
 			auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
-			HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
-			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
-			AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
+			HeliumDrivenAutonomousProblem heliumProblem(properties, optoVars, lightIntensity, static_cast<int>(N));
+			std::unique_ptr<BaseBoundaryIntegralCalculator> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator>(properties, heliumProblem);
+			AugmentedBoundaryIntegrator integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator>(optoVars, properties, lightIntensity, static_cast<int>(N)));
 
 			RungeKutta4<std_complex> stepper(integrator, rk4_options.initial_timestep);
 			stepper.addObserver(logger);
@@ -257,27 +256,8 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 
 int integrateAugmentedOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N)
 {
-	switch (N) {
-		case 32:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<32>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 64:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<64>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 128:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<128>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 256:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<256>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 512:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<512>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 1024:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<1024>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 2048:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<2048>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 4096:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<4096>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-		case 8192:
-			return integrateAugmentedOptomechanicalSimulationRK4_N<8192>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
-	}
-	return -1;
+	if (!validPeriodicSize(N)) return -1;
+	return integrateAugmentedOptomechanicalSimulationRK4_N(N, initialState, statesOut, statesCount, timesOut, timesCount, simProperties, rkOptions, optomechanicalVariables);
 }
 
 int integrateAugmentedOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut)
@@ -287,8 +267,7 @@ int integrateAugmentedOptomechanicalSimulationRK4_freeMemory(double* statesOut, 
 	return 0;
 }
 
-template <size_t N>
-int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables)
+static int calculateRhsAugmentedOptomechanical_N(const size_t N, double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables)
 {
 	try {
 		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
@@ -309,10 +288,10 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 
 		std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
 
-		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
-		std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+		HeliumDrivenAutonomousProblem heliumProblem(properties, optoVars, lightIntensity, static_cast<int>(N));
+		std::unique_ptr<BaseBoundaryIntegralCalculator> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator>(properties, heliumProblem);
 
-		AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
+		AugmentedBoundaryIntegrator integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator>(optoVars, properties, lightIntensity, static_cast<int>(N)));
 
 		// copy the state to device
 
@@ -347,25 +326,6 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 
 int calculateRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N)
 {
-	switch(N) {
-		case 32:
-			return calculateRhsAugmentedOptomechanical_N<32>(state, rhs, simProperties, optomechanicalVariables);
-		case 64:
-			return calculateRhsAugmentedOptomechanical_N<64>(state, rhs, simProperties, optomechanicalVariables);
-		case 128:
-			return calculateRhsAugmentedOptomechanical_N<128>(state, rhs, simProperties, optomechanicalVariables);
-		case 256:
-			return calculateRhsAugmentedOptomechanical_N<256>(state, rhs, simProperties, optomechanicalVariables);
-		case 512:
-			return calculateRhsAugmentedOptomechanical_N<512>(state, rhs, simProperties, optomechanicalVariables);
-		case 1024:
-			return calculateRhsAugmentedOptomechanical_N<1024>(state, rhs, simProperties, optomechanicalVariables);
-		case 2048:
-			return calculateRhsAugmentedOptomechanical_N<2048>(state, rhs, simProperties, optomechanicalVariables);
-		case 4096:
-			return calculateRhsAugmentedOptomechanical_N<4096>(state, rhs, simProperties, optomechanicalVariables);
-		case 8192:
-			return calculateRhsAugmentedOptomechanical_N<8192>(state, rhs, simProperties, optomechanicalVariables);
-	}
-	return -1;
+	if (!validPeriodicSize(N)) return -1;
+	return calculateRhsAugmentedOptomechanical_N(N, state, rhs, simProperties, optomechanicalVariables);
 }

@@ -9,19 +9,18 @@
 #include "Optomechanics/OptomechanicalDriveKernels.cuh"
 
 //
-template <int N>
-class HeliumWithOptomechanicalDrivingProblem : public TimedBoundaryProblem<N, 1>
+class HeliumWithOptomechanicalDrivingProblem : public TimedBoundaryProblem
 {
-	VelocityCalculator<N, 1> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
-	DelayedIntensityTerm<N> delayedIntensityTerm; ///< Delayed intensity term for modeling the optomechanical driving in the helium boundary problem
+	VelocityCalculator velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	DelayedIntensityTerm delayedIntensityTerm; ///< Delayed intensity term for modeling the optomechanical driving in the helium boundary problem
 	OptomechanicalVariables variables; ///< Optomechanical variables for configuring the optomechanical driving in the helium boundary problem
 
 	std::unique_ptr<LightIntensity> intensity;
 	GaussianDistribution lightShape;
 	DimensionlessParameters parameters; ///< Full parameters (with scales) for the drive terms
 public:
-	HeliumWithOptomechanicalDrivingProblem(DimensionlessParameters& properties, OptomechanicalVariables optomechanicalVariables, std::unique_ptr<LightIntensity> lightIntensity) : TimedBoundaryProblem<N, 1>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)),
-		velocityCalculator(), delayedIntensityTerm(optomechanicalVariables), variables(optomechanicalVariables), intensity(std::move(lightIntensity)), parameters(properties)
+	HeliumWithOptomechanicalDrivingProblem(DimensionlessParameters& properties, OptomechanicalVariables optomechanicalVariables, std::unique_ptr<LightIntensity> lightIntensity, int n) : TimedBoundaryProblem(n, 1, new KineticEnergy(properties, n), new VanDerWaalsEnergy(properties, n), new SurfaceEnergy(properties, n)),
+		velocityCalculator(n, 1), delayedIntensityTerm(optomechanicalVariables, n), variables(optomechanicalVariables), intensity(std::move(lightIntensity)), parameters(properties)
 	{
 		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
 		intensity->allocate(N);
@@ -62,7 +61,7 @@ public:
 		double* frequencyShiftResult = intensity->compute_frequency_shift(problemPointers.Z, variables, this->parameters);
 		
 
-		add_optical_field_drive_terms<N><<<this->blocks, this->threads>>> (result, time, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, this->parameters, saveProgress);
+		add_optical_field_drive_terms<<<this->blocks, this->threads>>> (N, result, time, frequencyShiftResult, problemPointers.Z, problemPointers.VelocitiesLower, delayedIntensityTerm.device_view(), variables, this->parameters, saveProgress);
 		CUSH_CHECK_LAUNCH();
 	}
 

@@ -133,7 +133,7 @@ int dispersionTest<N>(double wavelength, double simulationTime, DimensionlessPar
     ParticleData particleData(Z0, PhiVect);
     DeviceParticleData deviceData;
 
-    HeliumBoundaryProblem<N, 1> boundaryProblem(problemProperties);
+    HeliumBoundaryProblem boundaryProblem(problemProperties, static_cast<int>(N));
     auto res =  runSimulation<N, 1, RungeKutta4<std_complex>, RK4Options>(boundaryProblem, steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
     // _CrtDumpMemoryLeaks();
 	return res;

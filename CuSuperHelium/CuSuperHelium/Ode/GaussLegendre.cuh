@@ -107,11 +107,10 @@ inline size_t to_percent(double t, double t0, double t1)
 };
 
 
-template <size_t N>
 class GaussLegendre2 : public OdeSolver<double>
 {
 public:
-	GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator<N>& jacobianCalculator, GaussLegendre2Options options = GaussLegendre2Options());
+	GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator& jacobianCalculator, GaussLegendre2Options options = GaussLegendre2Options());
 	~GaussLegendre2();
 	virtual OdeSolverResult runEvolution(double startTime, double endTime) override;
 	/// <summary>
@@ -125,8 +124,9 @@ public:
 	void setStream(cudaStream_t stream) { this->stream = stream; }
 
 private:
+	const size_t N; ///< Collocation points; the state has 3N real values (x, y, phi)
 	OdeProblem<double>& problem;
-	JacobianCalculator<N>& jacobianCalculator;
+	JacobianCalculator& jacobianCalculator;
 	DenseLuSolver matrixSolver{ 6 * static_cast<int>(N) };
 	GaussLegendre2Options options;
 	void setOptions(const GaussLegendre2Options options) { this->options = options; }
@@ -194,23 +194,20 @@ private:
 	void freeDeviceMemory();
 };
 
-template <size_t N>
-GaussLegendre2<N>::GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator<N>& jacobianCalculator, GaussLegendre2Options options) : problem(problem), jacobianCalculator(jacobianCalculator), options(options)
+inline GaussLegendre2::GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator& jacobianCalculator, GaussLegendre2Options options) : N(problem.size() / 3), problem(problem), jacobianCalculator(jacobianCalculator), options(options)
 {
 	if (problem.size() != 3 * N)
 	{
 		throw std::invalid_argument("GaussLegendre2: the problem size does not match 3 N");
 	}
 }
-template <size_t N>
-GaussLegendre2<N>::~GaussLegendre2()
+inline GaussLegendre2::~GaussLegendre2()
 {
 	// free device memory
 	freeDeviceMemory();
 }
 
-template<size_t N>
-OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime)
+inline OdeSolverResult GaussLegendre2::runEvolution(double startTime, double endTime)
 {
 	if (this->options.stepSize < 0.0) {
 		throw new std::invalid_argument("Step size must be positive.");
@@ -304,8 +301,7 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 	return OdeSolverResult::ReachedEndTime;
 }
 
-template<size_t N>
-void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
+inline void GaussLegendre2::initialize(double* initialState, bool onDevice)
 {
 	size_t stateSizeBytes = 3 * N * sizeof(double);
 	if (onDevice) {
@@ -352,8 +348,7 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 	this->ktrial2 = this->ktrial + 3 * N;
 }
 
-template<size_t N>
-void GaussLegendre2<N>::freeDeviceMemory()
+inline void GaussLegendre2::freeDeviceMemory()
 {
 	if (this->devStateOwned) {
 		CUSH_CHECK(cudaFreeAsync(this->devState, this->stream));
@@ -374,8 +369,7 @@ void GaussLegendre2<N>::freeDeviceMemory()
 	CUSH_CHECK(cublasDestroy(this->cublasHandle));
 }
 
-template<size_t N>
-void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* devDestination, const double stepSize, StepResult& result)
+inline void GaussLegendre2::gaussLegendreS2Step(double* devCurrentState, double* devDestination, const double stepSize, StepResult& result)
 {
 	// k = np.vstack([f(y), f(y)])   # shape(2, m)
 	// WIP...
@@ -499,8 +493,7 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 }
 
 
-template<size_t N>
-void GaussLegendre2<N>::stageStates(const double* devY, const double stepSize)
+inline void GaussLegendre2::stageStates(const double* devY, const double stepSize)
 {
 	// y1 = devY + stepSize * ( A11 * k1 + A12 * k2 ) // devY, k1 k2 are two vectors of size 3N
 	// y2 = devY + stepSize * ( A21 * k1 + A22 * k2 )
@@ -511,8 +504,7 @@ void GaussLegendre2<N>::stageStates(const double* devY, const double stepSize)
 	CUSH_CHECK_LAUNCH();
 }
 
-template<size_t N>
-void GaussLegendre2<N>::residualAndPhi(const double* devY, const double* k1, const double* k2, const double stepSize, StagingResult& stagingResult)
+inline void GaussLegendre2::residualAndPhi(const double* devY, const double* k1, const double* k2, const double stepSize, StagingResult& stagingResult)
 {
 	// stage the states
 	this->stageStates(devY, stepSize);

@@ -152,7 +152,7 @@ def calculate_jacobian_dphi_block(Z : NDArray, Zp : NDArray, Zpp : NDArray, h : 
 def calculate_primed_adx(adphi : NDArray):
     adphip = np.empty_like(adphi, dtype=np.complex128)
     for i in range(adphi.shape[1]):
-        res, out = rhs.calculate_derivativeFFT256(adphi[:,i].astype(np.complex128))
+        res, out = rhs.calculate_derivative_fft(adphi[:,i].astype(np.complex128))
         # print(out.shape)
         adphip[:,i] = out
     return adphip
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     pot = initial_amplitude/L0 * np.sin(x) + 1j*np.zeros_like(x)
     Z = x + 1j*ampl
 
-    res, vorticities, Zp, Zpp = rhs.calculate_vorticities256_from_vectors(Z.astype(np.complex128), pot.astype(np.complex128), L, 145, 0, depth)
+    res, vorticities, Zp, Zpp = rhs.calculate_vorticities_from_vectors(Z.astype(np.complex128), pot.astype(np.complex128), L, 145, 0, depth)
     # jac_vorticities_dphi = calculate_jacobian_vorticities_dphi_block(Z, Zp, Zpp, depth/L0)
 
 
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         local_pot = y[2*N:3*N]
         Z = local_x + 1j*local_ampl
         phi = local_pot.astype(np.complex128)
-        res, vorticities, _, _ = rhs.calculate_vorticities256_from_vectors(Z, phi, L, 145, 0, depth)
+        res, vorticities, _, _ = rhs.calculate_vorticities_from_vectors(Z, phi, L, 145, 0, depth)
         if res != 0:
             raise Exception("Error in calculation")
         return vorticities
@@ -215,7 +215,7 @@ if __name__ == "__main__":
         local_x = y[:N]
         local_ampl = y[N:2*N]
         local_pot = y[2*N:3*N]
-        res, vx, vy, dphi = rhs.calculate_rhs256_from_vectors(local_x, local_ampl, local_pot, L, 145, 0, depth)
+        res, vx, vy, dphi = rhs.calculate_rhs_from_vectors(local_x, local_ampl, local_pot, L, 145, 0, depth)
         if res != 0:
             raise Exception("Error in calculation")
         return np.concatenate((vx, vy, dphi))

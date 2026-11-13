@@ -12,18 +12,20 @@
 #include <string>
 #include <vector>
 
-int calculateRHS256FromFile(const char* inputFile, const char* outputFile, SimProperties* simProperties)
+int calculateRHSFromFile(const char* inputFile, const char* outputFile, SimProperties* simProperties, size_t N)
 {
+	if (!validPeriodicSize(N)) return -1;
 	try {
 		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
+		const int n = static_cast<int>(N);
 
-		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		HeliumBoundaryProblem heliumProblem(properties, n);
+		BaseBoundaryIntegralCalculator calculator(properties, heliumProblem);
 
 		std::vector<std::complex<double>> Z;
 		std::vector<double> Phi;
 
-		loadStateFile(std::string(inputFile), Z, Phi, 256, 2.0*PI_d / simProperties->L);
+		loadStateFile(std::string(inputFile), Z, Phi, n, 2.0*PI_d / simProperties->L);
 
 		auto [min_it, max_it] = std::minmax_element(
 			Z.begin(), Z.end(),
@@ -40,18 +42,18 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, SimPr
 		// set device
 		CUSH_CHECK(setDevice());
 		// copy data to device
-		loadDataToDevice(particle, deviceData, 256);
+		loadDataToDevice(particle, deviceData, n);
 		// allocate memory for RHS
-		DeviceBuffer<std_complex> devRhs(2 * 256);
+		DeviceBuffer<std_complex> devRhs(2 * N);
 
 		// calculate RHS
 		calculator.run(deviceData.devZ(), devRhs.get());
 
 		// copy result back to host
-		std::vector<std::complex<double>> rhs(2 * 256);
+		std::vector<std::complex<double>> rhs(2 * N);
 
-		std::vector<std::complex<double>> rhsPos(256);
-		std::vector<double> phiRhs(256);
+		std::vector<std::complex<double>> rhsPos(N);
+		std::vector<double> phiRhs(N);
 
 		CUSH_CHECK(cudaMemcpy(rhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
 
@@ -60,16 +62,16 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, SimPr
 		freeDeviceData(deviceData);
 
 		// prepare data into two vectors, one for position RHS and one for potential RHS
-		for (int i = 0; i < 256; i++)
+		for (size_t i = 0; i < N; i++)
 		{
 			rhsPos[i] = rhs[i];
-			phiRhs[i] = rhs[i + 256].real(); // imaginary part should be zero
+			phiRhs[i] = rhs[i + N].real(); // imaginary part should be zero
 		}
 		// save to file
 
 		const std::map<std::string, double> attributes{ { "rho", properties.rho }, { "kappa", properties.kappa }, { "U", properties.U },
 			{ "depth", properties.depth }, { "initial_amplitude", properties.initial_amplitude } };
-		saveStateFile(std::string(outputFile), rhsPos, phiRhs, 256, attributes, true);
+		saveStateFile(std::string(outputFile), rhsPos, phiRhs, n, attributes, true);
 	}
 	catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
@@ -79,58 +81,19 @@ int calculateRHS256FromFile(const char* inputFile, const char* outputFile, SimPr
 	return 0;
 }
 
-int calculateRHS256FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties)
+/// RHS of batchSize independent interfaces of N points each, stored back to back.
+static int calculateRHSBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties, size_t N, size_t batchSize)
 {
-	try {
-		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
-
-		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
-
-		DeviceParticleData deviceData;
-
-		// set device
-		CUSH_CHECK(setDevice());
-		// copy data to device
-		loadDataToDevice(x, y, phi, deviceData, 256);
-		// allocate memory for RHS
-		DeviceBuffer<std_complex> devRhs(2 * 256);
-
-		// calculate RHS
-		calculator.run(deviceData.devZ(), devRhs.get());
-
-		// copy result back to host
-		std::vector<std::complex<double>> rhs(2 * 256);
-
-		CUSH_CHECK(cudaMemcpy(rhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
-
-		// free device memory
-		devRhs.reset();
-		freeDeviceData(deviceData);
-
-		// prepare data into two vectors, one for position RHS and one for potential RHS
-		for (int i = 0; i < 256; i++)
-		{
-			vx[i] = rhs[i].real();
-			vy[i] = rhs[i].imag();
-			rhsPhi[i] = rhs[i + 256].real(); // imaginary part should be zero
-		}
-	}
-	catch (const std::exception& e) {
-		std::cerr << "Error: " << e.what() << std::endl;
+	if (!validPeriodicSize(N)) return -1;
+	if (batchSize == 0)
+	{
+		std::cerr << "Error: the batch size must be at least 1" << std::endl;
 		return -1;
 	}
-
-	return 0;
-}
-
-template<size_t N, size_t batchSize>
-int calculateRHSNFromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties) 
-{
 	try {
 		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
-		HeliumBoundaryProblem<N, batchSize> heliumProblem(properties);
-		BaseBoundaryIntegralCalculator<N, batchSize> calculator(properties, heliumProblem);
+		HeliumBoundaryProblem heliumProblem(properties, static_cast<int>(N), batchSize);
+		BaseBoundaryIntegralCalculator calculator(properties, heliumProblem);
 
 		DeviceParticleData deviceData;
 
@@ -154,7 +117,7 @@ int calculateRHSNFromVectors(const double* x, const double* y, const double* phi
 		freeDeviceData(deviceData);
 
 		// prepare data into two vectors, one for position RHS and one for potential RHS
-		for (int i = 0; i < batchSize * N; i++)
+		for (size_t i = 0; i < batchSize * N; i++)
 		{
 			vx[i] = rhs[i].real();
 			vy[i] = rhs[i].imag();
@@ -168,122 +131,41 @@ int calculateRHSNFromVectors(const double* x, const double* y, const double* phi
 	return 0;
 }
 
-int calculateRHS2048FromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties)
-{
-	try {
-		return calculateRHSNFromVectors<2048, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	}
-	catch (const std::exception& e) {
-		std::cerr << "Error: " << e.what() << std::endl;
-		return -1;
-	}
-	return 0;
-}
-
-int calculateRHS256FromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties, int batchSize)
-{
-	switch (batchSize)
-	{
-		case 1:
-			return calculateRHSNFromVectors<256, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 2:
-			return calculateRHSNFromVectors<256, 2>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 4:
-			return calculateRHSNFromVectors<256, 4>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 8:
-			return calculateRHSNFromVectors<256, 8>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 16:
-			return calculateRHSNFromVectors<256, 16>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 32:
-			return calculateRHSNFromVectors<256, 32>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 64:
-			return calculateRHSNFromVectors<256, 64>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 128:
-			return calculateRHSNFromVectors<256, 128>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 256:
-			return calculateRHSNFromVectors<256, 256>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 512:
-			return calculateRHSNFromVectors<256, 512>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 768:
-			return calculateRHSNFromVectors<256, 768>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 1024:
-			return calculateRHSNFromVectors<256, 1024>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 1536:
-			return calculateRHSNFromVectors<256, 1536>(x, y, phi, vx, vy, rhsPhi, simProperties);
-		case 2048:
-			return calculateRHSNFromVectors<256, 2048>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	default:
-		std::cerr << "Error: Unsupported batch size " << batchSize << std::endl;
-		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048" << std::endl;
-		return -1;
-	}
-}
-
 int calculateRHSFromVectors(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties, size_t N)
 {
-	switch (N)
-	{
-	case 1:
-		return calculateRHSNFromVectors<1, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 2:
-		return calculateRHSNFromVectors<2, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 4:
-		return calculateRHSNFromVectors<4, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 8:
-		return calculateRHSNFromVectors<8, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 16:
-		return calculateRHSNFromVectors<16, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 32:
-		return calculateRHSNFromVectors<32, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 64:
-		return calculateRHSNFromVectors<64, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 128:
-		return calculateRHSNFromVectors<128, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 256:
-		return calculateRHSNFromVectors<256, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 512:
-		return calculateRHSNFromVectors<512, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 768:
-		return calculateRHSNFromVectors<768, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 1024:
-		return calculateRHSNFromVectors<1024, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 1536:
-		return calculateRHSNFromVectors<1536, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 2048:
-		return calculateRHSNFromVectors<2048, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	case 4096:
-		return calculateRHSNFromVectors<4096, 1>(x, y, phi, vx, vy, rhsPhi, simProperties);
-	default:
-		std::cerr << "Error: Unsupported particle number " << N << std::endl;
-		std::cerr << "Supported particle numbers are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096" << std::endl;
-		return -1;
-	}
+	return calculateRHSBatched(x, y, phi, vx, vy, rhsPhi, simProperties, N, 1);
 }
 
-int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, SimProperties* simProperties)
+int calculateRHSFromVectorsBatched(const double* x, const double* y, const double* phi, double* vx, double* vy, double* rhsPhi, SimProperties* simProperties, size_t N, size_t batchSize)
 {
+	return calculateRHSBatched(x, y, phi, vx, vy, rhsPhi, simProperties, N, batchSize);
+}
+
+int calculateVorticitiesFromVectors(const c_double* Z, const c_double* phi, double* a, c_double* Zp, c_double* Zpp, SimProperties* simProperties, size_t N)
+{
+	if (!validPeriodicSize(N)) return -1;
 	try {
 		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
 
-		HeliumBoundaryProblem<256, 1> heliumProblem(properties);
-		BaseBoundaryIntegralCalculator<256, 1> calculator(properties, heliumProblem);
+		HeliumBoundaryProblem heliumProblem(properties, static_cast<int>(N));
+		BaseBoundaryIntegralCalculator calculator(properties, heliumProblem);
 
 		DeviceParticleData deviceData;
 
 		// set device
 		CUSH_CHECK(setDevice());
 		// copy data to device
-		loadDataToDevice(Z, phi, deviceData, 256);
+		loadDataToDevice(Z, phi, deviceData, static_cast<int>(N));
 
 		// calculate RHS
 		calculator.calculateVorticities(deviceData.devZ());
 
-		CUSH_CHECK(cudaMemcpy(a, calculator.getDevA(), sizeof(double) * 256, cudaMemcpyDeviceToHost));
+		CUSH_CHECK(cudaMemcpy(a, calculator.getDevA(), sizeof(double) * N, cudaMemcpyDeviceToHost));
 		if(Zp != nullptr) {
-			CUSH_CHECK(cudaMemcpy(Zp, calculator.getDevZp(), sizeof(c_double) * 256, cudaMemcpyDeviceToHost));
+			CUSH_CHECK(cudaMemcpy(Zp, calculator.getDevZp(), sizeof(c_double) * N, cudaMemcpyDeviceToHost));
 		}
 		if(Zpp != nullptr) {
-			CUSH_CHECK(cudaMemcpy(Zpp, calculator.getDevZpp(), sizeof(c_double) * 256, cudaMemcpyDeviceToHost));
+			CUSH_CHECK(cudaMemcpy(Zpp, calculator.getDevZpp(), sizeof(c_double) * N, cudaMemcpyDeviceToHost));
 		}
 		// free device memory
 		freeDeviceData(deviceData);
@@ -375,18 +257,19 @@ int calculateVelocitiesRadialSymmetry(const double* r, const double* z, const do
 }
 
 
-int calculateDerivativeFFT256(const c_double* input, c_double* output)
+int calculateDerivativeFFT(const c_double* input, c_double* output, size_t N)
 {
+	if (!validPeriodicSize(N)) return -1;
 	try
 	{
 		// copy to device
 		CUSH_CHECK(setDevice());
-		DeviceBuffer<std_complex> devInput(256);
-		DeviceBuffer<std_complex> devOutput(256);
+		DeviceBuffer<std_complex> devInput(N);
+		DeviceBuffer<std_complex> devOutput(N);
 
 		CUSH_CHECK(cudaMemcpy(devInput.get(), input, devInput.bytes(), cudaMemcpyHostToDevice));
 
-		FftDerivative<256, 1> fftDerivative;
+		FftDerivative fftDerivative(static_cast<int>(N));
 		fftDerivative.initialize();
 		fftDerivative.exec(devInput.get(), devOutput.get(), false);
 		CUSH_CHECK(cudaDeviceSynchronize());

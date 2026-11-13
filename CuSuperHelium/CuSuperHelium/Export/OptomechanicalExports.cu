@@ -11,8 +11,7 @@
 #include <memory>
 #include <vector>
 
-template <size_t N>
-int integrateOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, COptomechanicalVariables* optoVariables, RK4SolverOptions* rkOptions) 
+static int integrateOptomechanicalSimulationRK4_N(const size_t N, double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, COptomechanicalVariables* optoVariables, RK4SolverOptions* rkOptions) 
 {
 	try 
 	{
@@ -36,8 +35,8 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 		const double t0 = rk4SolverOptions.t0;
 		const double t1 = rk4SolverOptions.t1;
 
-		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVars, std::make_unique<LightIntensity>());
-		TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
+		HeliumWithOptomechanicalDrivingProblem heliumProblem(properties, optoVars, std::make_unique<LightIntensity>(), static_cast<int>(N));
+		TimedBoundaryIntegrator integrator(properties, heliumProblem);
 
 		RungeKutta4<std_complex> stepper(integrator);
 		stepper.setOptions(rk4_options);
@@ -114,27 +113,8 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 int integrateOptomechanicalSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables, size_t N)
 {
-	switch (N) {
-		case 32:
-			return integrateOptomechanicalSimulationRK4_N<32>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 64:
-			return integrateOptomechanicalSimulationRK4_N<64>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 128:
-			return integrateOptomechanicalSimulationRK4_N<128>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 256:
-			return integrateOptomechanicalSimulationRK4_N<256>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 512:
-			return integrateOptomechanicalSimulationRK4_N<512>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 1024:
-			return integrateOptomechanicalSimulationRK4_N<1024>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 2048:
-			return integrateOptomechanicalSimulationRK4_N<2048>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 4096:
-			return integrateOptomechanicalSimulationRK4_N<4096>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-		case 8192:
-			return integrateOptomechanicalSimulationRK4_N<8192>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
-	}
-	return 0;
+	if (!validPeriodicSize(N)) return -1;
+	return integrateOptomechanicalSimulationRK4_N(N, initialState, statesOut, statesCount, timesOut, timesCount, simProperties, optomechanicalVariables, rkOptions);
 }
 
 int integrateOptomechanicalSimulationRK4_freeMemory(double* statesOut, double* timesOut)

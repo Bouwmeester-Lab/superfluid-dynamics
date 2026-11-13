@@ -414,6 +414,25 @@ The package stays private for now: it is installed from the local checkout and n
 - Benchmark the Cartesian RHS and a short integration before and after. A slowdown of a few percent is acceptable. A larger one is investigated before merging, for example by keeping fixed-size kernels for the FFT step.
 - **Done when:** no class is templated on `N`, any `N` the user passes is accepted, and goldens match.
 
+**Status: done** on branch `reorg/phase-7-runtime-sizes`.
+- **Verification:**
+  - Release and Debug each pass 35 gtests and 25 pytest tests.
+  - The 47 golden output arrays are bit-identical to `main`.
+  - Timing against a build of `main`, for the RHS at N = 256, 1024 and 2048, the N = 64 Jacobian, Gauss-Legendre, and the optomechanical and augmented RK4, shows no difference beyond run-to-run noise, so no fixed-size kernels were kept.
+- **Batch size too.** The batch size, which the Jacobian sets to 3N, became a runtime value as well. No library class keeps a size template parameter. The App and Tests keep a few function templates of their own, such as frame rendering and test arrays.
+- **How the classes were converted:**
+  - Each formerly templated class holds `const` members named `N` and `batchSize`, declared first and set by its constructor. The method bodies are unchanged, and the members keep the template parameters' exact types (`int N`; `size_t` or `int` batch), so the arithmetic is the same.
+  - Sizes flow from the problem. `BoundaryProblem(n, batch, ...)` owns them, `BaseBoundaryIntegralCalculator` reads them from its problem, and `RealBoundaryIntegralCalculator`, `GaussLegendre2` and `RK45` read them from their `OdeProblem`.
+  - `JacobianCalculator(problem, n)` and `DelayedIntensityTerm(variables, n)` take `n` explicitly. The Jacobian checks that its problem has 6 N^2 values.
+  - `AutonomousProblem<T>` takes its state size in its constructor.
+- **Kernels:** the optomechanical drive kernels take the point count as their first argument instead of a template parameter. They are `static`, like the other kernels defined in headers.
+- **Exports:** every periodic export takes `N` (any N >= 2), checked by `validPeriodicSize`.
+  - The size-named exports were replaced: `calculateRHSFromFile`, `calculateRHSFromVectorsBatched(..., N, batchSize)`, `calculateVorticitiesFromVectors`, `calculateDerivativeFFT` and `calculatePerturbedStates` take `N`.
+  - `calculateRHS256FromVectors` and `calculateRHS2048FromVectors` are gone; `calculateRHSFromVectors` covers them.
+  - The Python API follows: `calculate_rhs_from_file`, `calculate_rhs_from_vectors_batched`, `calculate_vorticities_from_vectors`, `calculate_derivative_fft` and `calculate_perturbed_states`. The golden cases call them, and their stored values are unchanged.
+- **A dispatch bug fixed on the way:** the optomechanical and augmented RK4 exports used to return 0 (success) without doing anything when `N` was not in their `switch`. Every export now returns -1 for a size it cannot handle.
+- **New tests:** the RHS accepts N = 3, 100 and 300. A batch of 3 interfaces matches three single calls (to 1e-9; the batched LU rounds differently). N = 1 is rejected.
+
 ### Phase 8 — Time-integration interface (before new solvers)
 
 Phase 4 gives every integrator one interface but keeps one leak: `Evaluation::AcceptedPoint` tells the problem when the solver is at an accepted state. That works for RK4, where stage 1 always sits at an accepted point, but not for adaptive or implicit schemes: RK45 re-evaluates a rejected step at the same point, and a first-same-as-last scheme never evaluates there. This phase makes the integrators reusable by any problem, without the caller needing to know how a scheme stages its evaluations. It comes before any new integrator or solver is added.

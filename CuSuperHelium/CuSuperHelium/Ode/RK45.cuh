@@ -30,7 +30,7 @@ struct RK45_Options {
 /// </summary>
 /// <typeparam name="T"></typeparam>
 /// <typeparam name="N"></typeparam>
-template <typename T, size_t N>
+template <typename T>
 struct RK45WorkspaceGpu
 {
 	T* k1;
@@ -46,8 +46,9 @@ struct RK45WorkspaceGpu
 	double* scaledError; // Temporary storage for the scaled error calculation
 
 	T* rawMemory;
+	const size_t N; ///< State size
 
-	__host__ RK45WorkspaceGpu()
+	__host__ explicit RK45WorkspaceGpu(size_t n) : N(n)
 	{
 		CUSH_CHECK(cudaMalloc((void**)&rawMemory, sizeof(T) * (8 * N)));
 		k1 = rawMemory;
@@ -96,7 +97,7 @@ enum class RK45StepResult
 
 
 
-template <typename T, size_t N>
+template <typename T>
 class RK45Base : public OdeSolver<T>
 {
 public:
@@ -145,7 +146,8 @@ public:
 		currentTimeStep = options.initial_timestep;
 	}
 protected:
-	RK45WorkspaceGpu<T, N> workspace;
+	const size_t N; ///< State size, from the problem
+	RK45WorkspaceGpu<T> workspace;
 	virtual inline void calculateTempY(uint16_t step, double timeStep) = 0;
 	// Calculate the new y value after a successful step and saves it in workspace.yAcceptedStep
 	virtual inline void calculateWeightedY(double timeStep) = 0;
@@ -181,21 +183,21 @@ protected:
 	double h_max;
 	size_t maxRejectedSteps = 500;
 };
-template <typename T, size_t N>
-RK45Base<T, N>::RK45Base(OdeProblem<T>& problem, double tstep, double _h_max, double _h_min) : problem(problem), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
+template <typename T>
+RK45Base<T>::RK45Base(OdeProblem<T>& problem, double tstep, double _h_max, double _h_min) : N(problem.size()), workspace(problem.size()), problem(problem), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
 {
-	if (problem.size() != N)
+	if (N == 0)
 	{
-		throw std::invalid_argument("RK45: the problem size does not match the solver size");
+		throw std::invalid_argument("RK45: the problem has an empty state");
 	}
 }
-template <typename T, size_t N>
-RK45Base<T, N>::~RK45Base()
+template <typename T>
+RK45Base<T>::~RK45Base()
 {
 }
 
-template <typename T, size_t N>
-OdeSolverResult RK45Base<T, N>::runEvolution(double endTime)
+template <typename T>
+OdeSolverResult RK45Base<T>::runEvolution(double endTime)
 {
 	size_t rejectedTimes = 0;
 	double maxStepSize = -1;
@@ -234,8 +236,8 @@ OdeSolverResult RK45Base<T, N>::runEvolution(double endTime)
 	return OdeSolverResult::UnknownError;
 }
 
-template<typename T, size_t N>
-OdeSolverResult RK45Base<T, N>::runEvolution(double startTime, double endTime)
+template <typename T>
+OdeSolverResult RK45Base<T>::runEvolution(double startTime, double endTime)
 {
 	currentTime = startTime; // set the current time to the start time
 	problem.start(startTime);
@@ -243,8 +245,8 @@ OdeSolverResult RK45Base<T, N>::runEvolution(double startTime, double endTime)
 	return runEvolution(endTime);
 }
 
-template <typename T, size_t N>
-RK45StepResult RK45Base<T, N>::runStep(int i)
+template <typename T>
+RK45StepResult RK45Base<T>::runStep(int i)
 {
 	const double h = currentTimeStep;
 	// calculate k1
@@ -290,8 +292,8 @@ RK45StepResult RK45Base<T, N>::runStep(int i)
 	}
 }
 
-template<typename T, size_t N>
-inline double RK45Base<T, N>::calculateNewTimestep(double oldTimestep, double error, bool accepting)
+template <typename T>
+inline double RK45Base<T>::calculateNewTimestep(double oldTimestep, double error, bool accepting)
 {
 	constexpr double safety = 0.9;
 	constexpr double minfac = 0.2;   // at most 5x shrink
@@ -314,8 +316,8 @@ inline double RK45Base<T, N>::calculateNewTimestep(double oldTimestep, double er
 	return std::clamp(oldTimestep * fac, h_min, h_max);
 }
 
-template<typename T, size_t N>
-void RK45Base<T, N>::initialize(T* initialState, bool onDevice)
+template <typename T>
+void RK45Base<T>::initialize(T* initialState, bool onDevice)
 {
 	if (onDevice) {
 		CUSH_CHECK(cudaMemcpyAsync(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyDeviceToDevice, this->stream));
@@ -329,11 +331,10 @@ void RK45Base<T, N>::initialize(T* initialState, bool onDevice)
 
 
 
-template <size_t N>
-class RK45_std_complex : public RK45Base<std_complex, N>
+class RK45_std_complex : public RK45Base<std_complex>
 {
 public:
-	using RK45Base<std_complex, N>::RK45Base;
+	using RK45Base<std_complex>::RK45Base;
 private:
 	const size_t threads = 256;
 	const size_t blocks = (N + threads - 1) / threads;
@@ -344,8 +345,7 @@ protected:
 	virtual inline void calculateScaledError(double atol, double rtol, double timeStep) override;
 };
 
-template<size_t N>
-inline void RK45_std_complex<N>::calculateTempY(uint16_t step, double timeStep)
+inline void RK45_std_complex::calculateTempY(uint16_t step, double timeStep)
 {
 	// This method calculates the intermediate y values needed for the RK45 method.
 	switch (step)
@@ -377,15 +377,13 @@ inline void RK45_std_complex<N>::calculateTempY(uint16_t step, double timeStep)
 	}
 }
 
-template<size_t N>
-inline void RK45_std_complex<N>::calculateWeightedY(double timeStep)
+inline void RK45_std_complex::calculateWeightedY(double timeStep)
 {
 	// at this stage the new y is saved in yTemp, so we just need to copy it to yAcceptedStep
 	CUSH_CHECK(cudaMemcpyAsync(this->workspace.yAcceptedStep, this->workspace.yTemp, sizeof(std_complex) * N, cudaMemcpyDeviceToDevice, this->stream));
 }
 
-template<size_t N>
-inline void RK45_std_complex<N>::calculateScaledError(double atol, double rtol, double timeStep)
+inline void RK45_std_complex::calculateScaledError(double atol, double rtol, double timeStep)
 {
 	// set to 0 the global variable
 	CUSH_CHECK(cudaMemsetAsync(this->workspace.scaledError, 0, sizeof(double), this->stream));

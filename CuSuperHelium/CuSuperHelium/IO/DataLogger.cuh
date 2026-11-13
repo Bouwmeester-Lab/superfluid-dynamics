@@ -4,11 +4,12 @@
 #include <vector>
 #include "Core/CudaChecks.cuh"
 
-template <typename T, size_t N>
+template <typename T>
 class DataLogger
 {
 public:
-	DataLogger();
+	/// n: number of elements of type T in each logged state
+	explicit DataLogger(size_t n);
 	virtual ~DataLogger();
 
 	void setSize(size_t size, bool allocateTimes = true)
@@ -85,6 +86,7 @@ public:
 	}
 
 private:
+	const size_t N; ///< Elements per logged state
 	cudaEvent_t readyToCopy, copyDone;
 	cudaStream_t copyStream;
 	size_t size;
@@ -97,16 +99,16 @@ private:
 	size_t steps = 1;
 };
 
-template <typename T, size_t N>
-DataLogger<T, N>::DataLogger()
+template <typename T>
+DataLogger<T>::DataLogger(size_t n) : N(n)
 {
 	CUSH_CHECK(cudaEventCreate(&readyToCopy));
 	CUSH_CHECK(cudaEventCreate(&copyDone));
 	CUSH_CHECK(cudaStreamCreate(&copyStream));
 	setSize(10);
 }
-template <typename T, size_t N>
-DataLogger<T, N>::~DataLogger()
+template <typename T>
+DataLogger<T>::~DataLogger()
 {
 	CUSH_CHECK_NOTHROW(cudaEventDestroy(readyToCopy));
 	CUSH_CHECK_NOTHROW(cudaEventDestroy(copyDone));

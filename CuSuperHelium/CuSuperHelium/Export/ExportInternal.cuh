@@ -16,6 +16,7 @@
 #include "Physics/NonDimensionalization.h"
 #include "Physics/PhysicalParameters.h"
 
+#include <climits>
 #include <cstdlib>
 #include <iostream>
 
@@ -52,16 +53,16 @@ int copyIntegrationResultToHost(const OdeSolver<T>& solver, size_t stateSize, Tr
 	return 0;
 }
 
-inline int unsupportedN(size_t N)
+/// The periodic-2D solver accepts any number of collocation points from 2 up (the FFT derivative needs two).
+/// Prints the reason and returns false otherwise.
+inline bool validPeriodicSize(size_t N)
 {
-	std::cerr << "Error: Unsupported N size " << N << std::endl;
-	return -1;
-}
-
-inline int unsupportedBatchSize(int batchSize)
-{
-	std::cerr << "Error: Unsupported batch size " << batchSize << std::endl;
-	return -1;
+	if (N < 2 || N > static_cast<size_t>(INT_MAX))
+	{
+		std::cerr << "Error: the periodic solver needs at least 2 collocation points, got " << N << std::endl;
+		return false;
+	}
+	return true;
 }
 
 inline int freeExportMemory(double* statesOut, double* timesOut)

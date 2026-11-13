@@ -10,17 +10,16 @@
 /// The periodic boundary integral with a time-dependent term added to the potential's right-hand side.
 /// It is an OdeProblem like the autonomous calculator; rhs() receives the time and the evaluation kind.
 /// </summary>
-template<int N, size_t batchSize>
-class TimedBoundaryIntegrator : public BaseBoundaryIntegralCalculator<N, batchSize>
+class TimedBoundaryIntegrator : public BaseBoundaryIntegralCalculator
 {
-	TimedBoundaryProblem<N, batchSize>& timedBoundaryProblem; ///< Reference to the timed boundary problem for calculating the time-dependent part of the rhs
+	TimedBoundaryProblem& timedBoundaryProblem; ///< Reference to the timed boundary problem for calculating the time-dependent part of the rhs
 
 	double currentTime = 0.0; ///< Time of the evaluation in progress
 	/// True only when the solver evaluates at an accepted state. The drive term then updates its delayed-intensity
 	/// history, so the history follows the time step and not the intermediate stages.
 	bool saveProgress = true;
 public:
-	TimedBoundaryIntegrator(InterfaceParameters& problemProperties, TimedBoundaryProblem<N, batchSize>& boundaryProblem) : BaseBoundaryIntegralCalculator<N, batchSize>(problemProperties, boundaryProblem), timedBoundaryProblem(boundaryProblem)
+	TimedBoundaryIntegrator(InterfaceParameters& problemProperties, TimedBoundaryProblem& boundaryProblem) : BaseBoundaryIntegralCalculator(problemProperties, boundaryProblem), timedBoundaryProblem(boundaryProblem)
 	{
 	}
 	virtual ~TimedBoundaryIntegrator() {}
@@ -40,7 +39,7 @@ public:
 
 	virtual void calculateRhsPhi(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhs) override
 	{
-		BaseBoundaryIntegralCalculator<N, batchSize>::calculateRhsPhi(problemPointers, initialState, rhs); // Call the base class implementation to calculate the standard rhs
+		BaseBoundaryIntegralCalculator::calculateRhsPhi(problemPointers, initialState, rhs); // Call the base class implementation to calculate the standard rhs
 		// Now calculate the time-dependent part of the rhs using the boundary problem's method
 		timedBoundaryProblem.CalculateTimeDependentRhsPhi(problemPointers, rhs, this->problemProperties, this->currentTime, this->saveProgress);
 	}

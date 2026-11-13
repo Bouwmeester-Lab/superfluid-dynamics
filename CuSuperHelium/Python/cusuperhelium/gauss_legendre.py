@@ -273,7 +273,7 @@ if __name__ == "__main__":
         local_x = y[:N]
         local_ampl = y[N:2*N]
         local_pot = y[2*N:3*N]
-        res, vx, vy, dphi = rhs.calculate_rhs256_from_vectors(local_x, local_ampl, local_pot, L, 145, 0, depth)
+        res, vx, vy, dphi = rhs.calculate_rhs_from_vectors(local_x, local_ampl, local_pot, L, 145, 0, depth)
         if res != 0:
             raise Exception("Error in calculation")
         return np.concatenate((vx, vy, dphi))

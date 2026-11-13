@@ -5,7 +5,7 @@
 
 #include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
 #include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
-#include "LinearAlgebra/MatrixSolver.cuh"
+#include "LinearAlgebra/DenseLuSolver.cuh"
 #include "Ode/AutonomousProblem.h"
 
 template<int N, size_t batchSize>
@@ -76,7 +76,7 @@ protected:
 	InterfaceParameters& problemProperties; ///< Reference to the problem properties for configuration
 	ZPhiDerivative<N, batchSize> zPhiDerivative; ///< Derivative calculator for Z and Phi
 	FftDerivative<N, batchSize> fftDerivative; ///< FFT derivative calculator for single batch
-	MatrixSolver<N, batchSize> matrixSolver; ///< Matrix solver for solving the vorticities.
+	DenseLuSolver matrixSolver{ N, batchSize }; ///< Matrix solver for solving the vorticities.
 	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered

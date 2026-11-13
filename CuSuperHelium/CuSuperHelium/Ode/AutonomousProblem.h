@@ -1,86 +1,29 @@
 #pragma once
+#ifndef AUTONOMOUS_PROBLEM_H
+#define AUTONOMOUS_PROBLEM_H
+
+#include "Ode/OdeProblem.h"
+
 /// <summary>
-/// Class representing a generic autonomous problem (i.e. independent of time) that can be solved with a generic ODE solver.
-/// This class will automatically allocate the device memory for the right-hand side of the problem, which is expected to be filled by the run function.
-/// The destructor will free the device memory which must be virtual to allow for proper cleanup in derived classes.
+/// An OdeProblem whose right-hand side does not depend on time, with a size fixed at compile time.
+/// Subclasses implement run(y, dydt); rhs() forwards to it and ignores t and the evaluation kind.
 /// </summary>
-/// <typeparam name="T">The type of the RHS of the problem, i.e. double or complex?</typeparam>
-/// <typeparam name="N">The number of variables to account for</typeparam>
-template<typename T, int N>
-class AutonomousProblem
+template <typename T, int N>
+class AutonomousProblem : public OdeProblem<T>
 {
 public:
-	// virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
-	AutonomousProblem()
+	virtual ~AutonomousProblem() = default;
+
+	size_t size() const override { return N; }
+
+	void rhs(const T* y, double, T* dydt, Evaluation) override
 	{
-	}
-	virtual ~AutonomousProblem()
-	{
+		// run() predates const-correct states and takes a non-const pointer; implementations must not
+		// write to it. Making run() take const T* is part of the Phase 8 audit.
+		run(const_cast<T*>(y), dydt);
 	}
 
-	/// <summary>
-	/// Function to run the time evolution problem, at the end the device pointer devTimeEvolutionRhs should be filled with the right-hand side of the problem
-	/// </summary>
-	/// <param name="initialState"></param>
-	/// <param name="rhs">The rhs vector where to place the result</param>
 	virtual void run(T* initialState, T* rhs) = 0;
-	virtual void setStream(cudaStream_t stream) = 0;
 };
 
-template <typename T, int N>
-class TimedProblem {
-protected:
-	bool saveProgress = true;
-	double currentTime = 0.0;
-public:
-	virtual void run(T* initialState, T* rhs) = 0;
-	void setCurrentTime(double time) {
-		currentTime = time;
-	}
-	virtual void setStartingTime(double time) {
-		currentTime = time;
-	}
-	void setSaveProgress(bool save)
-	{
-		saveProgress = save;
-	}
-	virtual void setStream(cudaStream_t stream) = 0;
-
-	virtual ~TimedProblem() {
-	}
-};
-
-template <typename T, int N>
-class IntegrableProblem {
-	public:
-	IntegrableProblem()
-	{
-	}
-	virtual ~IntegrableProblem()
-	{
-	}
-	virtual void run(T* initialState, double time, T* rhs) = 0;
-	virtual void commitStep(double time) = 0;
-	virtual void setStream(cudaStream_t stream) = 0;
-};
-
-template<typename T, int N, size_t batchSize>
-class BatchedAutonomousProblem
-{
-public:
-	// virtual T* getY0() = 0; ///< Function to get the initial state of the problem, to be implemented in derived classes
-	BatchedAutonomousProblem()
-	{
-	}
-	virtual ~BatchedAutonomousProblem()
-	{
-	}
-
-	/// <summary>
-	/// Function to run the time evolution problem, at the end the device pointer devTimeEvolutionRhs should be filled with the right-hand side of the problem
-	/// </summary>
-	/// <param name="initialState">An array pointer to a N*batchSize sized array holding batchSize initial states for the autonomous problem</param>
-	/// <param name="rhs">The rhs vector where to place the result for each initial state. It's sized as (NxbatchSize) in 1D.</param>
-	virtual void runBatch(T* initialState, T* rhs) = 0;
-	virtual void setStream(cudaStream_t stream) = 0;
-};
+#endif // !AUTONOMOUS_PROBLEM_H

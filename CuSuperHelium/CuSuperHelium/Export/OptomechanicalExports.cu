@@ -2,7 +2,7 @@
 
 #include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
 #include "Optomechanics/LightIntensity.cuh"
-#include "Ode/RK4_Time_Dependent.cuh"
+#include "Ode/RungeKutta4.cuh"
 #include "Export/DeviceParticleLoading.cuh"
 #include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
 #include "IO/TrajectoryLogger.cuh"
@@ -39,9 +39,14 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 		HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVars, std::make_unique<LightIntensity>());
 		TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
 
-		RungeKuttaStepper<std_complex, 2 * N> stepper(integrator);
-
+		RungeKutta4<std_complex> stepper(integrator);
 		stepper.setOptions(rk4_options);
+
+		auto trajectory = std::make_shared<TrajectoryLogger<std_complex>>();
+		if (rk4_options.returnTrajectory)
+		{
+			stepper.addObserver(trajectory);
+		}
 
 		std::vector<std::complex<double>> Z0(N);
 		std::vector<double> Phi(N);
@@ -66,14 +71,12 @@ int integrateOptomechanicalSimulationRK4_N(double* initialState, double** states
 
 		std::cout << "RK4 evolution completed. Copying results to host." << std::endl;
 
-		CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
-
-		stepper.copyTimesToHost(timesOut, timesCount);
-
-		std::cout << "Times copied to host. Copying states to host." << std::endl;
-
 		std_complex* hostStates;
-		stepper.copyStatesToHost(&hostStates, statesCount);
+		if (copyIntegrationResultToHost<std_complex>(stepper, 2 * N, rk4_options.returnTrajectory ? trajectory.get() : nullptr, &hostStates, statesCount, timesOut, timesCount) != 0)
+		{
+			std::cerr << "Failed to copy the integration result to host" << std::endl;
+			return -1;
+		}
 
 		std::cout << "Complex states copied to host. Transforming to output format." << std::endl;
 

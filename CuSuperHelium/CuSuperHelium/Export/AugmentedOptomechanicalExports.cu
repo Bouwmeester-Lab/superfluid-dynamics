@@ -2,7 +2,8 @@
 
 #include "Optomechanics/AugmentedBoundaryIntegrator.cuh"
 #include "Optomechanics/AugmentedIntensityBoundaryIntegrator.cuh"
-#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "Ode/RungeKutta4.cuh"
+#include "IO/ProgressBarObserver.h"
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
 #include "Optomechanics/DelayedIntensityIntegrator.cuh"
 #include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
@@ -56,14 +57,16 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			}
 			cplx_initialState[3 * N] = std_complex(initialState[4 * N], 0); // scalar ramped intensity
 
-			std::shared_ptr<TrajectoryLogger<std_complex, 3 * N + 1>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N + 1>>();
+			auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
 			HeliumRampedIntensityAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
 			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
 			AugmentedIntensityBoundaryIntegrator<N, 1> integrator(
 				std::move(boundaryIntegralCalculator),
 				std::make_unique<DelayedRampedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
 
-			AutonomousRungeKuttaStepper<std_complex, 3 * N + 1> stepper(integrator, rk4_options.initial_timestep, logger);
+			RungeKutta4<std_complex> stepper(integrator, rk4_options.initial_timestep);
+			stepper.addObserver(logger);
+			stepper.addObserver(std::make_shared<ProgressBarObserver<std_complex>>(t0, t1, "Running integration for " + std::to_string(3 * N + 1) + " variables"));
 
 			stepper.setOptions(rk4_options);
 			stepper.initialize(cplx_initialState.data(), false);
@@ -123,14 +126,16 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			}
 			cplx_initialState[3 * N] = std_complex(initialState[4 * N], 0); // scalar ramped intensity
 
-			std::shared_ptr<TrajectoryLogger<std_complex, 3 * N + 1>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N + 1>>();
+			auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
 			HeliumSineAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
 			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
 			GeneralAugmentedBoundaryIntegrator<N, 1, 1> integrator(
 				std::move(boundaryIntegralCalculator),
 				std::make_unique<DelayedSineIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
 
-			AutonomousRungeKuttaStepper<std_complex, 3 * N + 1> stepper(integrator, rk4_options.initial_timestep, logger);
+			RungeKutta4<std_complex> stepper(integrator, rk4_options.initial_timestep);
+			stepper.addObserver(logger);
+			stepper.addObserver(std::make_shared<ProgressBarObserver<std_complex>>(t0, t1, "Running integration for " + std::to_string(3 * N + 1) + " variables"));
 
 			stepper.setOptions(rk4_options);
 			stepper.initialize(cplx_initialState.data(), false);
@@ -189,12 +194,14 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 				cplx_initialState[i + 2 * N] = std_complex(initialState[i + 3 * N], 0); // delayed intensity
 			}
 
-			std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
+			auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
 			HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);
 			std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
 			AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVars, properties, lightIntensity));
 
-			AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, rk4_options.initial_timestep, logger);
+			RungeKutta4<std_complex> stepper(integrator, rk4_options.initial_timestep);
+			stepper.addObserver(logger);
+			stepper.addObserver(std::make_shared<ProgressBarObserver<std_complex>>(t0, t1, "Running integration for " + std::to_string(3 * N) + " variables"));
 
 			stepper.setOptions(rk4_options);
 			stepper.initialize(cplx_initialState.data(), false);
@@ -300,7 +307,6 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 			cplx_initialState[i + 2 * N] = std_complex(state[i + 3 * N], 0); // delayed intensity
 		}
 
-		std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
 		std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
 
 		HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVars, lightIntensity);

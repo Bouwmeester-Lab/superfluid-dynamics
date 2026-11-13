@@ -27,6 +27,21 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="IO\StepObserver.h">
+      <Filter>IO</Filter>
+    </ClInclude>
+    <ClInclude Include="IO\ProgressBarObserver.h">
+      <Filter>IO</Filter>
+    </ClInclude>
+    <ClInclude Include="Ode\OdeProblem.h">
+      <Filter>Ode</Filter>
+    </ClInclude>
+    <ClInclude Include="Ode\RungeKutta4.cuh">
+      <Filter>Ode</Filter>
+    </ClInclude>
+    <ClInclude Include="LinearAlgebra\Blas.cuh">
+      <Filter>LinearAlgebra</Filter>
+    </ClInclude>
     <ClInclude Include="BoundaryIntegral\Axisymmetric\BoundaryNodes.cuh">
       <Filter>BoundaryIntegral\Axisymmetric</Filter>
     </ClInclude>
@@ -99,9 +114,6 @@
     <ClInclude Include="Core\VectorKernels.cuh">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="Core\VectorUtilities.cuh">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="Core\constants.cuh">
       <Filter>Core</Filter>
     </ClInclude>
@@ -138,9 +150,6 @@
     <ClInclude Include="LinearAlgebra\LinearAlgebra.cuh">
       <Filter>LinearAlgebra</Filter>
     </ClInclude>
-    <ClInclude Include="LinearAlgebra\MatrixSolver.cuh">
-      <Filter>LinearAlgebra</Filter>
-    </ClInclude>
     <ClInclude Include="Math\DerivativeCalculator.cuh">
       <Filter>Math</Filter>
     </ClInclude>
@@ -159,9 +168,6 @@
     <ClInclude Include="Ode\AutonomousProblem.h">
       <Filter>Ode</Filter>
     </ClInclude>
-    <ClInclude Include="Ode\AutonomousRungeKuttaStepper.cuh">
-      <Filter>Ode</Filter>
-    </ClInclude>
     <ClInclude Include="Ode\GaussLegendre.cuh">
       <Filter>Ode</Filter>
     </ClInclude>
@@ -178,12 +184,6 @@
       <Filter>Ode</Filter>
     </ClInclude>
     <ClInclude Include="Ode\RK4Options.h">
-      <Filter>Ode</Filter>
-    </ClInclude>
-    <ClInclude Include="Ode\RK4_Time_Dependent.cuh">
-      <Filter>Ode</Filter>
-    </ClInclude>
-    <ClInclude Include="Ode\SimpleEuler.cuh">
       <Filter>Ode</Filter>
     </ClInclude>
     <ClInclude Include="Optomechanics\AugmentedBoundaryIntegrator.cuh">

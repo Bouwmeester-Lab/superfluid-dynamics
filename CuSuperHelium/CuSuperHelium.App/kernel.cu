@@ -22,15 +22,15 @@
 
 #include "Math/Derivatives.cuh"
 #include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
-#include "LinearAlgebra/MatrixSolver.cuh"
 #include "Ode/AutonomousProblem.h"
 #include "BoundaryIntegral/Periodic2D/Energies.cuh"
 #include "Optomechanics/DelayedIntensityTerm.cuh"
 #include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
 #include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
-#include "Ode/SimpleEuler.cuh"
-#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "Ode/RungeKutta4.cuh"
+#include "IO/ProgressBarObserver.h"
+#include "IO/TrajectoryLogger.cuh"
 #include "IO/ValueLogger.h"
 #include "SolitonPeak.h"
 #include <stdfloat>
@@ -42,7 +42,6 @@
 #include "SimulationFunctions.cuh"
 #include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
 #include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
-#include "Ode/RK4_Time_Dependent.cuh"
 #include "Export/ExportApi.cuh"
 #include "Optomechanics/AugmentedBoundaryIntegrator.cuh"
 #include "IO/TrajectoryLogger.cuh"
@@ -76,7 +75,7 @@ int augmentedSystem() {
         initialState[2 * N + i] = LightIntensity::compute_intensity(initialState[i].imag(), initialState[i].real(), optoVariables); // delayed_I
     }
 	
-	std::shared_ptr<TrajectoryLogger<std_complex, 3 * N>> logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
+	auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
     RK4Options rk4_options;
 
     rk4_options.initial_timestep = 0.01;
@@ -97,7 +96,9 @@ int augmentedSystem() {
 
     AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVariables, properties, lightIntensity));
 
-	AutonomousRungeKuttaStepper<std_complex, 3 * N> stepper(integrator, 0.01, logger);
+	RungeKutta4<std_complex> stepper(integrator, 0.01);
+	stepper.addObserver(logger);
+	stepper.addObserver(std::make_shared<ProgressBarObserver<std_complex>>(0.0, 5.0));
 
 	stepper.setOptions(rk4_options);
 
@@ -297,7 +298,9 @@ int drivingHelium()
     stateLogger.setSize(500 / loggingSteps + 1);
     stateLogger.setStep(loggingSteps);*/
 
-    RungeKuttaStepper<std_complex, 2*N> stepper(integrator);
+    RungeKutta4<std_complex> stepper(integrator);
+    auto trajectory = std::make_shared<TrajectoryLogger<std_complex>>();
+    stepper.addObserver(trajectory);
 
     stepper.setOptions(rk4_options);
 
@@ -372,8 +375,8 @@ int drivingHelium()
 	std_complex* hostStates;
 	size_t countStatesHost;
 	cudaStreamSynchronize(cudaStreamPerThread);
-    stepper.copyTimesToHost(&hostTimes, &countHost);
-    stepper.copyStatesToHost(&hostStates, &countStatesHost);
+    trajectory->copyTimesToHost(&hostTimes, &countHost);
+    trajectory->copyStatesToHost(&hostStates, &countStatesHost);
 
     plt::figure();
     

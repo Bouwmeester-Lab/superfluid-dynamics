@@ -178,6 +178,16 @@ Done once, right after Phase 1 merges and before Phase 2. Rewriting history chan
 5. **Publish.** Force-push all branches and tags. Every other clone must then be deleted and cloned again, including the second checkout at `C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics`. GitHub may keep the old objects reachable through closed PRs until GitHub support runs a garbage collection. That does not matter for a private repository.
 
 - **Done when:** a fresh clone is a few MB, and the check in step 4 passes for every branch.
+- **Status: done** on 2026-11-13.
+  - **Backup:** a mirror of GitHub from before the rewrite, at `D:\repos\superfluid-dynamics-backup-2026-11-13.git` (208 MB).
+  - **Removed:** `*.avi`, `*.h5`, `CuSuperHelium/CuSuperHelium/temp/` and `CuSuperHelium/Python/figures/`, with `git filter-repo --invert-paths`. Packed size went from 208 MB to 4 MB.
+  - **Verified:** `scripts/verify_history_rewrite.py` passes for all 17 branches. The script also fails, as it should, when run without the removal patterns.
+  - **Published:** all 17 branches were force-pushed, and GitHub's branch tips match the rewritten mirror.
+  - **Local checkout:** the checkout at `D:\repos\superfluid-dynamics` was updated in place instead of re-cloned. Each local branch was moved to its rewritten commit through filter-repo's commit map, which keeps the local stashes. The second checkout at `C:\Users\emore\source\repos\...` no longer exists.
+  - **The repository is public, not private as this plan assumed.**
+    - GitHub keeps the old objects reachable through the `refs/pull/*` refs until GitHub Support runs a garbage collection.
+    - Fresh clones only fetch branches, so they are small anyway.
+    - Everyone with an older clone must re-clone before pushing, or the binaries come back.
 
 ### Phase 2 — Directory layout (mechanical)
 

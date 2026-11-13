@@ -1,28 +1,46 @@
-"""Exports must return -1 (not an undefined value) for sizes they do not support."""
+"""Exports return -1 (not an undefined value) for sizes they cannot handle, and accept every other size."""
 import numpy as np
+import pytest
 
 L_SI, RHO, KAPPA, DEPTH_SI = 1.0e-6, 150.0, 0.0, 15.0e-9
 
 
-def state(n: int):
+def state(n: int, amplitude: float = 0.01):
     x = 2.0 * np.pi * np.arange(n) / n
-    return x, 0.01 * np.cos(x), 0.01 * np.sin(x)
+    return x, amplitude * np.cos(x), amplitude * np.sin(x)
 
 
-def test_rhs_from_vectors_rejects_unsupported_n(sim):
-    res, *_ = sim.calculate_rhs_from_vectors(*state(3), L_SI, RHO, KAPPA, DEPTH_SI)
+def test_rhs_from_vectors_rejects_too_few_points(sim):
+    res, *_ = sim.calculate_rhs_from_vectors(*state(1), L_SI, RHO, KAPPA, DEPTH_SI)
     assert res == -1
 
 
-def test_rhs256_batched_rejects_unsupported_batch_size(sim):
-    batch = 3
-    x, y, phi = (np.tile(a, batch) for a in state(256))
-    res, *_ = sim.calculate_rhs256_from_vectors_batched(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, batch)
-    assert res == -1
+@pytest.mark.parametrize("n", [3, 100, 300])
+def test_rhs_from_vectors_accepts_any_n(sim, n):
+    """Sizes are runtime values: non-powers of two that the old size dispatch rejected now work."""
+    res, vx, vy, dphi = sim.calculate_rhs_from_vectors(*state(n), L_SI, RHO, KAPPA, DEPTH_SI)
+    assert res == 0
+    assert all(np.all(np.isfinite(v)) for v in (vx, vy, dphi))
 
 
-def test_jacobian_rejects_unsupported_n(sim):
-    res, _ = sim.calculate_jacobian(*state(16), L_SI, RHO, KAPPA, DEPTH_SI)
+def test_rhs_batched_matches_single_interfaces(sim):
+    """A batch of 3 interfaces of 100 points gives the same RHS as three separate calls."""
+    n, batch = 100, 3
+    states = [state(n, amplitude=0.005 * (b + 1)) for b in range(batch)]
+    x, y, phi = (np.concatenate([s[k] for s in states]) for k in range(3))
+    res, vx, vy, dphi = sim.calculate_rhs_from_vectors_batched(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, batch)
+    assert res == 0
+    for b, s in enumerate(states):
+        res_b, vx_b, vy_b, dphi_b = sim.calculate_rhs_from_vectors(*s, L_SI, RHO, KAPPA, DEPTH_SI)
+        assert res_b == 0
+        part = slice(b * n, (b + 1) * n)
+        # the batched LU (cuBLAS) and the single LU (cuSOLVER) round differently, so not bit for bit
+        for batched, single in ((vx, vx_b), (vy, vy_b), (dphi, dphi_b)):
+            np.testing.assert_allclose(batched[part], single, rtol=1e-9, atol=1e-12 * np.max(np.abs(single)))
+
+
+def test_jacobian_rejects_too_few_points(sim):
+    res, _ = sim.calculate_jacobian(*state(1), L_SI, RHO, KAPPA, DEPTH_SI)
     assert res == -1
 
 

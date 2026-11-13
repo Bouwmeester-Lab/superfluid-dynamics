@@ -26,17 +26,15 @@ _COUNT_OUT = POINTER(c_size_t)
 
 # name: (argtypes, restype)
 SIGNATURES = {
-    "calculateRHS256FromFile": ((c_char_p, c_char_p, _SIM), c_int),
-    "calculateRHS256FromVectors": ((_IN, _IN, _IN, _OUT, _OUT, _OUT, _SIM), c_int),
+    "calculateRHSFromFile": ((c_char_p, c_char_p, _SIM, c_size_t), c_int),
     "calculateRHSFromVectors": ((_IN, _IN, _IN, _OUT, _OUT, _OUT, _SIM, c_size_t), c_int),
-    "calculateRHS2048FromVectors": ((_IN, _IN, _IN, _OUT, _OUT, _OUT, _SIM), c_int),
-    "calculateRHS256FromVectorsBatched": ((_IN, _IN, _IN, _OUT, _OUT, _OUT, _SIM, c_int), c_int),
-    "calculateVorticities256FromVectors": ((_IN_C, _IN_C, _OUT, _OUT_C, _OUT_C, _SIM), c_int),
+    "calculateRHSFromVectorsBatched": ((_IN, _IN, _IN, _OUT, _OUT, _OUT, _SIM, c_size_t, c_size_t), c_int),
+    "calculateVorticitiesFromVectors": ((_IN_C, _IN_C, _OUT, _OUT_C, _OUT_C, _SIM, c_size_t), c_int),
     "calculateVelocitiesRadialSymmetry": ((_IN, _IN, _IN, _OUT, _OUT, _SIM, c_size_t), c_int),
     "calculateVelocitiesRadialSymmetryModes": ((_IN, _IN, _IN, _OUT, _OUT, _SIM, c_size_t, c_size_t), c_int),
-    "calculateDerivativeFFT256": ((_IN_C, _OUT_C), c_int),
+    "calculateDerivativeFFT": ((_IN_C, _OUT_C, c_size_t), c_int),
     "calculateJacobian": ((_IN, _OUT_F, _SIM, c_double, c_size_t), c_int),
-    "calculatePerturbedStates256": ((_IN, _IN, _IN, _OUT_C, _SIM, c_double), c_int),
+    "calculatePerturbedStates": ((_IN, _IN, _IN, _OUT_C, _SIM, c_double, c_size_t), c_int),
     "integrateSimulationGL2": ((_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _SIM, _GL, c_size_t), c_int),
     "integrateSimulationGL2_freeMemory": ((POINTER(c_double), POINTER(c_double)), c_int),
     "integrateOptomechanicalSimulationRK4": ((_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _SIM, _RK4, _OPTO, c_size_t), c_int),

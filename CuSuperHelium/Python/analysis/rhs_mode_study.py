@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
 
     res, vx_original, vy_original, dphi_original = simManager.calculate_rhs_from_vectors(r, ampl, pot, L, 145, 0, depth)
-    # res, vx, vy, dphi = simManager.calculate_rhs256_from_vectors_batched(x, ampl_batched, pot_batched, L, 145, 0, depth, batchSize)
+    # res, vx, vy, dphi = simManager.calculate_rhs_from_vectors_batched(x, ampl_batched, pot_batched, L, 145, 0, depth, batchSize)
 
     if res != 0:
         raise Exception("Error in calculation")
@@ -197,8 +197,8 @@ if __name__ == "__main__":
 
 
     plt.show()
-    res, perturbed = simManager.calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, eps)
-    res, perturbedNeg = simManager.calculate_perturbed_states256(r, ampl, pot, L, 145, 0, depth, -eps)
+    res, perturbed = simManager.calculate_perturbed_states(r, ampl, pot, L, 145, 0, depth, eps)
+    res, perturbedNeg = simManager.calculate_perturbed_states(r, ampl, pot, L, 145, 0, depth, -eps)
 
     batchSize = perturbed.shape[0] // (2*N)
 
@@ -286,9 +286,9 @@ if __name__ == "__main__":
     y1 = y0 + 1e-6 * ej
     y2 = y0 # - 1e-6 * ej
 
-    res, vx1, vy1, dphi1 = simManager.calculate_rhs256_from_vectors(y1[:256], y1[256:512], y1[512:768], L, 145, 0, depth)
+    res, vx1, vy1, dphi1 = simManager.calculate_rhs_from_vectors(y1[:256], y1[256:512], y1[512:768], L, 145, 0, depth)
 
-    res, vx2, vy2, dphi2 = simManager.calculate_rhs256_from_vectors(y2[:256], y2[256:512], y2[512:768], L, 145, 0, depth)
+    res, vx2, vy2, dphi2 = simManager.calculate_rhs_from_vectors(y2[:256], y2[256:512], y2[512:768], L, 145, 0, depth)
 
     approx_vx_fd = (vx1 - vx2) / (eps)
     approx_vy_fd = (vy1 - vy2) / (2.0 * eps)
@@ -296,7 +296,7 @@ if __name__ == "__main__":
 
     # compare to the batched implementation of rhs256
     y_batched = np.concatenate((y1[:256], y2[:256], y1[256:512], y2[256:512], y1[512:768], y2[512:768]))
-    res, vx_batched, vy_batched, dphi_batched = simManager.calculate_rhs256_from_vectors_batched(y_batched[:512], y_batched[512:1024], y_batched[1024:1536], L, 145, 0, depth, 2)
+    res, vx_batched, vy_batched, dphi_batched = simManager.calculate_rhs_from_vectors_batched(y_batched[:512], y_batched[512:1024], y_batched[1024:1536], L, 145, 0, depth, 2)
 
     approx_vx_fd_batched = (vx_batched[:256] - vx_batched[256:]) / ( eps)
 
@@ -316,10 +316,10 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
-    res, vx, vy, dphi = simManager.calculate_rhs256_from_vectors_batched(np.real(perturbed[:3*N*N]), np.imag(perturbed[:3*N*N]), np.real(perturbed[3*N*N:]), L, 145, 0, depth, batchSize)  
+    res, vx, vy, dphi = simManager.calculate_rhs_from_vectors_batched(np.real(perturbed[:3*N*N]), np.imag(perturbed[:3*N*N]), np.real(perturbed[3*N*N:]), L, 145, 0, depth, batchSize)  
     if res != 0:
         raise Exception("Error in calculation")
-    res, vx_neg, vy_neg, dphi_neg = simManager.calculate_rhs256_from_vectors_batched(np.real(perturbedNeg[:3*N*N]), np.imag(perturbedNeg[:3*N*N]), np.real(perturbedNeg[3*N*N:]), L, 145, 0, depth, batchSize)  
+    res, vx_neg, vy_neg, dphi_neg = simManager.calculate_rhs_from_vectors_batched(np.real(perturbedNeg[:3*N*N]), np.imag(perturbedNeg[:3*N*N]), np.real(perturbedNeg[3*N*N:]), L, 145, 0, depth, batchSize)  
     if res != 0:
         raise Exception("Error in calculation")
     
@@ -447,8 +447,8 @@ if __name__ == "__main__":
 # plt.plot(x, ampl, label="initial interface")
 # plt.plot(res.y[:N, -1], res.y[N:2*N, -1], label="final interface")
 # plt.show()
-# res, a = calculate_vorticities256_from_vectors(Z, pot, L, 145, 0, depth)
-# res2, a2 = calculate_vorticities256_from_vectors(np.real(Z) + 1j * (np.imag(Z) + 1e-2), pot, L, 145, 0, depth)
+# res, a = calculate_vorticities_from_vectors(Z, pot, L, 145, 0, depth)
+# res2, a2 = calculate_vorticities_from_vectors(np.real(Z) + 1j * (np.imag(Z) + 1e-2), pot, L, 145, 0, depth)
 
 # if res != 0 and res2 != 0:
 #     raise Exception("Error in calculation")

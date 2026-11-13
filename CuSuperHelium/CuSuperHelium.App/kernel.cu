@@ -92,10 +92,10 @@ int augmentedSystem() {
     
 
 	auto lightIntensity = std::make_shared<LightIntensity>();
-	HeliumDrivenAutonomousProblem<N, 1> heliumProblem(properties, optoVariables, lightIntensity);
-	std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+	HeliumDrivenAutonomousProblem heliumProblem(properties, optoVariables, lightIntensity, N);
+	std::unique_ptr<BaseBoundaryIntegralCalculator> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator>(properties, heliumProblem);
 
-    AugmentedBoundaryIntegrator<N, 1> integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator<N, 1>>(optoVariables, properties, lightIntensity));
+    AugmentedBoundaryIntegrator integrator(std::move(boundaryIntegralCalculator), std::make_unique<DelayedIntensityIntegrator>(optoVariables, properties, lightIntensity, N));
 
 	RungeKutta4<std_complex> stepper(integrator, 0.01);
 	stepper.addObserver(logger);
@@ -290,8 +290,8 @@ int drivingHelium()
     optoVariables.gamma = 0.01;
     optoVariables.DampingStrength = 0.01;
 
-    HeliumWithOptomechanicalDrivingProblem<N> heliumProblem(properties, optoVariables, std::make_unique<LightIntensity>());
-    TimedBoundaryIntegrator<N, 1> integrator(properties, heliumProblem);
+    HeliumWithOptomechanicalDrivingProblem heliumProblem(properties, optoVariables, std::make_unique<LightIntensity>(), N);
+    TimedBoundaryIntegrator integrator(properties, heliumProblem);
 
     /*DataLogger<std_complex, 2 * N> stateLogger;
 

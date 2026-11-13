@@ -50,7 +50,7 @@ Plotting lives only in `CuSuperHelium.App` and `CuSuperHelium.Tests`, never in t
 | `Physics/` | Helium-film and water problem definitions; `PhysicalParameters` (SI inputs, including the caller's material), `Scales`, `DimensionlessParameters`, and `NonDimensionalization`, the one place SI inputs become dimensionless; simulation options |
 | `Optomechanics/` | Light intensity, delayed-intensity terms and integrators, driven and augmented problems |
 | `IO/` | `StepObserver` (what a solver reports after each step), `TrajectoryLogger`, `ProgressBarObserver`, `DataLogger`, `ValueLogger`, HDF5 state files |
-| `Export/` | The C ABI and its helpers: entry points, ABI types, size dispatch, host-to-device loading |
+| `Export/` | The C ABI and its helpers: entry points, ABI types, host-to-device loading. Every export takes its sizes (`N`, batch) as arguments |
 | (vcpkg) | Third-party libraries come from `CuSuperHelium/vcpkg.json`: boost-math, gtest, hdf5, highfive, indicators, matplotlib-cpp, opencv4 |
 
 ## Layering status

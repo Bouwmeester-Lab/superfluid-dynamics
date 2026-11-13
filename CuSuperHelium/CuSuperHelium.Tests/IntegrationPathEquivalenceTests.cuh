@@ -70,18 +70,18 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 
 	std::unique_ptr<LightIntensity> lightIntensityTimed = std::make_unique<LightIntensity>();
 
-	HeliumWithOptomechanicalDrivingProblem<N> timedBoundaryProblem(timedProperties, timedVariables, std::move(lightIntensityTimed));
-	TimedBoundaryIntegrator<N, 1> timedIntegrator(timedProperties, timedBoundaryProblem);
+	HeliumWithOptomechanicalDrivingProblem timedBoundaryProblem(timedProperties, timedVariables, std::move(lightIntensityTimed), N);
+	TimedBoundaryIntegrator timedIntegrator(timedProperties, timedBoundaryProblem);
 	RungeKutta4<std_complex> timedStepper(timedIntegrator, dt);
 	timedStepper.initialize(devTimedState, true);
 
 	std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
-	HeliumDrivenAutonomousProblem<N, 1> augmentedBoundaryProblem(augmentedProperties, augmentedVariables, lightIntensity);
-	std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> augmentedBoundaryIntegralCalculator =
-		std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(augmentedProperties, augmentedBoundaryProblem);
-	AugmentedBoundaryIntegrator<N, 1> augmentedIntegrator(
+	HeliumDrivenAutonomousProblem augmentedBoundaryProblem(augmentedProperties, augmentedVariables, lightIntensity, N);
+	std::unique_ptr<BaseBoundaryIntegralCalculator> augmentedBoundaryIntegralCalculator =
+		std::make_unique<BaseBoundaryIntegralCalculator>(augmentedProperties, augmentedBoundaryProblem);
+	AugmentedBoundaryIntegrator augmentedIntegrator(
 		std::move(augmentedBoundaryIntegralCalculator),
-		std::make_unique<DelayedIntensityIntegrator<N, 1>>(augmentedVariables, augmentedProperties, lightIntensity));
+		std::make_unique<DelayedIntensityIntegrator>(augmentedVariables, augmentedProperties, lightIntensity, N));
 	auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
 
 	RungeKutta4<std_complex> augmentedStepper(augmentedIntegrator, dt);
@@ -186,13 +186,13 @@ TEST(IntegrationPaths, RampedIntensityAugmentedTest)
 	std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
 
 	
-	HeliumRampedIntensityAutonomousProblem<N, 1> heliumProblem(properties, optomechanicalVariables, lightIntensity);
+	HeliumRampedIntensityAutonomousProblem heliumProblem(properties, optomechanicalVariables, lightIntensity, N);
 
-	std::unique_ptr<BaseBoundaryIntegralCalculator<N, 1>> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator<N, 1>>(properties, heliumProblem);
+	std::unique_ptr<BaseBoundaryIntegralCalculator> boundaryIntegralCalculator = std::make_unique<BaseBoundaryIntegralCalculator>(properties, heliumProblem);
 
-	AugmentedIntensityBoundaryIntegrator<N, 1> augmentedIntegrator(
+	AugmentedIntensityBoundaryIntegrator augmentedIntegrator(
 		std::move(boundaryIntegralCalculator),
-		std::make_unique<DelayedRampedIntensityIntegrator<N, 1>>(optomechanicalVariables, properties, lightIntensity));
+		std::make_unique<DelayedRampedIntensityIntegrator>(optomechanicalVariables, properties, lightIntensity, N));
 
 	auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
 

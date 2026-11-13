@@ -8,16 +8,16 @@
 #include <thrust/iterator/transform_iterator.h>
 #include "Core/DevicePointers.cuh"
 
-template <int N>
 class EnergyBase
 {
 public:
-	EnergyBase(InterfaceParameters& properties);
+	EnergyBase(InterfaceParameters& properties, int n);
 	virtual ~EnergyBase();
 	double getEnergy() const;
 	virtual void CalculateEnergy(const DevicePointers& devPoints, cudaStream_t stream = cudaStreamPerThread) = 0;
 protected:
 	InterfaceParameters& properties;
+	const int N; ///< Number of points summed by the reduction
 	double* devEnergy;
 
 	void* tempStorage = nullptr; // Temporary storage for CUB operations, this is a device pointer
@@ -27,12 +27,11 @@ protected:
 	
 };
 
-template <int N>
 class EnergyContainer {
 public:
-	EnergyBase<N>* kineticEnergy;
-	EnergyBase<N>* potentialEnergy;
-	EnergyBase<N>* surfaceEnergy;
+	EnergyBase* kineticEnergy;
+	EnergyBase* potentialEnergy;
+	EnergyBase* surfaceEnergy;
 
 	void CalculateEnergy(const DevicePointers& devPoints, cudaStream_t stream) {
 		kineticEnergy->CalculateEnergy(devPoints, stream);
@@ -40,7 +39,7 @@ public:
 		surfaceEnergy->CalculateEnergy(devPoints, stream);
 	}
 
-	EnergyContainer(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface)
+	EnergyContainer(EnergyBase* kinetic, EnergyBase* potential, EnergyBase* surface)
 		: kineticEnergy(kinetic), potentialEnergy(potential), surfaceEnergy(surface) {
 	}
 	~EnergyContainer() {
@@ -50,11 +49,10 @@ public:
 	}
 };
 
-template <int N>
-class KineticEnergy : public EnergyBase<N>
+class KineticEnergy : public EnergyBase
 {
 public:
-	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	using EnergyBase::EnergyBase; // Inherit constructor from EnergyBase
 	
 
 	void CalculateEnergy(const std_complex* devPhi, const std_complex* devZ, const std_complex* devZp, const std_complex* velocitiesLower, cudaStream_t stream);
@@ -68,11 +66,10 @@ public:
 	}
 };
 
-template <int N>
-class GravitationalEnergy : public EnergyBase<N>
+class GravitationalEnergy : public EnergyBase
 {
 public:
-	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	using EnergyBase::EnergyBase; // Inherit constructor from EnergyBase
 	void CalculateEnergy(const std_complex* devZ, const std_complex* devZp, cudaStream_t stream);
 	virtual double scaleEnergy(double energy) const override
 	{
@@ -84,11 +81,10 @@ public:
 	}
 };
 
-template <int N>
-class VanDerWaalsEnergy : public EnergyBase<N>
+class VanDerWaalsEnergy : public EnergyBase
 {
 public:
-	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	using EnergyBase::EnergyBase; // Inherit constructor from EnergyBase
 	void CalculateEnergy(const std_complex* devZ, cudaStream_t stream);
 	virtual double scaleEnergy(double energy) const override
 	{
@@ -100,11 +96,10 @@ public:
 	}
 };
 
-template <int N>
-class SurfaceEnergy : public EnergyBase<N>
+class SurfaceEnergy : public EnergyBase
 {
 public:
-	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	using EnergyBase::EnergyBase; // Inherit constructor from EnergyBase
 	void CalculateEnergy(const std_complex* devZp, cudaStream_t stream);
 	virtual double scaleEnergy(double energy) const override
 	{
@@ -116,11 +111,10 @@ public:
 	}
 };
 
-template <int N>
-class VolumeFlux : public EnergyBase<N>
+class VolumeFlux : public EnergyBase
 {
 public:
-	using EnergyBase<N>::EnergyBase; // Inherit constructor from EnergyBase
+	using EnergyBase::EnergyBase; // Inherit constructor from EnergyBase
 	void CalculateEnergy(const std_complex* devZp, const std_complex* velocities, cudaStream_t stream);
 	virtual double scaleEnergy(double energy) const override
 	{
@@ -203,14 +197,12 @@ struct VolumeFluxCombination
 	}
 };
 
-template <int N>
-EnergyBase<N>::EnergyBase(InterfaceParameters& properties) : properties(properties)
+inline EnergyBase::EnergyBase(InterfaceParameters& properties, int n) : properties(properties), N(n)
 {
 	CUSH_CHECK(cudaMalloc(&devEnergy, sizeof(double)));
 }
 
-template <int N>
-EnergyBase<N>::~EnergyBase()
+inline EnergyBase::~EnergyBase()
 {
 	CUSH_CHECK_NOTHROW(cudaGetLastError());
 
@@ -225,8 +217,7 @@ EnergyBase<N>::~EnergyBase()
 	}*/
 }
 
-template <int N>
-double EnergyBase<N>::getEnergy() const
+inline double EnergyBase::getEnergy() const
 {
 	CUSH_CHECK(cudaDeviceSynchronize());
 	double e;
@@ -234,8 +225,7 @@ double EnergyBase<N>::getEnergy() const
 	return this->scaleEnergy(e);
 }
 
-template<int N>
-void KineticEnergy<N>::CalculateEnergy(const std_complex* devPhi, const std_complex* devZ, const std_complex* devZp, const std_complex* velocitiesLower, cudaStream_t stream)
+inline void KineticEnergy::CalculateEnergy(const std_complex* devPhi, const std_complex* devZ, const std_complex* devZp, const std_complex* velocitiesLower, cudaStream_t stream)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 
@@ -259,8 +249,7 @@ void KineticEnergy<N>::CalculateEnergy(const std_complex* devPhi, const std_comp
 
 
 
-template<int N>
-void GravitationalEnergy<N>::CalculateEnergy(const std_complex* devZ, const std_complex* devZp, cudaStream_t stream)
+inline void GravitationalEnergy::CalculateEnergy(const std_complex* devZ, const std_complex* devZp, cudaStream_t stream)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the GravitationalEnergyCombination functor
@@ -276,8 +265,7 @@ void GravitationalEnergy<N>::CalculateEnergy(const std_complex* devZ, const std_
 	this->tempStorage = nullptr;
 }
 
-template<int N>
-void VanDerWaalsEnergy<N>::CalculateEnergy(const std_complex* devZ, cudaStream_t stream)
+inline void VanDerWaalsEnergy::CalculateEnergy(const std_complex* devZ, cudaStream_t stream)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the GravitationalEnergyCombination functor
@@ -293,8 +281,7 @@ void VanDerWaalsEnergy<N>::CalculateEnergy(const std_complex* devZ, cudaStream_t
 	this->tempStorage = nullptr;
 }
 
-template<int N>
-void SurfaceEnergy<N>::CalculateEnergy(const std_complex* devZp, cudaStream_t stream)
+inline void SurfaceEnergy::CalculateEnergy(const std_complex* devZp, cudaStream_t stream)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the SurfaceEnergyCombination functor
@@ -310,8 +297,7 @@ void SurfaceEnergy<N>::CalculateEnergy(const std_complex* devZp, cudaStream_t st
 	this->tempStorage = nullptr;
 }
 
-template<int N>
-void VolumeFlux<N>::CalculateEnergy(const std_complex* devZp, const std_complex* velocities, cudaStream_t stream)
+inline void VolumeFlux::CalculateEnergy(const std_complex* devZp, const std_complex* velocities, cudaStream_t stream)
 {
 	thrust::counting_iterator<int> countingIterator(0);
 	// create a transform iterator that applies the VolumeFluxCombination functor

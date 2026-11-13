@@ -4,12 +4,11 @@
 #include "BoundaryIntegral/Periodic2D/MatrixKernels.cuh"
 #include "BoundaryIntegral/Periodic2D/PhiRhsKernels.cuh"
 
-template<int N, size_t batchSize>
-class WaterBoundaryProblem : public BoundaryProblem<N, batchSize>
+class WaterBoundaryProblem : public BoundaryProblem
 {
-	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	VelocityCalculator velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	WaterBoundaryProblem(DimensionlessParameters& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new GravitationalEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	WaterBoundaryProblem(DimensionlessParameters& properties, int n, size_t batchSize = 1) : BoundaryProblem(n, batchSize, new KineticEnergy(properties, n), new GravitationalEnergy(properties, n), new SurfaceEnergy(properties, n)), velocityCalculator(n, batchSize)
 	{
 		// Constructor for the water boundary problem, initializing the velocity calculator with the problem properties
 	}

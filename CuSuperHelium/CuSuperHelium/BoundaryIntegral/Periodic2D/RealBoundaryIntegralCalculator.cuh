@@ -42,10 +42,10 @@ __global__ void convertToRealRhsKernel(const std_complex* complexRHS, double* re
 /// These are allocated in the constructor and freed in the destructor.
 /// </summary>
 /// <typeparam name="N"></typeparam>
-template <size_t N>
-class RealBoundaryIntegralCalculator final : public AutonomousProblem<double, 3 * N> 
+class RealBoundaryIntegralCalculator final : public AutonomousProblem<double>
 {
-	BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator;
+	const size_t N; ///< Collocation points
+	BaseBoundaryIntegralCalculator& boundaryIntegralCalculator;
 	cudaStream_t stream = cudaStreamPerThread;
 
 	std_complex* devComplexState = nullptr;
@@ -58,12 +58,12 @@ public:
 	virtual void run(double* initialState, double* rhs) override;
 	virtual void setStream(cudaStream_t stream) override;
 
-	RealBoundaryIntegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator);
+	/// The calculator must solve a single interface (batch size 1); its size gives N.
+	RealBoundaryIntegralCalculator(BaseBoundaryIntegralCalculator& boundaryIntegralCalculator);
 	~RealBoundaryIntegralCalculator();
 };
 
-template<size_t N>
-void RealBoundaryIntegralCalculator<N>::run(double* initialState, double* rhs)
+inline void RealBoundaryIntegralCalculator::run(double* initialState, double* rhs)
 {
 	// convert real state to complex state
 	
@@ -76,22 +76,20 @@ void RealBoundaryIntegralCalculator<N>::run(double* initialState, double* rhs)
 	CUSH_CHECK_LAUNCH();
 }
 
-template<size_t N>
-void RealBoundaryIntegralCalculator<N>::setStream(cudaStream_t stream)
+inline void RealBoundaryIntegralCalculator::setStream(cudaStream_t stream)
 {
 	this->stream = stream;
 	boundaryIntegralCalculator.setStream(stream);
 }
 
-template<size_t N>
-RealBoundaryIntegralCalculator<N>::RealBoundaryIntegralCalculator(BaseBoundaryIntegralCalculator<N, 1>& boundaryIntegralCalculator) : boundaryIntegralCalculator(boundaryIntegralCalculator)
+inline RealBoundaryIntegralCalculator::RealBoundaryIntegralCalculator(BaseBoundaryIntegralCalculator& boundaryIntegralCalculator) : AutonomousProblem<double>(3 * (boundaryIntegralCalculator.size() / 2)),
+	N(boundaryIntegralCalculator.size() / 2), boundaryIntegralCalculator(boundaryIntegralCalculator)
 {
 	CUSH_CHECK(cudaMalloc(&devComplexState, 2 * N * sizeof(std_complex)));
 	CUSH_CHECK(cudaMalloc(&devComplexRHS, 2 * N * sizeof(std_complex)));
 }
 
-template<size_t N>
-RealBoundaryIntegralCalculator<N>::~RealBoundaryIntegralCalculator()
+inline RealBoundaryIntegralCalculator::~RealBoundaryIntegralCalculator()
 {
 	CUSH_CHECK_NOTHROW(cudaFree(devComplexState));
 	CUSH_CHECK_NOTHROW(cudaFree(devComplexRHS));

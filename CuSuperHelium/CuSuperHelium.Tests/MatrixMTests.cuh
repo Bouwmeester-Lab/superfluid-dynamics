@@ -533,7 +533,7 @@ TEST(Kernels, ZPhiDerivatives)
 		PhiPrimeValues[i] = PhiPrime[i].real();
 	}
 
-	ZPhiDerivative<N, 1> zPhiDerivative(properties.rho, properties.U);
+	ZPhiDerivative zPhiDerivative(N, 1, properties.rho, properties.U);
 	
 	std_complex* devZ;
 	std_complex* devZp;

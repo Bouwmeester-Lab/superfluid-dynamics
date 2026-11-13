@@ -119,9 +119,10 @@ static __global__ void calculateDiagonalVectorMultiplication(std_complex* diag, 
 
 //void createVelocityMatrices(double* vorticities, double aprime, cufftDoubleComplex* ZPhi, cufftDoubleComplex* ZPhiPrime, cufftDoubleComplex* Zpp, double* u1, double* v1, double* u2, double* v2);
 
-template<int N, size_t batchSize>
 class VelocityCalculator {
 private:
+	const int N;
+	const size_t batchSize;
 	cublasHandle_t handle; ///< cuBLAS handle for managing BLAS operations
 	const int threads = 256;
 	const int blocks = (batchSize * N + threads - 1) / threads;
@@ -135,7 +136,9 @@ private:
 	cuDoubleComplex** devPtrVelArray = nullptr; // device pointer array for velocity vectors
 
 public:
-	VelocityCalculator();
+	VelocityCalculator(int n, size_t batchSize = 1);
+	VelocityCalculator(const VelocityCalculator&) = delete;
+	VelocityCalculator& operator=(const VelocityCalculator&) = delete;
 	~VelocityCalculator();
 	void calculateVelocities(const std_complex* Z,
 		const std_complex* Zp,
@@ -148,8 +151,7 @@ public:
 		bool lower = true);
 };
 
-template<int N, size_t batchSize>
-VelocityCalculator<N, batchSize>::VelocityCalculator() : matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize)
+inline VelocityCalculator::VelocityCalculator(int n, size_t batchSize) : N(n), batchSize(batchSize), matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize)
 {
 	CUSH_CHECK(cublasCreate(&handle));
 
@@ -161,8 +163,7 @@ VelocityCalculator<N, batchSize>::VelocityCalculator() : matrix_threads(16, 16, 
 
 }
 
-template<int N, size_t batchSize>
-VelocityCalculator<N, batchSize>::~VelocityCalculator()
+inline VelocityCalculator::~VelocityCalculator()
 {
 	CUSH_CHECK_NOTHROW(cudaGetLastError());
 
@@ -195,8 +196,7 @@ VelocityCalculator<N, batchSize>::~VelocityCalculator()
 	CUSH_CHECK_NOTHROW(cudaGetLastError());
 }
 
-template<int N, size_t batchSize>
-void VelocityCalculator<N, batchSize>::calculateVelocities(const std_complex* Z,
+inline void VelocityCalculator::calculateVelocities(const std_complex* Z,
 	const std_complex* Zp,
 	const std_complex* Zpp,
 	std_complex* a,

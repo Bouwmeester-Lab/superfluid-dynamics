@@ -27,7 +27,7 @@ __global__ void flip_x_y(cuDoubleComplex* data, cuDoubleComplex* out, int size)
 }
 
 template <int N>
-class OscillatoryProblem : public AutonomousProblem<cuDoubleComplex, N>
+class OscillatoryProblem : public AutonomousProblem<cuDoubleComplex>
 {
 private:
 	const int threads = 256;
@@ -35,7 +35,7 @@ private:
 	cuDoubleComplex* devY0;
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	using AutonomousProblem<cuDoubleComplex, N>::AutonomousProblem;
+	OscillatoryProblem() : AutonomousProblem<cuDoubleComplex>(N) {}
 	virtual void run(cuDoubleComplex* initialState, cuDoubleComplex* rhs) override
 	{
 		this->devY0 = initialState; // store the initial state for later use
@@ -51,7 +51,7 @@ public:
 };
 
 template <int N>
-class OscillatoryProblemStdComplex : public AutonomousProblem<std_complex, N>
+class OscillatoryProblemStdComplex : public AutonomousProblem<std_complex>
 {
 private:
 	const int threads = 256;
@@ -59,7 +59,7 @@ private:
 	std_complex* devY0;
 	cudaStream_t stream = cudaStreamPerThread;
 public:
-	using AutonomousProblem<std_complex, N>::AutonomousProblem;
+	OscillatoryProblemStdComplex() : AutonomousProblem<std_complex>(N) {}
 	virtual void run(std_complex* initialState, std_complex* rhs) override
 	{
 		this->devY0 = initialState; // store the initial state for later use
@@ -328,7 +328,7 @@ TEST(ODE_Solvers, RK45)
 	int loggingSteps = 100; // log every 1000 steps
 
 
-	RK45_std_complex<N> stepper(problem, dt);
+	RK45_std_complex stepper(problem, dt);
 	stepper.initialize(devInitialState, true);
 	stepper.setTolerance(1e-8, 1e-8);
 

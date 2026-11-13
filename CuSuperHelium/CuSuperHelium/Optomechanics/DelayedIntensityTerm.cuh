@@ -10,8 +10,6 @@
 /// This class is responsible for calculating the delayed intensity term in the optomechanical equations, which accounts for the finite response time of the optical field on the superfluid. The delayed intensity is computed by integrating the intensity over a time window defined by Tau, and it is stored in a device pointer for use in CUDA kernels.
 /// This works only with fixed time steps!
 /// </summary>
-/// <typeparam name="N">Number of collacation points on the superfluid film</typeparam>
-template <size_t N>
 struct DelayedIntensityTermDevice
 {
     const OptomechanicalVariables variables;   // device pointer
@@ -37,15 +35,15 @@ struct DelayedIntensityTermDevice
 	}
 };
 
-template <size_t N>
 class DelayedIntensityTerm
 {
 public:
+    const size_t N; ///< Number of collocation points on the superfluid film
     double* delayed_intensity = nullptr;
     double* prev_time = nullptr;
     OptomechanicalVariables variables;
 
-	DelayedIntensityTerm(OptomechanicalVariables h_variables) : variables(h_variables)
+	DelayedIntensityTerm(OptomechanicalVariables h_variables, size_t n) : N(n), variables(h_variables)
     {
         CUSH_CHECK(cudaMalloc(&delayed_intensity, N * sizeof(double)));
 		CUSH_CHECK(cudaMalloc(&prev_time, sizeof(double)));
@@ -54,15 +52,18 @@ public:
 		CUSH_CHECK(cudaMemcpy(prev_time, &initial_time, sizeof(double), cudaMemcpyHostToDevice));
     }
 
+    DelayedIntensityTerm(const DelayedIntensityTerm&) = delete;
+    DelayedIntensityTerm& operator=(const DelayedIntensityTerm&) = delete;
+
     ~DelayedIntensityTerm()
     {
         CUSH_CHECK_NOTHROW(cudaFree(delayed_intensity));
 		CUSH_CHECK_NOTHROW(cudaFree(prev_time));
     }
 
-    DelayedIntensityTermDevice<N> device_view()
+    DelayedIntensityTermDevice device_view()
     {
-        return DelayedIntensityTermDevice<N>{ variables, delayed_intensity, prev_time };
+        return DelayedIntensityTermDevice{ variables, delayed_intensity, prev_time };
     }
 
     void setInitialTime(double initial_time)

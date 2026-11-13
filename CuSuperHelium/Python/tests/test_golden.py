@@ -92,7 +92,7 @@ def case_rhs_from_vectors(n: int) -> Callable[..., Outputs]:
 
 def case_rhs256_fixed(sim, rhs) -> Outputs:
     x, y, phi = periodic_state(256)
-    res, vx, vy, dphi = sim.calculate_rhs256_from_vectors(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
+    res, vx, vy, dphi = sim.calculate_rhs_from_vectors(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
     assert res == 0
     return {"vx": vx, "vy": vy, "dphi": dphi}
 
@@ -101,14 +101,14 @@ def case_rhs256_batched(sim, rhs) -> Outputs:
     batch = 4
     states = [periodic_state(256, amplitude=0.005 * (b + 1)) for b in range(batch)]
     x, y, phi = (np.concatenate([s[k] for s in states]) for k in range(3))
-    res, vx, vy, dphi = sim.calculate_rhs256_from_vectors_batched(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, batch, **MATERIAL)
+    res, vx, vy, dphi = sim.calculate_rhs_from_vectors_batched(x, y, phi, L_SI, RHO, KAPPA, DEPTH_SI, batch, **MATERIAL)
     assert res == 0
     return {"vx": vx, "vy": vy, "dphi": dphi}
 
 
 def case_vorticities256(sim, rhs) -> Outputs:
     x, y, phi = periodic_state(256)
-    out = sim.calculate_vorticities256_from_vectors(x + 1j * y, phi.astype(np.complex128), L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
+    out = sim.calculate_vorticities_from_vectors(x + 1j * y, phi.astype(np.complex128), L_SI, RHO, KAPPA, DEPTH_SI, **MATERIAL)
     res, a, zp, zpp = out
     assert res == 0
     return {"a": a, "Zp": zp, "Zpp": zpp}
@@ -117,7 +117,7 @@ def case_vorticities256(sim, rhs) -> Outputs:
 def case_derivative_fft256(sim, rhs) -> Outputs:
     x = 2.0 * np.pi * np.arange(256) / 256
     f = (np.sin(3.0 * x) + 0.2 * np.cos(7.0 * x)) + 1j * np.cos(2.0 * x)
-    res, df = sim.calculate_derivativeFFT256(f.astype(np.complex128))
+    res, df = sim.calculate_derivative_fft(f.astype(np.complex128))
     assert res == 0
     return {"df": df}
 

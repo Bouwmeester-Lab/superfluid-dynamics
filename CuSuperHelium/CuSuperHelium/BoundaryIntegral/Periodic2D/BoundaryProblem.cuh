@@ -20,20 +20,26 @@ public:
 	const std_complex* VelocitiesLower; ///< Device pointer to the velocities array (calculated velocities on the boundary)
 };
 
-template<int N, size_t batchSize>
 class BoundaryProblem {
 protected:
+	const int N;             ///< Collocation points per batch
+	const size_t batchSize;  ///< Number of independent interfaces solved together
 	const dim3 matrix_threads;// (16, 16);     // 256 threads per block in 2D
 	const dim3 matrix_blocks; // ((N + 15) / 16, (N + 15) / 16);
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 public:
-	EnergyContainer<N> energyContainer; ///< Energy container for storing the energies calculated during the simulation
+	EnergyContainer energyContainer; ///< Energy container for storing the energies calculated during the simulation
 
-	BoundaryProblem(EnergyBase<N>* kinetic, EnergyBase<N>* potential, EnergyBase<N>* surface) : matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize), energyContainer(kinetic, potential, surface)
+	BoundaryProblem(int n, size_t batchSize, EnergyBase* kinetic, EnergyBase* potential, EnergyBase* surface) : N(n), batchSize(batchSize), matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize), energyContainer(kinetic, potential, surface)
 	{
 	}
+	BoundaryProblem(const BoundaryProblem&) = delete;
+	BoundaryProblem& operator=(const BoundaryProblem&) = delete;
 	virtual ~BoundaryProblem() {}
+
+	int size() const { return N; }
+	size_t batch() const { return batchSize; }
 	/// <summary>
 	/// reates the M matrix for the boundary integral problem.
 	/// </summary>

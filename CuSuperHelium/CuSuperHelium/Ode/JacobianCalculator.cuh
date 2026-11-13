@@ -160,12 +160,12 @@ static __global__ void createInitialState(const double* initialState, std_comple
 	complexState[tId + N] = std_complex(initialState[tId + 2 * N], 0.0); // phi + i 0
 }
 //
-template <size_t N>
 class JacobianCalculator final
 {
 private:
+	const size_t N; ///< Collocation points; the state has 3N real values
 	double eps = 1e-6;
-	std::unique_ptr<AutonomousProblem<std_complex, 6*N*N>> autonomousProblem;
+	std::unique_ptr<AutonomousProblem<std_complex>> autonomousProblem; ///< Batched boundary integral: 3N perturbed states of 2N complex values each
 	
 	std_complex* initialState;
 	std_complex* devZPhiBatched; // this is an array holding 3*N * 2*N complex numbers. It's a basically 3*N different initial states for the autonomous problem, each one with a different perturbation in one of the state variables x, y, phi.
@@ -182,8 +182,12 @@ public:
 	void setStream(cudaStream_t stream) { this->stream = stream; }
 	void calculateJacobian(const double* devState, double* devJacobian);
 
-	JacobianCalculator(std::unique_ptr<AutonomousProblem<std_complex, 6*N*N>> autonomousPtr) : matrix_threads(256, 1, 1), matrix_blocks((2 * N + 255) / 256, 3 * N, 1), autonomousProblem(std::move(autonomousPtr))
+	JacobianCalculator(std::unique_ptr<AutonomousProblem<std_complex>> autonomousPtr, size_t n) : N(n), matrix_threads(256, 1, 1), matrix_blocks((2 * N + 255) / 256, 3 * N, 1), autonomousProblem(std::move(autonomousPtr))
 	{
+		if (N == 0 || autonomousProblem->size() != 6 * N * N)
+		{
+			throw std::invalid_argument("JacobianCalculator: the batched problem must hold 3N states of 2N values (6 N^2)");
+		}
 		CUSH_CHECK(cudaMallocAsync(&initialState, sizeof(std_complex) * 2 * N, stream));
 		CUSH_CHECK(cudaMallocAsync(&devZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
 		CUSH_CHECK(cudaMallocAsync(&devNegZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
@@ -211,14 +215,12 @@ public:
 /// </summary>
 /// <typeparam name="N"></typeparam>
 /// <param name="eps"></param>
-template<size_t N>
-void JacobianCalculator<N>::setEpsilon(double eps)
+inline void JacobianCalculator::setEpsilon(double eps)
 {
 	this->eps = eps;
 }
 
-template<size_t N>
-void JacobianCalculator<N>::calculateJacobian(const double* devState, double* devJacobian)
+inline void JacobianCalculator::calculateJacobian(const double* devState, double* devJacobian)
 {
 	// for this operation we have to calculate how the autonomous problem changes when we change each state variable by eps
 	// I am wondering wht's the best way to do this on the GPU so that it can be parallelized as much as possible.

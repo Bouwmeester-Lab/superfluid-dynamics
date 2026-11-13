@@ -11,8 +11,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-template <size_t N>
-__global__ void add_optical_field_drive_terms(std_complex* result, double currentTime, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, DelayedIntensityTermDevice<N> delayedIntensityTerm, OptomechanicalVariables variables, DimensionlessParameters properties, bool saveProgress = false)
+static __global__ void add_optical_field_drive_terms(const size_t N, std_complex* result, double currentTime, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, DelayedIntensityTermDevice delayedIntensityTerm, OptomechanicalVariables variables, DimensionlessParameters properties, bool saveProgress = false)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -31,8 +30,7 @@ __global__ void add_optical_field_drive_terms(std_complex* result, double curren
     }
 }
 
-template <size_t N>
-__device__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const double prefix, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
+static __device__ void add_optical_field_drive_terms_no_time_depence(const size_t N, std_complex* result, const double prefix, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -44,26 +42,22 @@ __device__ void add_optical_field_drive_terms_no_time_depence(std_complex* resul
     }
 }
 
-template <size_t N>
-__global__ void add_optical_drive_sine_wave_autonomous(std_complex* rhs, const std_complex* devTheta, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
+static __global__ void add_optical_drive_sine_wave_autonomous(const size_t N, std_complex* rhs, const std_complex* devTheta, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
 {
-    add_optical_field_drive_terms_no_time_depence<N>(rhs, 0.5*(1.0+sin((*devTheta).real())), frequency_shift, Z, lowerVelocities, variables, properties);
+    add_optical_field_drive_terms_no_time_depence(N, rhs, 0.5*(1.0+sin((*devTheta).real())), frequency_shift, Z, lowerVelocities, variables, properties);
 }
 
-template <size_t N>
-__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const std_complex* devPrefix, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
+static __global__ void add_optical_field_drive_terms_no_time_depence(const size_t N, std_complex* result, const std_complex* devPrefix, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
 {
-    add_optical_field_drive_terms_no_time_depence<N>(result, (*devPrefix).real(), frequency_shift, Z, lowerVelocities, variables, properties);
+    add_optical_field_drive_terms_no_time_depence(N, result, (*devPrefix).real(), frequency_shift, Z, lowerVelocities, variables, properties);
 }
 
-template <size_t N>
-__global__ void add_optical_field_drive_terms_no_time_depence(std_complex* result, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
+static __global__ void add_optical_field_drive_terms_no_time_depence(const size_t N, std_complex* result, const double* frequency_shift, const std_complex* Z, const std_complex* lowerVelocities, OptomechanicalVariables variables, DimensionlessParameters properties)
 {
-    add_optical_field_drive_terms_no_time_depence<N>(result, 1.0, frequency_shift, Z, lowerVelocities, variables, properties);
+    add_optical_field_drive_terms_no_time_depence(N, result, 1.0, frequency_shift, Z, lowerVelocities, variables, properties);
 }
 
-template <size_t N>
-__global__ void add_delayed_intensity_phi_rhs(std_complex* result, const std_complex* delayed, OptomechanicalVariables variables, DimensionlessParameters properties)
+static __global__ void add_delayed_intensity_phi_rhs(const size_t N, std_complex* result, const std_complex* delayed, OptomechanicalVariables variables, DimensionlessParameters properties)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N)
@@ -82,8 +76,7 @@ static __global__ void set_theta_rhs(std_complex* rhs_theta, const double omega)
     rhs_theta[0] = std_complex(omega, 0.0); // set the growth rate of the intensity to the specified ramp rate.
 }
 
-template <size_t N>
-__global__ void calculate_intensity_delayed_rhs(std_complex* result, const double* frequency_shift, const std_complex* Z, const std_complex* delayed, OptomechanicalVariables variables)
+static __global__ void calculate_intensity_delayed_rhs(const size_t N, std_complex* result, const double* frequency_shift, const std_complex* Z, const std_complex* delayed, OptomechanicalVariables variables)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -92,8 +85,7 @@ __global__ void calculate_intensity_delayed_rhs(std_complex* result, const doubl
     }
 }
 
-template <size_t N>
-__global__ void calculate_ramped_intensity_delayed_rhs(std_complex* result, const std_complex* rampedIntensity, const double* frequency_shift, const std_complex* Z, const std_complex* delayed, OptomechanicalVariables variables)
+static __global__ void calculate_ramped_intensity_delayed_rhs(const size_t N, std_complex* result, const std_complex* rampedIntensity, const double* frequency_shift, const std_complex* Z, const std_complex* delayed, OptomechanicalVariables variables)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {
@@ -102,8 +94,7 @@ __global__ void calculate_ramped_intensity_delayed_rhs(std_complex* result, cons
     }
 }
 
-template <size_t N>
-__global__ void calculate_sine_modulated_intensity_delayed_rhs(std_complex* result, const std_complex* theta, const double* frequency_shift, const std_complex* Z, const std_complex* delayed, OptomechanicalVariables variables)
+static __global__ void calculate_sine_modulated_intensity_delayed_rhs(const size_t N, std_complex* result, const std_complex* theta, const double* frequency_shift, const std_complex* Z, const std_complex* delayed, OptomechanicalVariables variables)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < N) {

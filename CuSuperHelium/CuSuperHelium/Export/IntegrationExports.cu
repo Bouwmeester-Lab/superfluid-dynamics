@@ -25,8 +25,7 @@ static GaussLegendre2Options createOptionsFromCOptions(const GaussLegendreOption
 	return options;
 }
 
-template <size_t N>
-int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* statesCount,
+static int integrateSimulationGL2_N(const size_t N, double* initialState, double** statesOut, size_t* statesCount,
 	double** timesOut, size_t* timesCount,
 	SimProperties* simProperties, GaussLegendreOptions* glCOptions)
 {
@@ -40,15 +39,15 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 		GaussLegendre2Options glOptions = createOptionsFromCOptions(*glCOptions);
 
 		// calculators for the f(y)
-		HeliumBoundaryProblem<N, 1> heliumProblem(properties);
-		BaseBoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
-		RealBoundaryIntegralCalculator<N> realCalculator(calculator);
+		HeliumBoundaryProblem heliumProblem(properties, static_cast<int>(N));
+		BaseBoundaryIntegralCalculator calculator(properties, heliumProblem);
+		RealBoundaryIntegralCalculator realCalculator(calculator);
 		// calculators for the jacobian
-		HeliumBoundaryProblem<N, 3 * N> heliumJacProblem(properties);
-		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);
-		JacobianCalculator<N> jacobianCalculator(std::move(jacBoundaryIntegralCalculatorPtr));
+		HeliumBoundaryProblem heliumJacProblem(properties, static_cast<int>(N), 3 * N);
+		std::unique_ptr<AutonomousProblem<std_complex>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator>(properties, heliumJacProblem);
+		JacobianCalculator jacobianCalculator(std::move(jacBoundaryIntegralCalculatorPtr), N);
 
-		GaussLegendre2<N> integrator(realCalculator, jacobianCalculator, glOptions);
+		GaussLegendre2 integrator(realCalculator, jacobianCalculator, glOptions);
 		integrator.setStream(cudaStreamPerThread);
 
 		// Gauss-Legendre has always returned the initial state as the first trajectory entry.
@@ -79,25 +78,8 @@ int integrateSimulationGL2(double* initialState, double** statesOut, size_t* sta
 	double** timesOut, size_t* timesCount,
 	SimProperties* simProperties, GaussLegendreOptions* glCOptions, size_t N) 
 {
-	switch (N)
-	{
-		case 32:
-			return integrateSimulationGL2_N<32>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
-		case 64:
-			return integrateSimulationGL2_N<64>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
-		case 128:
-			return integrateSimulationGL2_N<128>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
-		case 256:
-			return integrateSimulationGL2_N<256>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
-		case 512:
-			return integrateSimulationGL2_N<512>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
-		case 1024:
-			return integrateSimulationGL2_N<1024>(initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
-	default:
-		std::cerr << "Error: Unsupported N size " << N << std::endl;
-		std::cerr << "Supported N sizes are: 32, 64, 128 , 256, 512, 1024" << std::endl;
-		return -1;
-	}
+	if (!validPeriodicSize(N)) return -1;
+	return integrateSimulationGL2_N(N, initialState, statesOut, statesCount, timesOut, timesCount, simProperties, glCOptions);
 }
 
 int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut)

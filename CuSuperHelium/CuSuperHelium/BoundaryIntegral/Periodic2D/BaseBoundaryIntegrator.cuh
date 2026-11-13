@@ -8,14 +8,18 @@
 #include "LinearAlgebra/DenseLuSolver.cuh"
 #include "Ode/AutonomousProblem.h"
 
-template<int N, size_t batchSize>
-class BaseBoundaryIntegralCalculator : public AutonomousProblem<std_complex, 2 * N * batchSize>
+class BaseBoundaryIntegralCalculator : public AutonomousProblem<std_complex>
 {
+protected:
+	const int N;            ///< Collocation points per batch (from the boundary problem)
+	const size_t batchSize; ///< Interfaces solved together (from the boundary problem)
 public:
-	BaseBoundaryIntegralCalculator(InterfaceParameters& problemProperties, BoundaryProblem<N, batchSize>& boundaryProblem);
+	BaseBoundaryIntegralCalculator(InterfaceParameters& problemProperties, BoundaryProblem& boundaryProblem);
+	BaseBoundaryIntegralCalculator(const BaseBoundaryIntegralCalculator&) = delete;
+	BaseBoundaryIntegralCalculator& operator=(const BaseBoundaryIntegralCalculator&) = delete;
 	virtual ~BaseBoundaryIntegralCalculator();
 
-	VolumeFlux<N> volumeFlux; ///< Volume flux calculator for the water boundary integral problem
+	VolumeFlux volumeFlux; ///< Volume flux calculator for the water boundary integral problem
 
 
 	void runTimeStep(const std_complex* initialState, std_complex* rhs);
@@ -54,7 +58,7 @@ public:
 protected:
 	//cuda::std::complex<double>* devZ; ///< Device pointer to the Z array
 	//cuda::std::complex<double>* devPhi; ///< Device pointer to the Phi array
-	BoundaryProblem<N, batchSize>& boundaryProblem; ///< Reference to the boundary problem for creating the M matrix and calculating velocities
+	BoundaryProblem& boundaryProblem; ///< Reference to the boundary problem for creating the M matrix and calculating velocities
 
 	std_complex* devZp; ///< Device pointer to the ZPhiPrime array
 	std_complex* devPhiPrimeComplex; ///< Device pointer to the PhiPrime array (derivative of Phi)
@@ -74,10 +78,10 @@ protected:
 
 
 	InterfaceParameters& problemProperties; ///< Reference to the problem properties for configuration
-	ZPhiDerivative<N, batchSize> zPhiDerivative; ///< Derivative calculator for Z and Phi
-	FftDerivative<N, batchSize> fftDerivative; ///< FFT derivative calculator for single batch
+	ZPhiDerivative zPhiDerivative; ///< Derivative calculator for Z and Phi
+	FftDerivative fftDerivative; ///< FFT derivative calculator for single batch
 	DenseLuSolver matrixSolver{ N, batchSize }; ///< Matrix solver for solving the vorticities.
-	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+	VelocityCalculator velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 	const int threads = 256; ///< Number of threads per block for CUDA kernels
 	const int blocks = (batchSize * N + threads - 1) / threads; ///< Number of blocks for CUDA kernels, ensuring all elements are covered
 
@@ -86,9 +90,10 @@ protected:
 };
 
 
-template<int N, size_t batchSize>
-BaseBoundaryIntegralCalculator<N, batchSize>::BaseBoundaryIntegralCalculator(InterfaceParameters& problemProperties, BoundaryProblem<N, batchSize>& boundaryProblem) : AutonomousProblem<cufftDoubleComplex, 2 * N>(), boundaryProblem(boundaryProblem), problemProperties(problemProperties), volumeFlux(problemProperties),
-zPhiDerivative(problemProperties.rho, problemProperties.U),
+inline BaseBoundaryIntegralCalculator::BaseBoundaryIntegralCalculator(InterfaceParameters& problemProperties, BoundaryProblem& boundaryProblem) : AutonomousProblem<std_complex>(2 * boundaryProblem.size() * boundaryProblem.batch()),
+N(boundaryProblem.size()), batchSize(boundaryProblem.batch()), volumeFlux(problemProperties, boundaryProblem.size()), boundaryProblem(boundaryProblem), problemProperties(problemProperties),
+zPhiDerivative(boundaryProblem.size(), boundaryProblem.batch(), problemProperties.rho, problemProperties.U),
+fftDerivative(boundaryProblem.size(), static_cast<int>(boundaryProblem.batch())), velocityCalculator(boundaryProblem.size(), boundaryProblem.batch()),
 matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize)
 {
 	// Allocate device memory for the various arrays used in the water boundary integral calculation
@@ -108,8 +113,7 @@ matrix_threads(16, 16, 1), matrix_blocks((N + 15) / 16, (N + 15) / 16, batchSize
 	fftDerivative.initialize(); // Initialize the FFT derivative calculator
 }
 
-template<int N, size_t batchSize>
-BaseBoundaryIntegralCalculator<N, batchSize>::~BaseBoundaryIntegralCalculator()
+inline BaseBoundaryIntegralCalculator::~BaseBoundaryIntegralCalculator()
 {
 	// cudaFree(devZ);
 	// cudaFree(devPhi);
@@ -132,8 +136,7 @@ BaseBoundaryIntegralCalculator<N, batchSize>::~BaseBoundaryIntegralCalculator()
 	CUSH_CHECK_NOTHROW(cudaGetLastError());
 }
 
-template<int N, size_t batchSize>
-void BaseBoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex* initialState, std_complex* rhs)
+inline void BaseBoundaryIntegralCalculator::runTimeStep(const std_complex* initialState, std_complex* rhs)
 {
 	// set the right-hand pointers using the rhsPhi pointer, this creates the variables in here to avoid global variables
 	std_complex* const devVelocitiesLower = rhs; // Device pointer for the velocities of the lower fluid
@@ -169,8 +172,7 @@ void BaseBoundaryIntegralCalculator<N, batchSize>::runTimeStep(const std_complex
 	volumeFlux.CalculateEnergy(devZp, devVelocitiesLower, opsStream); // Calculate the volume flux based on the current state
 }
 
-template<int N, size_t batchSize>
-void BaseBoundaryIntegralCalculator<N, batchSize>::calculateVorticities(const std_complex* initialState)
+inline void BaseBoundaryIntegralCalculator::calculateVorticities(const std_complex* initialState)
 {
 	// set the state variables using the initialState pointer, this creates the variables in here to avoid global variables
 	const std_complex* devZ = initialState; // Device pointer for the Z array
@@ -204,15 +206,13 @@ void BaseBoundaryIntegralCalculator<N, batchSize>::calculateVorticities(const st
 }
 
 
-template<int N, size_t batchSize>
-void BaseBoundaryIntegralCalculator<N, batchSize>::run(std_complex* initialState, std_complex* rhs)
+inline void BaseBoundaryIntegralCalculator::run(std_complex* initialState, std_complex* rhs)
 {
 
 	this->runTimeStep(initialState, rhs); // Run the time step calculation
 }
 
-template<int N, size_t batchSize>
-void BaseBoundaryIntegralCalculator<N, batchSize>::calculateRhsPhi(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhsPhi)
+inline void BaseBoundaryIntegralCalculator::calculateRhsPhi(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhsPhi)
 {
 	// The RHS of Phi is -(1 + rho) * Y + 1/2 * q1^2 + 1/2 * rho * q2^2 - rho * q1 . q2  + kappa / R
 	/*calculatePhiRhs();*/

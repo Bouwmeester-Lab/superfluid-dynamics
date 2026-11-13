@@ -38,10 +38,11 @@ class SimulationManager:
 
     # ------------------------------------------------------------ periodic 2D right-hand sides
 
-    def calculate_rhs256(self, input_file: str, output_file: str, L: float, rho: float, kappa: float, depth: float, *,
-                         hamaker_constant: float = _ALPHA, film_density: float = _DENSITY) -> int:
-        return self.lib.calculateRHS256FromFile(input_file.encode(), output_file.encode(),
-                                                byref(sim_props(L, rho, kappa, depth, hamaker_constant, film_density)))
+    def calculate_rhs_from_file(self, input_file: str, output_file: str, n: int, L: float, rho: float, kappa: float,
+                                depth: float, *, hamaker_constant: float = _ALPHA, film_density: float = _DENSITY) -> int:
+        """RHS of the n-point state in an HDF5 file, written to another HDF5 file. Returns the status."""
+        return self.lib.calculateRHSFromFile(input_file.encode(), output_file.encode(),
+                                             byref(sim_props(L, rho, kappa, depth, hamaker_constant, film_density)), n)
 
     def _rhs(self, function, x, y, phi, props, *extra):
         _same_length(x, y, phi)
@@ -49,54 +50,49 @@ class SimulationManager:
         vx, vy, dphi = np.empty_like(x), np.empty_like(x), np.empty_like(x)
         return function(x, y, phi, vx, vy, dphi, byref(props), *extra), vx, vy, dphi
 
-    def calculate_rhs256_from_vectors(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float, kappa: float,
-                                      depth: float, *, hamaker_constant: float = _ALPHA, film_density: float = _DENSITY):
-        return self._rhs(self.lib.calculateRHS256FromVectors, x, y, phi,
-                         sim_props(L, rho, kappa, depth, hamaker_constant, film_density))
-
     def calculate_rhs_from_vectors(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float, kappa: float,
                                    depth: float, *, hamaker_constant: float = _ALPHA, film_density: float = _DENSITY):
+        """RHS (vx, vy, dphi/dt) of one periodic interface of N = len(x) points (any N >= 2)."""
         return self._rhs(self.lib.calculateRHSFromVectors, x, y, phi,
                          sim_props(L, rho, kappa, depth, hamaker_constant, film_density), x.shape[0])
 
-    def calculate_rhs2048_from_vectors(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float, kappa: float,
-                                       depth: float, *, hamaker_constant: float = _ALPHA, film_density: float = _DENSITY):
-        return self._rhs(self.lib.calculateRHS2048FromVectors, x, y, phi,
-                         sim_props(L, rho, kappa, depth, hamaker_constant, film_density))
-
-    def calculate_rhs256_from_vectors_batched(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float,
-                                              kappa: float, depth: float, batch_size: int, *,
-                                              hamaker_constant: float = _ALPHA, film_density: float = _DENSITY):
+    def calculate_rhs_from_vectors_batched(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float,
+                                           kappa: float, depth: float, batch_size: int, *,
+                                           hamaker_constant: float = _ALPHA, film_density: float = _DENSITY):
+        """RHS of batch_size independent interfaces stored back to back; each has N = len(x) / batch_size points."""
+        if batch_size < 1 or x.shape[0] % batch_size != 0:
+            raise ValueError("The array length must be a positive multiple of batch_size")
         n = x.shape[0] // batch_size
-        if y.shape[0] != n * batch_size or phi.shape[0] != 256 * batch_size:
-            raise ValueError("Input arrays must have the same length equal to 256 * batch_size")
-        return self._rhs(self.lib.calculateRHS256FromVectorsBatched, x, y, phi,
-                         sim_props(L, rho, kappa, depth, hamaker_constant, film_density), batch_size)
+        _same_length(x, y, phi)
+        return self._rhs(self.lib.calculateRHSFromVectorsBatched, x, y, phi,
+                         sim_props(L, rho, kappa, depth, hamaker_constant, film_density), n, batch_size)
 
-    def calculate_vorticities256_from_vectors(self, Z: NDArray, phi: NDArray, L: float, rho: float, kappa: float,
-                                              depth: float, *, hamaker_constant: float = _ALPHA,
-                                              film_density: float = _DENSITY):
+    def calculate_vorticities_from_vectors(self, Z: NDArray, phi: NDArray, L: float, rho: float, kappa: float,
+                                           depth: float, *, hamaker_constant: float = _ALPHA,
+                                           film_density: float = _DENSITY):
+        """Vorticities a and the derivatives Zp, Zpp of an N = len(Z) point interface. Returns (status, a, Zp, Zpp)."""
         n = _same_length(Z, phi)
         vorticity = np.empty(n, dtype=np.float64)
         Zp = np.empty(n, dtype=np.complex128)
         Zpp = np.empty(n, dtype=np.complex128)
-        status = self.lib.calculateVorticities256FromVectors(
+        status = self.lib.calculateVorticitiesFromVectors(
             np.ascontiguousarray(Z, dtype=np.complex128), np.ascontiguousarray(phi, dtype=np.complex128),
-            vorticity, Zp, Zpp, byref(sim_props(L, rho, kappa, depth, hamaker_constant, film_density)))
+            vorticity, Zp, Zpp, byref(sim_props(L, rho, kappa, depth, hamaker_constant, film_density)), n)
         return status, vorticity, Zp, Zpp
 
-    def calculate_derivativeFFT256(self, input: NDArray) -> tuple[int, NDArray]:
+    def calculate_derivative_fft(self, input: NDArray) -> tuple[int, NDArray]:
+        """Spectral derivative of N = len(input) periodic complex samples (no 2 pi / N scaling)."""
         output = np.empty(input.shape[0], dtype=np.complex128)
-        return self.lib.calculateDerivativeFFT256(np.ascontiguousarray(input, dtype=np.complex128), output), output
+        return self.lib.calculateDerivativeFFT(np.ascontiguousarray(input, dtype=np.complex128), output, input.shape[0]), output
 
-    def calculate_perturbed_states256(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float, kappa: float,
+    def calculate_perturbed_states(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float, kappa: float,
                                       depth: float, epsilon: float = 1e-6, *, hamaker_constant: float = _ALPHA,
                                       film_density: float = _DENSITY):
         n = _same_length(x, y, phi)
         perturbed = np.empty((6 * n * n,), dtype=np.complex128)
-        status = self.lib.calculatePerturbedStates256(_as_f64(x), _as_f64(y), _as_f64(phi), perturbed,
-                                                      byref(sim_props(L, rho, kappa, depth, hamaker_constant, film_density)),
-                                                      epsilon)
+        status = self.lib.calculatePerturbedStates(_as_f64(x), _as_f64(y), _as_f64(phi), perturbed,
+                                                   byref(sim_props(L, rho, kappa, depth, hamaker_constant, film_density)),
+                                                   epsilon, n)
         return status, perturbed
 
     def calculate_jacobian(self, x: NDArray, y: NDArray, phi: NDArray, L: float, rho: float, kappa: float, depth: float,

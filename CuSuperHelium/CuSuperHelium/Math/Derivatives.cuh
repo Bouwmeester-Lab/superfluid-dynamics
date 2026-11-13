@@ -7,7 +7,8 @@
 //#include <thrust/complex.h>
 #include "Core/constants.cuh"
 #include <cufft.h>
-#include "array"
+#include <array>
+#include <vector>
 #include <stdexcept>
 #include "Core/CudaChecks.cuh"
 #include "Core/VectorKernels.cuh"
@@ -22,18 +23,19 @@ __device__ __host__ inline double filterIndexTanh(int m, int N)
 	return 0.5 * (1 - tanh(40 * (static_cast<double>(m) / N - 0.25)));
 }
 
-template <int N, int batchSize>
 class FftDerivative final
 {
-	cufftHandle plan;
+	const int N;         ///< Points per batch
+	const int batchSize; ///< Number of independent transforms
+	cufftHandle plan = 0;
 	/// <summary>
 	/// Stores the coefficients in an array
 	/// </summary>
-	cufftDoubleComplex* coeffs;
+	cufftDoubleComplex* coeffs = nullptr;
 	/// <summary>
 	/// The values to multiply the coefficients with to obtain the derivative.
 	/// </summary>
-	cufftDoubleComplex* filterCoeffs;
+	cufftDoubleComplex* filterCoeffs = nullptr;
 public:
 	/// <summary>
 	/// Creates the FFT execution plan required for the computation.
@@ -45,7 +47,15 @@ public:
 	/// <param name="in">Must be of size N*batchSize</param>
 	/// <param name="out">Must be of size N*batchSize</param>
 	void exec(const std_complex* in, std_complex* out, const bool doubleDev = false, double scaling = 1.0, bool filter = false);
-	FftDerivative() {};
+	FftDerivative(int n, int batchSize = 1) : N(n), batchSize(batchSize)
+	{
+		if (n < 2 || batchSize < 1)
+		{
+			throw std::invalid_argument("FftDerivative needs at least 2 points and 1 batch");
+		}
+	}
+	FftDerivative(const FftDerivative&) = delete;
+	FftDerivative& operator=(const FftDerivative&) = delete;
 	~FftDerivative();
 };
 
@@ -54,12 +64,13 @@ public:
 /// </summary>
 /// <typeparam name="N"></typeparam>
 /// <typeparam name="batchSize">Number of batches</typeparam>
-template <int N, size_t batchSize>
 class ZPhiDerivative final
 {
 private:
-	FftDerivative<N, batchSize> fftDerivative;
-	FftDerivative<N, batchSize> singleDerivative;
+	const int N;
+	const size_t batchSize;
+	FftDerivative fftDerivative;
+	FftDerivative singleDerivative;
 	/// <summary>
 	/// Represents an array containing the linear part of Z: 2*pi/N * j and the linear part of Phi. -(1+rho)*pi*U/N * j
 	/// </summary>
@@ -74,7 +85,9 @@ private:
 	double densityRatio;   // rho of the problem (enters the linear part of phi)
 	double backgroundFlow; // U of the problem
 public:
-	ZPhiDerivative(double densityRatio, double backgroundFlow);
+	ZPhiDerivative(int n, size_t batchSize, double densityRatio, double backgroundFlow);
+	ZPhiDerivative(const ZPhiDerivative&) = delete;
+	ZPhiDerivative& operator=(const ZPhiDerivative&) = delete;
 	~ZPhiDerivative();
 	/// <summary>
 	/// Calculates the derivative of Z and Phi.
@@ -86,8 +99,7 @@ public:
 };
 
 
-template <int N, int batchSize>
-cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
+inline cudaError_t FftDerivative::initialize(bool filterIndx)
 {
 	std::vector<cufftDoubleComplex> der(N * batchSize);
 	// TODO: fix filtering for batchSize > 512. Currently no filtering is used.
@@ -150,8 +162,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 	return cudaSuccess;
 }
 
-template<int N, int batchSize>
-void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, const bool doubleDev, double scaling, bool filter)
+inline void FftDerivative::exec(const std_complex* in, std_complex* out, const bool doubleDev, double scaling, bool filter)
 {
 	if (coeffs == nullptr)
 	{
@@ -166,7 +177,7 @@ void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, 
 	
 	
 #ifdef DEBUG_FFT
-	std::array<cufftDoubleComplex, N* batchSize> coeffsHost;
+	std::vector<cufftDoubleComplex> coeffsHost(N * batchSize);
 	CUSH_CHECK(cudaMemcpy(coeffsHost.data(), coeffs, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost));
 	printf("Coefficients after FFT:\n");
 	for (int i = 0; i < N * batchSize; i++) 
@@ -220,8 +231,7 @@ void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, 
 	}
 }
 
-template<int N, int batchSize>
-FftDerivative<N, batchSize>::~FftDerivative()
+inline FftDerivative::~FftDerivative()
 {
 	if (plan) CUSH_CHECK_NOTHROW(cufftDestroy(plan));
 	// delete all pointers
@@ -232,15 +242,15 @@ FftDerivative<N, batchSize>::~FftDerivative()
 	CUSH_CHECK_NOTHROW(cudaGetLastError());
 }
 
-template<int N, size_t batchSize>
-inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(double densityRatio, double backgroundFlow) : densityRatio(densityRatio), backgroundFlow(backgroundFlow)
+inline ZPhiDerivative::ZPhiDerivative(int n, size_t batchSize, double densityRatio, double backgroundFlow) : N(n), batchSize(batchSize),
+	fftDerivative(n, static_cast<int>(batchSize)), singleDerivative(n, static_cast<int>(batchSize)), densityRatio(densityRatio), backgroundFlow(backgroundFlow)
 {
 	//std::cout << "Initializing ZPhiDerivative\n";
 	fftDerivative.initialize();
 	singleDerivative.initialize();
 
-	std::array<double, N> ZLinear;
-	std::array<double, N> PhiLinear;
+	std::vector<double> ZLinear(N);
+	std::vector<double> PhiLinear(N);
 	for (int j = 0; j < N; j++) 
 	{
 		ZLinear[j] = 2 * PI_d * (double)j / N;
@@ -259,8 +269,7 @@ inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(double densityRatio, double 
 	//std::cout << "Initialized ZPhiDerivative\n";
 }
 
-template<int N, size_t batchSize>
-inline ZPhiDerivative<N, batchSize>::~ZPhiDerivative()
+inline ZPhiDerivative::~ZPhiDerivative()
 {
 	CUSH_CHECK_NOTHROW(cudaFree(devLinearPartZ));
 	CUSH_CHECK_NOTHROW(cudaFree(devLinearPartPhi));
@@ -268,8 +277,7 @@ inline ZPhiDerivative<N, batchSize>::~ZPhiDerivative()
 	CUSH_CHECK_NOTHROW(cudaFree(devPeriodicPhi));
 }
 
-template<int N, size_t batchSize>
-inline void ZPhiDerivative<N, batchSize>::exec(const std_complex* Z, const std_complex* Phi, std_complex* ZPrime, std_complex* PhiPrime, std_complex* Zpp)
+inline void ZPhiDerivative::exec(const std_complex* Z, const std_complex* Phi, std_complex* ZPrime, std_complex* PhiPrime, std_complex* Zpp)
 {
 	const int threads = 256;
 	const int blocks2N = (2*N * batchSize + threads - 1) / threads;

@@ -5,12 +5,12 @@
 #include "Ode/OdeSolver.h"
 #include <math.h>
 #include <thrust/device_vector.h>
-#include "indicators/progress_bar.hpp"
+#include <indicators/progress_bar.hpp>
 #include <cublas_v2.h>
 #include "LinearAlgebra/DenseLuSolver.cuh"
 #include "Ode/OdeProblem.h"
 #include <format>
-#include "indicators/cursor_control.hpp"
+#include <indicators/cursor_control.hpp>
 
 __global__ void calculateNextStateKernel(const double* devY, const double stepSize, const double* k1, const double* k2, double* devYnext, const GL_Coefficients coeffs, const size_t N)
 {

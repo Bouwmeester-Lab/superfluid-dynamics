@@ -4,7 +4,9 @@
 
 .DESCRIPTION
     Uses the build output of scripts/build.ps1. Python is taken from
-    CUSH_PYTHON if set, otherwise from PATH. Set CUSH_SHOW_PLOTS=1 to open
+    CUSH_PYTHON if set, otherwise the one recorded by scripts/configure.ps1,
+    otherwise python on PATH. The configured Python is also put first on PATH
+    for gtest, which embeds it for plots. Set CUSH_SHOW_PLOTS=1 to open
     figure windows from visual tests; by default nothing blocks.
 
 .EXAMPLE
@@ -36,20 +38,33 @@ if ($Build -or $Rebuild) {
 
 $failed = @()
 
+# The Python recorded by configure.ps1, if any.
+$pythonRoot = $null
+$userProps = Join-Path $repoRoot "CuSuperHelium\Directory.Build.user.props"
+if (Test-Path $userProps) {
+    $pythonRoot = ([xml](Get-Content $userProps -Raw)).Project.PropertyGroup.CushPythonRoot | Select-Object -First 1
+}
+
 if (-not $SkipGTest) {
     $gtest = Join-Path $outDir "CuSuperHelium.Tests.exe"
     if (-not (Test-Path $gtest)) { throw "Test executable not found: $gtest. Run scripts/build.ps1 first." }
     Write-Host "`n=== gtest ($GTestFilter) ==="
-    # Run from the output folder so the test executable finds its DLLs.
+    # Run from the output folder so the test executable finds its DLLs. The tests embed Python for their
+    # plots, so the Python configured for the build (CushPythonRoot) goes first on PATH for its DLL.
+    $savedPath = $env:PATH
+    if ($pythonRoot) { $env:PATH = "$pythonRoot;$env:PATH" }
     # Native stderr must not stop the script (Windows PowerShell 5.1 turns it into errors); the exit code decides.
     Push-Location $outDir
     $ErrorActionPreference = "Continue"
-    try { & $gtest "--gtest_filter=$GTestFilter" 2>&1 | ForEach-Object { "$_" } } finally { Pop-Location; $ErrorActionPreference = "Stop" }
+    try { & $gtest "--gtest_filter=$GTestFilter" 2>&1 | ForEach-Object { "$_" } } finally { Pop-Location; $ErrorActionPreference = "Stop"; $env:PATH = $savedPath }
     if ($LASTEXITCODE -ne 0) { $failed += "gtest" }
 }
 
 if (-not $SkipPython) {
     $python = $env:CUSH_PYTHON
+    if (-not $python -and $pythonRoot -and (Test-Path (Join-Path $pythonRoot "python.exe"))) {
+        $python = Join-Path $pythonRoot "python.exe"   # the Python recorded by configure.ps1
+    }
     if (-not $python) {
         $cmd = Get-Command python -ErrorAction SilentlyContinue
         if (-not $cmd) { throw "Python not found. Put it on PATH or set CUSH_PYTHON to python.exe." }

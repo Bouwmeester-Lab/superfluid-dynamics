@@ -1,4 +1,5 @@
 ﻿
+#include "PythonInclude.h" // first: Python.h must be included before matplotlibcpp.h (see the header)
 //#define DEBUG_DERIVATIVES
 //#define DEBUG_RUNGE_KUTTA
 //#define DEBUG_DERIVATIVES_3

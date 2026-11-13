@@ -1,0 +1,2 @@
+# vcpkg applies patches to upstream sources with LF line endings.
+*.patch text eol=lf

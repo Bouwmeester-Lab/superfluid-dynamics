@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "cusuperhelium",
+  "version": "0.1.0",
+  "description": "CUDA boundary-integral solver for superfluid helium films. Dependencies of the DLL, the tests and the App.",
+  "builtin-baseline": "b0190b451303865b89ced9767caaab140c39f980",
+  "dependencies": [
+    "boost-math",
+    "gtest",
+    "hdf5",
+    "highfive",
+    "indicators",
+    "matplotlib-cpp",
+    {
+      "name": "opencv4",
+      "default-features": false,
+      "features": [ "fs", "jpeg", "png", "thread" ]
+    }
+  ]
+}

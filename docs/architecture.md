@@ -8,7 +8,10 @@ CuSuperHelium/                       Visual Studio solution
   CuSuperHelium.App/                 simulation runner, videos, matplotlib plots
   CuSuperHelium.Tests/               gtest suite
   Python/                            ctypes bindings, analysis scripts, notebooks, pytest
-scripts/                             build.ps1, test.ps1, one-off maintenance scripts
+  Plotting/                          plotting support shared by Tests and App (PythonInclude.h)
+  vcpkg.json, vcpkg-ports/           dependencies (manifest mode) and the patched matplotlib-cpp port
+  Directory.Build.props/.targets     settings shared by the three projects
+scripts/                             configure.ps1, build.ps1, test.ps1, one-off maintenance scripts
 docs/                                this file, reorganization-plan.md
 ```
 
@@ -48,7 +51,7 @@ Plotting lives only in `CuSuperHelium.App` and `CuSuperHelium.Tests`, never in t
 | `Optomechanics/` | Light intensity, delayed-intensity terms and integrators, driven and augmented problems |
 | `IO/` | `StepObserver` (what a solver reports after each step), `TrajectoryLogger`, `ProgressBarObserver`, `DataLogger`, `ValueLogger`, HDF5 state files |
 | `Export/` | The C ABI and its helpers: entry points, ABI types, size dispatch, host-to-device loading |
-| `indicators/` | Third-party header-only progress bars (vendored) |
+| (vcpkg) | Third-party libraries come from `CuSuperHelium/vcpkg.json`: boost-math, gtest, hdf5, highfive, indicators, matplotlib-cpp, opencv4 |
 
 ## Layering status
 

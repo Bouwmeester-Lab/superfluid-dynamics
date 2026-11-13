@@ -426,3 +426,6 @@ Directory.Build.user.props
 CuSuperHelium/CuSuperHelium/temp/
 CuSuperHelium/Python/figures/
 test-output/
+
+# vcpkg manifest-mode install tree
+vcpkg_installed/

@@ -419,3 +419,10 @@ CuSuperHelium/Python/data/*
 
 # Machine-local MSBuild overrides
 Directory.Build.user.props
+
+# Generated simulation output (regenerate with the solver; never commit)
+*.h5
+*.avi
+CuSuperHelium/CuSuperHelium/temp/
+CuSuperHelium/Python/figures/
+test-output/

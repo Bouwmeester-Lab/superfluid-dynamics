@@ -85,25 +85,3 @@ int integrateSimulationGL2_freeMemory(double* statesOut, double* timesOut)
 	std::free(timesOut);
 	return 0;
 }
-
-template <size_t N>
-int integrateSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4Options* rkOptions)
-{
-	try {
-		ProblemProperties properties;
-		copyProperties(*simProperties, properties);
-		// adimensionalize properties
-		properties = adimensionalizeProperties(properties);
-	}
-	catch (const std::exception& e) {
-		std::cerr << "Error: " << e.what() << std::endl;
-		return -1;
-	}
-}
-
-int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut)
-{
-	std::free(statesOut);
-	std::free(timesOut);
-	return 0;
-}

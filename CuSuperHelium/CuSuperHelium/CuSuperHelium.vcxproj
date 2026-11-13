@@ -119,14 +119,12 @@
     <ClInclude Include="Radial\BoundaryNodes.cuh" />
     <ClInclude Include="Radial\SelfTerms.cuh" />
     <ClInclude Include="Common\DenseLuSolver.cuh" />
-    <ClInclude Include="BoundaryKernels\RadialKernels.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
     <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
     <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh" />
     <ClInclude Include="Common\CudaChecks.cuh" />
     <ClInclude Include="Common\VectorKernels.cuh" />
     <ClInclude Include="constants.cuh" />
-    <ClInclude Include="createM.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />
     <ClInclude Include="DataLogger.cuh" />
     <ClInclude Include="DelayedIntensityIntegrator.cuh" />
@@ -137,7 +135,6 @@
     <ClInclude Include="ElipticalGreenFunctions.cuh" />
     <ClInclude Include="ElipticalIntegrals.cuh" />
     <ClInclude Include="Energies.cuh" />
-    <ClInclude Include="Export.cuh" />
     <ClInclude Include="Export\ExportApi.cuh" />
     <ClInclude Include="Export\ExportInternal.cuh" />
     <ClInclude Include="ExportTypes.cuh" />
@@ -158,7 +155,6 @@
     <ClInclude Include="OdeSolver.h" />
     <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh" />
     <ClInclude Include="OptomechanicalVariables.h" />
-    <ClInclude Include="PingPongBuffer.cuh" />
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
@@ -183,8 +179,6 @@
     <ClInclude Include="ValueLogger.h" />
     <ClInclude Include="VectorUtilities.cuh" />
     <ClInclude Include="VideoMaking.h" />
-    <ClInclude Include="WaterBoundaryIntegralCalculator.cuh" />
-    <ClInclude Include="utilities.cuh" />
     <ClInclude Include="WaterBoundaryProblem.cuh" />
     <ClInclude Include="WaterVelocities.cuh" />
   </ItemGroup>

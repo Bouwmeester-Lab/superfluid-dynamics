@@ -8,7 +8,10 @@
 #include "cublas_v2.h"
 #include "DataLogger.cuh"
 #include <limits>
-#include "utilities.cuh"
+#include "Common/CudaChecks.cuh"
+#include "Math/ComplexMath.cuh"
+#include "Math/FftKernels.cuh"
+#include "Common/VectorKernels.cuh"
 #include <algorithm> // std::clamp
 #include <cmath>     // std::pow
 #include "LinearAlgebra.cuh"

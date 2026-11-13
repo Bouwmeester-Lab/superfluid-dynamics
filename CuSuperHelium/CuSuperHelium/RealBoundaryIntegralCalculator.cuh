@@ -1,5 +1,18 @@
 #pragma once
-#include "WaterBoundaryIntegralCalculator.cuh"
+#include "ProblemProperties.hpp"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cufft.h"
+#include "constants.cuh"
+#include "Derivatives.cuh"
+#include "WaterVelocities.cuh"
+#include "MatrixSolver.cuh"
+#include "AutonomousProblem.h"
+#include "Energies.cuh"
+#include "DelayedIntensityTerm.cuh"
+#include "BoundaryProblem.cuh"
+#include "BaseBoundaryIntegrator.cuh"
+#include "TimedBoundaryIntegrator.cuh"
 
 __global__ void convertToComplexStateKernel(const double* realState, std_complex* complexState, size_t N)
 {

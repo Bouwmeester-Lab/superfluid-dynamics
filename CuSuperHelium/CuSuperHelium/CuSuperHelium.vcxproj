@@ -114,6 +114,12 @@
     <ClInclude Include="AugmentedIntensityBoundaryIntegrator.cuh" />
     <ClInclude Include="AutonomousProblem.h" />
     <ClInclude Include="BaseBoundaryIntegrator.cuh" />
+    <ClInclude Include="Math\BesselGreenFunctions.cuh" />
+    <ClInclude Include="BoundaryKernels\RadialMatrixKernels.cuh" />
+    <ClInclude Include="Radial\BoundaryNodes.cuh" />
+    <ClInclude Include="Radial\SelfTerms.cuh" />
+    <ClInclude Include="Common\DenseLuSolver.cuh" />
+    <ClInclude Include="BoundaryKernels\RadialKernels.cuh" />
     <ClInclude Include="BoundaryProblem.cuh" />
     <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
     <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh" />
@@ -125,8 +131,11 @@
     <ClInclude Include="DataLogger.cuh" />
     <ClInclude Include="DelayedIntensityIntegrator.cuh" />
     <ClInclude Include="DelayedIntensityTerm.cuh" />
+    <ClInclude Include="DerivativeCalculator.cuh" />
     <ClInclude Include="Derivatives.cuh" />
     <ClInclude Include="DevicePointers.cuh" />
+    <ClInclude Include="ElipticalGreenFunctions.cuh" />
+    <ClInclude Include="ElipticalIntegrals.cuh" />
     <ClInclude Include="Energies.cuh" />
     <ClInclude Include="Export.cuh" />
     <ClInclude Include="Export\ExportApi.cuh" />
@@ -153,6 +162,8 @@
     <ClInclude Include="PrecisionMath.cuh" />
     <ClInclude Include="ProblemProperties.hpp" />
     <ClInclude Include="AutonomousRungeKuttaStepper.cuh" />
+    <ClInclude Include="RadialVelocityCalculator.cuh" />
+    <ClInclude Include="RadialModels.h" />
     <ClInclude Include="RealBoundaryIntegralCalculator.cuh" />
     <ClInclude Include="Reductions.cuh" />
     <ClInclude Include="RK45.cuh" />

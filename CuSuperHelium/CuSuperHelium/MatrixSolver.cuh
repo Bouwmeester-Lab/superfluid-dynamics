@@ -30,7 +30,7 @@ public:
     /// <summary>
     /// Solves a matrix system devM * deva = devb. devM, and devb are known. All the pointers are assumed to be device pointers on the gpu!
     /// </summary>
-    /// <param name="devM">Device pointer to the batchSize x NxN matrices M (row-major, double precision)</param>
+    /// <param name="devM">Device pointer to the batchSize x NxN matrices M (column-major - cublas compatible, double precision)</param>
     /// <param name="devb">Device pointer to the right-hand side vector b (length batchSize x N, double precision)</param>
     /// <param name="deva">Device pointer to the solution vector a (length batchSize x N, double precision, output)</param>
     void solve(double* devM, double* devb, double* deva);
@@ -70,18 +70,18 @@ MatrixSolver<N, batchSize>::MatrixSolver()
     checkCusolver(cusolverDnCreate(&handle));  
     checkCublas(cublasCreate(&blas));
     // Allocate device memory for pivot and info  
-    checkCuda(cudaMalloc(&devPivot, N * sizeof(int)));  
-    checkCuda(cudaMalloc(&devInfo, sizeof(int)));  
+    CHECK_CUDA(cudaMalloc(&devPivot, N * sizeof(int)));
+    CHECK_CUDA(cudaMalloc(&devInfo, sizeof(int)));
 
     // Query working space size for LU factorization  
     checkCusolver(cusolverDnDgetrf_bufferSize(handle, N, N, nullptr, N, &work_size));  
 	// Allocate device memory for workspace
-    checkCuda(cudaMalloc(&devWork, work_size * sizeof(double)));
+    CHECK_CUDA(cudaMalloc(&devWork, work_size * sizeof(double)));
 
-	checkCuda(cudaMalloc(&devMarray, batchSize * sizeof(double*)));
-	checkCuda(cudaMalloc(&devbarray, batchSize * sizeof(double*)));
-	checkCuda(cudaMalloc(&devPivotArray, batchSize * N * sizeof(int)));
-	checkCuda(cudaMalloc(&devInfoArray, batchSize * sizeof(int)));
+    CHECK_CUDA(cudaMalloc(&devMarray, batchSize * sizeof(double*)));
+    CHECK_CUDA(cudaMalloc(&devbarray, batchSize * sizeof(double*)));
+    CHECK_CUDA(cudaMalloc(&devPivotArray, batchSize * N * sizeof(int)));
+    CHECK_CUDA(cudaMalloc(&devInfoArray, batchSize * sizeof(int)));
 
 	// Match surrounding kernel launches that use the default stream.
     this->setStream(cudaStreamLegacy);

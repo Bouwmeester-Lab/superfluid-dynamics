@@ -5,6 +5,7 @@
 #include "Math/ComplexMath.cuh"
 #include "array"
 #include "complex"
+#include <algorithm>
 
 __global__ void complexSinKernel(cuDoubleComplex* zs, cuDoubleComplex* out, int N) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -30,7 +31,8 @@ TEST(ComplexFunctionsTests, ComplexSin) {
 	double x, y;
 	
 	for(int i = 0; i < N; ++i) {
-		x, y = 2 * PI_d / N * i;
+		x = 2 * PI_d / N * i; // points on the diagonal x = y of the complex plane
+		y = x;
 		zs[i] = make_cuDoubleComplex(x, y);
 		zs_std[i] = std::complex<double>(x, y);
 		sin_expected[i] = std::sin(zs_std[i]);
@@ -68,7 +70,8 @@ TEST(ComplexFunctionsTests, ComplexCos) {
 	double x, y;
 
 	for (int i = 0; i < N; ++i) {
-		x, y = 2 * PI_d / N * i;
+		x = 2 * PI_d / N * i; // points on the diagonal x = y of the complex plane
+		y = x;
 		zs[i] = make_cuDoubleComplex(x, y);
 		zs_std[i] = std::complex<double>(x, y);
 		cos_expected[i] = std::cos(zs_std[i]);
@@ -110,7 +113,8 @@ TEST(ComplexFunctionsTests, ComplexCotangent)
 	double x, y;
 
 	for (int i = 0; i < N; ++i) {
-		x, y = 2 * PI_d / (N+1) * (i + 1);
+		x = 2 * PI_d / (N+1) * (i + 1); // diagonal x = y, avoiding the pole of cot at 0
+		y = x;
 		zs[i] = make_cuDoubleComplex(x, y);
 		zs_std[i] = std::complex<double>(x, y);
 		cot_expected[i] = std::cos(zs_std[i]) / std::sin(zs_std[i]);
@@ -130,8 +134,10 @@ TEST(ComplexFunctionsTests, ComplexCotangent)
 	cudaFree(zs_d);
 
 	for (int i = 0; i < N; ++i) {
-		EXPECT_NEAR(cuCreal(cot_result[i]), cot_expected[i].real(), 1e-15);
-		EXPECT_NEAR(cuCimag(cot_result[i]), cot_expected[i].imag(), 1e-15);
+		// |cot z| grows to ~20 near the pole at 0, so the tolerance scales with the magnitude (a few ulp).
+		const double tolerance = 1e-15 * std::max(1.0, std::abs(cot_expected[i]));
+		EXPECT_NEAR(cuCreal(cot_result[i]), cot_expected[i].real(), tolerance) << "index " << i;
+		EXPECT_NEAR(cuCimag(cot_result[i]), cot_expected[i].imag(), tolerance) << "index " << i;
 	}
 }
 

@@ -68,14 +68,37 @@ elseif (-not (Test-Path (Join-Path $cudaRoot "extras\visual_studio_integration\M
 
 # ---------------------------------------------------------------- vcpkg
 if (-not $env:VCPKG_ROOT -or -not (Test-Path (Join-Path $env:VCPKG_ROOT "scripts\buildsystems\msbuild\vcpkg.props"))) {
-    $warnings += "VCPKG_ROOT is not set to a vcpkg checkout. Clone https://github.com/microsoft/vcpkg, run bootstrap-vcpkg.bat, and set VCPKG_ROOT."
+    $warnings += "VCPKG_ROOT is not set to a vcpkg checkout. Clone https://github.com/microsoft/vcpkg, run bootstrap-vcpkg.bat, set VCPKG_ROOT, and open a new PowerShell."
+}
+else {
+    # Manifest mode reads the versions at vcpkg.json's builtin-baseline from vcpkg's git history, so VCPKG_ROOT must
+    # be a git clone (not a downloaded zip or a copy) that contains that commit.
+    $baseline = (Get-Content (Join-Path $solutionDir "vcpkg.json") -Raw | ConvertFrom-Json)."builtin-baseline"
+    if (-not (Test-Path (Join-Path $env:VCPKG_ROOT ".git"))) {
+        $warnings += "VCPKG_ROOT ($env:VCPKG_ROOT) is not a git clone, so vcpkg cannot read the baseline $baseline and the first build fails. Clone https://github.com/microsoft/vcpkg (git clone, not a zip), run bootstrap-vcpkg.bat, and point VCPKG_ROOT at it."
+    }
+    elseif (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $warnings += "git is not on PATH; vcpkg needs it to read the baseline $baseline."
+    }
+    else {
+        $ErrorActionPreference = "Continue"
+        & git -C $env:VCPKG_ROOT cat-file -e "$baseline^{commit}" 2>$null
+        $found = ($LASTEXITCODE -eq 0)
+        $ErrorActionPreference = "Stop"
+        if (-not $found) {
+            $warnings += "The vcpkg clone at $env:VCPKG_ROOT does not contain the baseline commit $baseline from vcpkg.json. Run: git -C `"$env:VCPKG_ROOT`" fetch origin"
+        }
+    }
 }
 
 # ---------------------------------------------------------------- MSVC pin
-function Get-VsInstall {
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+# The projects use the v145 toolset, which only Visual Studio 18 provides. Another Visual Studio (2022) must not be
+# picked even when it has the C++ tools: its default MSVC says nothing about the one v145 will use.
+$vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+function Get-VsInstall([switch]$AnyWorkload) {
     if (-not (Test-Path $vswhere)) { return $null }
-    return & $vswhere -latest -prerelease -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+    $required = if ($AnyWorkload) { @() } else { @("-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64") }
+    return & $vswhere -version "[18.0,19.0)" -latest -prerelease -products * @required -property installationPath | Select-Object -First 1
 }
 
 $pin = $null
@@ -88,11 +111,22 @@ elseif ($VCToolsVersion) {
 else {
     $vs = Get-VsInstall
     if (-not $vs) {
-        $warnings += "No Visual Studio with the C++ tools found (vswhere). Install Visual Studio 18 with 'Desktop development with C++'."
+        if (Get-VsInstall -AnyWorkload) {
+            $warnings += "Visual Studio 18 is installed without the C++ tools. Add the 'Desktop development with C++' workload and the 'MSVC v14.44' build tools in the Visual Studio Installer, then run this script again."
+        }
+        else {
+            $warnings += "Visual Studio 18 with the C++ tools was not found (vswhere). Install Visual Studio 18 with 'Desktop development with C++' and the 'MSVC v14.44' build tools."
+        }
     }
     else {
-        $defaultFile = Join-Path $vs "VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt"
-        $default = if (Test-Path $defaultFile) { (Get-Content $defaultFile -Raw).Trim() } else { "" }
+        Write-Host "Visual Studio: $vs"
+        # v145 projects use the v145 default when it exists, otherwise the general default.
+        $defaultFile = @("Microsoft.VCToolsVersion.v145.default.txt", "Microsoft.VCToolsVersion.default.txt") |
+            ForEach-Object { Join-Path $vs "VC\Auxiliary\Build\$_" } | Where-Object { Test-Path $_ } | Select-Object -First 1
+        $default = if ($defaultFile) { (Get-Content $defaultFile -Raw).Trim() } else { "" }
+        if (-not $default) {
+            $warnings += "Could not read the default MSVC version of $vs (no Microsoft.VCToolsVersion*.default.txt). Check the C++ workload, or pass -VCToolsVersion."
+        }
         $installed = Get-ChildItem (Join-Path $vs "VC\Tools\MSVC") -Directory -ErrorAction SilentlyContinue |
             ForEach-Object { $_.Name } | Where-Object { $_ -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_ }
         if ($default -and [version]$default -ge [version]"14.50") {

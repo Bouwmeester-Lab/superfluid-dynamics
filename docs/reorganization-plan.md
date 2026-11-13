@@ -349,7 +349,23 @@ The build stays on MSBuild. Today every project hard-codes the CUDA toolkit path
   - on both machines, gtest and pytest pass;
   - the goldens are bit-identical to `main` in Release.
 
-**Status: done on this machine** on branch `reorg/phase-5-portable-build`; the second-PC run is pending. Results here:
+**Status: done** on branch `reorg/phase-5-portable-build`.
+
+Second PC (Windows 11, RTX 3060 / sm_86, Anaconda Python 3.12.7), run from a fresh clone of `8af33f4` by a Remote Control session:
+- It first needed the C++ workload and MSVC 14.44 added to Visual Studio 18, CUDA 13.3 installed, and a git clone of vcpkg.
+- After that, Release and Debug built, and both passed 35 gtests and 22 pytest tests.
+- The first build, including the full vcpkg install, took 7.2 minutes.
+
+It found two gaps, fixed afterwards:
+- **`configure.ps1` picked VS 2022.** VS 18 lacked the C++ workload, so `vswhere -latest -requires VC.Tools` returned VS 2022. The script then read VS 2022's default MSVC, saw no need for a pin, and printed no warning, which would have meant the cudafe++ crash. It now asks vswhere for version 18 only, reads `Microsoft.VCToolsVersion.v145.default.txt` first, and warns when VS 18 is missing, lacks the C++ tools, or has no default-version file.
+- **A vcpkg tree without git history** failed the first build with an unclear `git show versions/baseline.json` error. `configure.ps1` now checks that `VCPKG_ROOT` is a git clone containing the manifest's `builtin-baseline` commit, and says how to fix it.
+
+Also from the report:
+- About 300 nvcc warnings #20013-D per build came from boost.math headers. They are now suppressed with `-diag-suppress 20013`, which does not change code generation, so the project's own warnings are visible.
+- The README now says to open a new shell after installing CUDA or setting `VCPKG_ROOT`, shows how to check for VS 18 with vswhere, requires a git clone of vcpkg, and explains the expected `Error (not thrown)` lines in the gtest output.
+- The CS1668 warning about the missing `atlmfc\lib\x64` of the pinned 14.44 toolset is harmless and left as is.
+
+Results on this machine:
 - Release and Debug build all three projects, and both pass 35 gtests and 22 pytest tests.
 - The 47 golden output arrays are bit-identical to `main` in Release. vcpkg's baseline moved boost-math from 1.86 to 1.88; the outputs did not change.
 - A clean copy of the tree, with no `Directory.Build.user.props` and no `vcpkg_installed`, passes configure, build and test following only the README.

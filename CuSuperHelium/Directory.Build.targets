@@ -30,7 +30,10 @@
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <!-- sm_86 (RTX 30xx) and sm_120 (RTX 50xx), for every configuration. -->
       <CodeGeneration>compute_86,sm_86;compute_120,sm_120</CodeGeneration>
-      <AdditionalOptions>-std=c++20 -Xcompiler /Zc:preprocessor -Xcompiler /bigobj %(AdditionalOptions)</AdditionalOptions>
+      <!-- -diag-suppress 20013: boost.math's headers call constexpr __host__ functions from __host__ __device__
+           ones, which gives about 300 warnings per build and hides real ones. Suppressing the diagnostic does not
+           change code generation (unlike enabling expt-relaxed-constexpr). -->
+      <AdditionalOptions>-std=c++20 -Xcompiler /Zc:preprocessor -Xcompiler /bigobj -diag-suppress 20013 %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
     <CudaLink>
       <AdditionalDependencies>cufft.lib;cusolver.lib;cublas.lib;%(AdditionalDependencies)</AdditionalDependencies>

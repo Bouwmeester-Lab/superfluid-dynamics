@@ -5,6 +5,7 @@
 #include "../HeliumBoundaryProblem.cuh"
 #include "../SimulationFunctions.cuh"
 #include "../SimulationRunner.cuh"
+#include "../DerivativeCalculator.cuh"
 
 #include <algorithm>
 #include <complex>
@@ -248,8 +249,8 @@ int calculateRHS256FromVectorsBatched(const double* x, const double* y, const do
 			return calculateRHSNFromVectors<256, 2048>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 	default:
 		std::cerr << "Error: Unsupported batch size " << batchSize << std::endl;
-		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256" << std::endl;
-		break;
+		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048" << std::endl;
+		return -1;
 	}
 }
 
@@ -288,9 +289,9 @@ int calculateRHSFromVectors(const double* x, const double* y, const double* phi,
 	case 4096:
 		return calculateRHSNFromVectors<4096, 1>(x, y, phi, vx, vy, rhsPhi, L, rho, kappa, depth);
 	default:
-		std::cerr << "Error: Unsupported particle number" << N << std::endl;
-		std::cerr << "Supported batch sizes are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096" << std::endl;
-		break;
+		std::cerr << "Error: Unsupported particle number " << N << std::endl;
+		std::cerr << "Supported particle numbers are: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 768, 1024, 1536, 2048, 4096" << std::endl;
+		return -1;
 	}
 }
 
@@ -336,6 +337,103 @@ int calculateVorticities256FromVectors(const c_double* Z, const c_double* phi, d
 
 	return 0;
 }
+
+
+constexpr size_t RADIAL_BESSEL_MODE_COUNT = 1024;
+
+namespace
+{
+	/// <summary>
+	/// Owns one device array of doubles; freed when it goes out of scope (also on exceptions).
+	/// </summary>
+	struct DeviceDoubles
+	{
+		double* ptr = nullptr;
+		explicit DeviceDoubles(size_t count) { CHECK_CUDA(cudaMalloc(&ptr, sizeof(double) * count)); }
+		~DeviceDoubles() { cudaFree(ptr); }
+		DeviceDoubles(const DeviceDoubles&) = delete;
+		DeviceDoubles& operator=(const DeviceDoubles&) = delete;
+	};
+}
+
+int calculateVelocitiesRadialSymmetryModes(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N, size_t nModes)
+{
+	if (N < 2)
+	{
+		std::cerr << "Error: the radial solver needs at least 2 collocation points, got " << N << std::endl;
+		return -1;
+	}
+	if (nModes == 0)
+	{
+		std::cerr << "Error: the Bessel-series Green function needs at least 1 mode" << std::endl;
+		return -1;
+	}
+
+	try
+	{
+		DeviceDoubles dev_r(N);
+		DeviceDoubles dev_z(N);
+		DeviceDoubles dev_z_prime(N);
+		DeviceDoubles dev_z_pp(N);
+		DeviceDoubles dev_phi(N);
+		DeviceDoubles dev_phi_prime(N);
+		DeviceDoubles dev_vr(N);
+		DeviceDoubles dev_vz(N);
+
+		CHECK_CUDA(cudaMemcpy(dev_r.ptr, r, sizeof(double) * N, cudaMemcpyHostToDevice));
+		if (z != nullptr) {
+			CHECK_CUDA(cudaMemcpy(dev_z.ptr, z, sizeof(double) * N, cudaMemcpyHostToDevice));
+		}
+		else {
+			CHECK_CUDA(cudaMemset(dev_z.ptr, 0, sizeof(double) * N));
+		}
+		CHECK_CUDA(cudaMemcpy(dev_phi.ptr, phi, sizeof(double) * N, cudaMemcpyHostToDevice));
+
+		FiniteDifferenceDerivativeCalculator derivativeCalculator;
+
+		derivativeCalculator.calculateFirstDerivative(dev_z.ptr, dev_r.ptr, dev_z_prime.ptr, N);
+		derivativeCalculator.calculateFirstDerivative(dev_phi.ptr, dev_r.ptr, dev_phi_prime.ptr, N);
+		derivativeCalculator.calculateFirstDerivative(dev_z_prime.ptr, dev_r.ptr, dev_z_pp.ptr, N);
+
+		const RadialSurfaceState surface{
+			.r = dev_r.ptr,
+			.eta = dev_z.ptr,
+			.etaPrime = dev_z_prime.ptr,
+			.etaPrimePrime = dev_z_pp.ptr,
+			.phi = dev_phi.ptr,
+			.phiPrime = dev_phi_prime.ptr,
+			.n = N
+		};
+
+		const RadialProperties radialProperties{
+			.R = 1.0,
+			.depth = simProperties->depth / simProperties->L
+		};
+
+		std::cout << "Calculating velocities for N = " << N << ", bessel_mode_count = " << nModes << std::endl;
+		std::cout << "Properties: R = " << radialProperties.R << ", depth = " << radialProperties.depth << std::endl;
+
+		RadialVelocityCalculator radialVelocityCalculator(N, nModes);
+		radialVelocityCalculator.initialize(radialProperties);
+		radialVelocityCalculator.calculateVelocities(dev_vr.ptr, dev_vz.ptr, surface, radialProperties);
+
+		CHECK_CUDA(cudaMemcpy(vr, dev_vr.ptr, sizeof(double) * N, cudaMemcpyDeviceToHost));
+		CHECK_CUDA(cudaMemcpy(vz, dev_vz.ptr, sizeof(double) * N, cudaMemcpyDeviceToHost));
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << "Error: " << e.what() << std::endl;
+		return -1;
+	}
+
+	return 0;
+}
+
+int calculateVelocitiesRadialSymmetry(const double* r, const double* z, const double* phi, double* vr, double* vz, SimProperties* simProperties, size_t N)
+{
+	return calculateVelocitiesRadialSymmetryModes(r, z, phi, vr, vz, simProperties, N, RADIAL_BESSEL_MODE_COUNT);
+}
+
 
 int calculateDerivativeFFT256(const c_double* input, c_double* output)
 {

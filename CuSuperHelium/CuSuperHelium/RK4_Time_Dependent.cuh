@@ -409,6 +409,7 @@ OdeSolverResult RungeKuttaStepperBase<T, N>::runEvolution(double startTime, doub
 	}
 	if (currentTime >= endTime)
 		return OdeSolverResult::ReachedEndTime;
+	return OdeSolverResult::UnknownError;
 }
 
 

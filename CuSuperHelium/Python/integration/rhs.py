@@ -76,6 +76,13 @@ class COptomechanicalProperties(Structure):
                 ("omega_drive", c_double),
                 ]
 
+# TODO(struct-pointers): several bindings below declare the parameter structs by value
+# (CSimulationProperties, CGaussLegendreProperties, CRK4Options, COptomechanicalProperties) while
+# the C exports take pointers (SimProperties*, ...). It works only because the Windows x64 calling
+# convention passes structs larger than 8 bytes by reference to a copy. Declare them as
+# POINTER(...) and pass byref(...) as calculate_velocities_radial_symmetry does, before running on
+# any other platform. Affected: integrate, integrate_optomechanical_problem,
+# integrate_augmented_optomechanical_problem, calculate_augmented_rhs.
 class SimulationManager:
     def __init__(self, dll_path: str | None = None):
         paths = os.environ[ 'path' ].split( ';' )
@@ -143,6 +150,44 @@ class SimulationManager:
         dphi = np.empty_like(x)
 
         return self.lib.calculateRHSFromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, n), vx, vy, dphi
+
+    def calculate_velocities_radial_symmetry(self : Self, r : NDArray, z : NDArray, phi: NDArray, sim_props : CSimulationProperties, n_modes : int | None = None):
+        """Surface velocities (vr, vz) of an axisymmetric flow. n_modes sets the number of Bessel modes
+        (None: the DLL default of 1024). Returns (status, vr, vz)."""
+        array_types = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")),
+                       ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")),
+                       ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")),
+                       ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                       ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
+                       POINTER(CSimulationProperties),
+                       c_size_t)
+        self.lib.calculateVelocitiesRadialSymmetry.argtypes = array_types
+        self.lib.calculateVelocitiesRadialSymmetry.restype = c_int
+        self.lib.calculateVelocitiesRadialSymmetryModes.argtypes = array_types + (c_size_t,)
+        self.lib.calculateVelocitiesRadialSymmetryModes.restype = c_int
+
+        if not isinstance(sim_props, CSimulationProperties):
+            raise TypeError("sim_props must be a CSimulationProperties instance")
+
+        r = np.ascontiguousarray(r, dtype=np.float64)
+        z = np.ascontiguousarray(z, dtype=np.float64)
+        phi = np.ascontiguousarray(phi, dtype=np.float64)
+
+        if r.ndim != 1 or z.ndim != 1 or phi.ndim != 1:
+            raise ValueError("Input arrays must be one-dimensional")
+
+        n = r.shape[0]
+        if z.shape[0] != n or phi.shape[0] != n:
+            raise ValueError("Input arrays must have the same length")
+
+        vr = np.empty_like(r)
+        vz = np.empty_like(r)
+
+        if n_modes is None:
+            return self.lib.calculateVelocitiesRadialSymmetry(r, z, phi, vr, vz, byref(sim_props), n), vr, vz
+        if n_modes < 1:
+            raise ValueError("n_modes must be at least 1")
+        return self.lib.calculateVelocitiesRadialSymmetryModes(r, z, phi, vr, vz, byref(sim_props), n, n_modes), vr, vz
     
     def calculate_rhs2048_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
@@ -233,6 +278,7 @@ class SimulationManager:
         return self.lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, L, rho, kappa, depth, epsilon, n), J
     
     def integrate(self : Self, y0 : NDArray, sim_props : CSimulationProperties, gl_props : CGaussLegendreProperties):
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.integrateSimulationGL2.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),
                                        POINTER(c_size_t),
@@ -273,6 +319,7 @@ class SimulationManager:
             # empty the allocated memory in C++
             self.lib.integrateSimulationGL2_freeMemory(states_ptr, times_ptr)
     def integrate_optomechanical_problem(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties, rk4_props : CRK4Options):
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.integrateOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),
                                        POINTER(c_size_t),
@@ -322,6 +369,7 @@ class SimulationManager:
             if length % 4 != 1:
                 raise ValueError("Initial state vector length must be of the form 4n + 1 when ramping or sine driving is enabled")
         
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.integrateAugmentedOptomechanicalSimulationRK4.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                        POINTER(POINTER(c_double)),
                                        POINTER(c_size_t),
@@ -364,6 +412,7 @@ class SimulationManager:
             # empty the allocated memory in C++
             self.lib.integrateAugmentedOptomechanicalSimulationRK4_freeMemory(states_ptr, times_ptr)
     def calculate_augmented_rhs(self : Self, y0 : NDArray, sim_props : CSimulationProperties, opt_props : COptomechanicalProperties):
+        # TODO(struct-pointers): structs passed by value, see note above SimulationManager.
         self.lib.calculateRhsAugmentedOptomechanical.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), CSimulationProperties, COptomechanicalProperties, c_size_t)
         self.lib.calculateRhsAugmentedOptomechanical.restype = c_int
 

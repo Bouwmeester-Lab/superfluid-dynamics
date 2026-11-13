@@ -199,7 +199,7 @@ OdeSolverResult RK45Base<T, N>::runEvolution(double endTime)
 	size_t rejectedTimes = 0;
 	double maxStepSize = -1;
 	RK45StepResult state;
-	size_t i;
+	size_t i = 0;
 	for (;;++i) {
 		// before running check for completion
 		if (currentTime >= endTime) 
@@ -230,7 +230,7 @@ OdeSolverResult RK45Base<T, N>::runEvolution(double endTime)
 		}
 		// the step has been accepted
 		// check if any of the value loggers require logging:
-#pragma unroll
+		#pragma unroll
 		for (auto& logger : valueLoggers) 
 		{
 			if (logger->shouldLog(i)) 
@@ -239,6 +239,7 @@ OdeSolverResult RK45Base<T, N>::runEvolution(double endTime)
 			}
 		}
 	}
+	return OdeSolverResult::UnknownError;
 }
 
 template<typename T, size_t N>
@@ -305,7 +306,7 @@ inline double RK45Base<T, N>::calculateNewTimestep(double oldTimestep, double er
 	constexpr double expo = 1.0 / 5.0; // RK45 -> 1/(p+1), p=4
 
 	if (error == 0.0) {
-		// If we’re accepting and error is zero, push to max growth.
+		// If weï¿½re accepting and error is zero, push to max growth.
 		double fac = accepting ? maxfac : 1.0;   // never grow on reject
 		return oldTimestep * fac;
 	}

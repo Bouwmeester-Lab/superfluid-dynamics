@@ -75,7 +75,7 @@ int integrateSimulationGL2(double* initialState, double** statesOut, size_t* sta
 	default:
 		std::cerr << "Error: Unsupported N size " << N << std::endl;
 		std::cerr << "Supported N sizes are: 32, 64, 128 , 256, 512, 1024" << std::endl;
-		break;
+		return -1;
 	}
 }
 
@@ -99,11 +99,6 @@ int integrateSimulationRK4_N(double* initialState, double** statesOut, size_t* s
 		std::cerr << "Error: " << e.what() << std::endl;
 		return -1;
 	}
-}
-
-int integrateSimulationRK4(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, size_t N)
-{
-	return 0;
 }
 
 int integrateSimulationRK4_freeMemory(double* statesOut, double* timesOut)

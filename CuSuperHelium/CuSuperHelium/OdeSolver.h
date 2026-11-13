@@ -1,7 +1,8 @@
 #pragma once
 enum class OdeSolverResult {
 	ReachedEndTime,
-	StiffnessDetected
+	StiffnessDetected,
+	UnknownError
 };
 
 class OdeSolver

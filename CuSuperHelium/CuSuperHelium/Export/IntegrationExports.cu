@@ -30,7 +30,7 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 		// calculators for the f(y)
 		HeliumBoundaryProblem<N, 1> heliumProblem(properties);
 		BaseBoundaryIntegralCalculator<N, 1> calculator(properties, heliumProblem);
-		RealBoundaryItegralCalculator<N> realCalculator(calculator);
+		RealBoundaryIntegralCalculator<N> realCalculator(calculator);
 		// calculators for the jacobian
 		HeliumBoundaryProblem<N, 3 * N> heliumJacProblem(properties);
 		std::unique_ptr<AutonomousProblem<std_complex, 6 * N * N>> jacBoundaryIntegralCalculatorPtr = std::make_unique<BaseBoundaryIntegralCalculator<N, 3 * N>>(properties, heliumJacProblem);

@@ -287,10 +287,6 @@ int integrateAugmentedOptomechanicalSimulationRK4_freeMemory(double* statesOut, 
 template <size_t N>
 int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables)
 {
-	std_complex* devState;
-	std_complex* devRhs;
-	std_complex* hostRhs;
-	bool error = false;
 	try {
 		ProblemProperties properties;
 		//OptomechanicalVariables optoVars;
@@ -322,17 +318,17 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 
 		// copy the state to device
 
-		checkCuda(setDevice());
-		checkCuda(cudaMalloc(&devState, sizeof(std_complex) * 3 * N));
-		checkCuda(cudaMalloc(&devRhs, sizeof(std_complex) * 3 * N));
-		checkCuda(cudaMemcpy(devState, cplx_initialState.data(), sizeof(std_complex) * 3 * N, cudaMemcpyHostToDevice));
+		CHECK_CUDA(setDevice());
+		DeviceBuffer<std_complex> devState(3 * N);
+		DeviceBuffer<std_complex> devRhs(3 * N);
+		CHECK_CUDA(cudaMemcpy(devState.get(), cplx_initialState.data(), devState.bytes(), cudaMemcpyHostToDevice));
 
-		integrator.run(devState, devRhs);
+		integrator.run(devState.get(), devRhs.get());
 
 		cudaStreamSynchronize(cudaStreamPerThread);
 		// copy rhs back to host
-		hostRhs = (std_complex*)std::malloc(sizeof(std_complex) * 3 * N);
-		checkCuda(cudaMemcpy(hostRhs, devRhs, sizeof(std_complex) * 3 * N, cudaMemcpyDeviceToHost));
+		std::vector<std_complex> hostRhs(3 * N);
+		CHECK_CUDA(cudaMemcpy(hostRhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
 		// transform to output format
 		for (size_t i = 0; i < N; i++)
 		{
@@ -341,26 +337,14 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 			rhs[i + 2 * N] = hostRhs[i + N].real(); // d/dt phi 
 			rhs[i + 3 * N] = hostRhs[i + 2 * N].real(); // d/dt delayed intensity
 		}
-		checkCuda(cudaDeviceSynchronize());
+		CHECK_CUDA(cudaDeviceSynchronize());
 	}
 	catch(const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;
-		// return -1;
+		return -1;
 	}
 
-	// free memory allocated, both on host and device
-	if(devState != nullptr) {
-		cudaFree(devState);
-	}
-	if(devRhs != nullptr) {
-		cudaFree(devRhs);
-	}
-	if(hostRhs != nullptr) {
-		std::free(hostRhs);
-	}
-	checkCuda(cudaDeviceSynchronize());
-	
-	return error;
+	return 0;
 }
 
 int calculateRhsAugmentedOptomechanical(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables, size_t N)

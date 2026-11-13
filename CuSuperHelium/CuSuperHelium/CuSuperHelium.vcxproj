@@ -123,6 +123,7 @@
     <ClInclude Include="BoundaryKernels\MatrixKernels.cuh" />
     <ClInclude Include="BoundaryKernels\PhiRhsKernels.cuh" />
     <ClInclude Include="Common\CudaChecks.cuh" />
+    <ClInclude Include="Common\DeviceBuffer.cuh" />
     <ClInclude Include="Common\VectorKernels.cuh" />
     <ClInclude Include="constants.cuh" />
     <ClInclude Include="cuDoubleComplexOperators.cuh" />

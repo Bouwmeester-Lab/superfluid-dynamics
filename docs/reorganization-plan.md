@@ -233,6 +233,7 @@ The per-export `switch (N)` blocks stay as they are. They exist only in `Export/
   - It has overloads for `cudaError_t`, `cublasStatus_t`, `cusolverStatus_t` and `cufftResult`. cuFFT results are not checked at all today.
   - All of them throw `cush::CudaError`, derived from `std::runtime_error`. The message gives the library, the status name, the expression text, and the file and line.
   - The `CUSH_` prefix (CuSuperHelium) keeps the macro from colliding with the `CUDA_CHECK`/`CHECK_CUDA` macros that other headers often define. Macros ignore namespaces, so only a prefix prevents a collision.
+- **`CUSH_CHECK_NOTHROW(expr)`** is the variant for destructors and other `noexcept` code. It logs instead of throwing.
 - **`CUSH_CHECK_LAUNCH()`** goes after every kernel launch.
   - It checks `cudaGetLastError()`.
   - Built with `CUSH_SYNC_CHECKS`, it also calls `cudaDeviceSynchronize()`, so that errors during kernel execution are reported at the launch that caused them. This is for debug builds.
@@ -258,6 +259,30 @@ The per-export `switch (N)` blocks stay as they are. They exist only in `Export/
 - nothing below `Physics/` includes the parameter structs;
 - no library code calls `exit()`, and `CUSH_CHECK` / `CUSH_CHECK_LAUNCH` are the only error-check helpers;
 - the goldens match.
+
+**Status: done** on branch `reorg/phase-3-parameters`.
+- **Tests.** After a full rebuild, 34 gtests and 22 pytest tests pass, and the goldens match. The suite also passes in a build with `CUSH_SYNC_CHECKS` on, so no kernel was failing silently.
+- **Error checking.**
+  - About 300 call sites now go through the new macros. 126 calls that were not checked before (allocations, copies, cuBLAS and cuFFT calls) now are.
+  - About 50 kernel launches gained `CUSH_CHECK_LAUNCH()`.
+  - Destructors use a third macro, **`CUSH_CHECK_NOTHROW`**, which logs instead of throwing, because a destructor that throws ends the process.
+  - The cuSOLVER and cuBLAS info checks throw `cush::CudaError`.
+  - The RK4 stage updates throw on a failed cuBLAS call, where before they printed and carried on.
+  - `ExportProperties.cu` had a second `exit(1)`, for an invalid drive type; it now throws `std::invalid_argument`.
+  - 5 new gtests cover the macros.
+- **Parameters.**
+  - `PhysicalParameters` holds the SI inputs. Besides the Hamaker constant, the **film density** (the 150 kg/m³ that was hard-coded) is now also a caller input, because it is a material property too.
+  - `Scales` holds the derived scales. `DimensionlessParameters` (renamed from `ProblemProperties`) carries its `Scales` as a member, because the optomechanical kernels need the scales on the device.
+  - `NonDimensionalization` throws `std::invalid_argument` for non-positive inputs. A missing material therefore fails loudly instead of producing NaNs.
+  - The optomechanical conversion lives in `Optomechanics/OptomechanicalNonDimensionalization.h`, because Physics may not include Optomechanics. It only applies the `Scales` that Physics computes.
+- **ABI.**
+  - `SimProperties` gains `hamaker_constant` and `film_density`, at the end of the struct.
+  - The 8 exports that took `L, rho, kappa, depth` as separate doubles now take `SimProperties*`, so the next new parameter will not change every signature.
+  - Python keeps its signatures. `HELIUM_FILM` is the single place for the Python defaults. `CSimulationProperties` fills the material from it, and the scalar-argument methods take keyword-only `hamaker_constant` / `film_density`. The C++ library has no defaults.
+- **Layering.**
+  - `BoundaryIntegral/Periodic2D/InterfaceParameters.h` is what the periodic solver reads, and `DimensionlessParameters` extends it.
+  - The boundary-problem virtual methods take `InterfaceParameters&`. Problems that need the scales use their own copy of the full parameters.
+- **To check (physics):** `LightIntensity::get_current_intensity_drive_strength` divides by the dimensionless `rho`, which is the density ratio, on top of a `base_energy` that already contains the film density. This is unchanged from before. The goldens use ρ equal to the film density, so they would not show a difference.
 
 ### Phase 4 — Remove duplication
 
@@ -318,3 +343,9 @@ Recorded November 2026.
 5. **Plotting:** allowed in tests and the App, never in the DLL. Tests save figures and open windows only on request (section 3, "Visual tests").
 6. **Hamaker constant:** a caller-supplied parameter, because it determines the simulated material. It is not a library constant.
 7. **Error checking:** one throwing macro family, `CUSH_CHECK` / `CUSH_CHECK_LAUNCH`, with the project prefix `CUSH_` and the namespace `cush::` for the error type. The library never calls `exit()` (Phase 3).
+
+## 7. Open questions (after the phases)
+
+Things to check once the reorganization is finished. They do not block any phase.
+
+1. **Optomechanical drive strength and the density ratio.** `LightIntensity::get_current_intensity_drive_strength` returns hbar G / (E0 t0 rho sigma^2), with `rho` the *dimensionless* density ratio rho_upper / rho_film. The energy scale E0 = 3 rho_film alpha L0^4 / h0^4 already contains the film density, so the extra division by the ratio may be wrong. Every current run uses rho = rho_film, which makes the ratio 1, so no result is affected yet. Check the derivation, and add a test with rho != rho_film before relying on that regime. (Found in Phase 3.)

@@ -19,9 +19,7 @@ template <size_t N>
 int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double** statesOut, size_t* statesCount, double** timesOut, size_t* timesCount, SimProperties* simProperties, RK4SolverOptions* rkOptions, COptomechanicalVariables* optomechanicalVariables) 
 {
 	try {
-		ProblemProperties properties;
-		//OptomechanicalVariables optoVars;
-		copyProperties(*simProperties, properties);
+		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
 		OptomechanicalVariables optoVars;
 
 		copyProperties(*optomechanicalVariables, optoVars);
@@ -29,15 +27,13 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 		std::cout << "Optomechanical properties before adimensionalization: " << std::endl;
 		printOptomechanicalVariables(optoVars);
 
-		// adimensionalize properties
-		properties = adimensionalizeProperties(properties);
-		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
+		optoVars = NonDimensionalization::nonDimensionalize(optoVars, properties.scales);
 
 		std::cout << "Optomechanical properties after adimensionalization: " << std::endl;
 		printOptomechanicalVariables(optoVars);
 
 		// transfoms SI units to adimensional units for the RK4 options
-		auto rk4SolverOptions = adimensionalizeRK4SolverOptions(*rkOptions, properties);
+		auto rk4SolverOptions = toDimensionless(*rkOptions, properties.scales);
 
 		RK4Options rk4_options;
 
@@ -76,7 +72,7 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			stepper.runEvolution(t0, t1);
 
 			std::cout << "Ramped augmented RK4 evolution completed. Copying results to host." << std::endl;
-			cudaStreamSynchronize(cudaStreamPerThread);
+			CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
 
 			logger->copyTimesToHost(timesOut, timesCount);
 			std::cout << (*timesCount) << " times copied to host" << "Copying states to host." << std::endl;
@@ -143,7 +139,7 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			stepper.runEvolution(t0, t1);
 
 			std::cout << "Sine augmented RK4 evolution completed. Copying results to host." << std::endl;
-			cudaStreamSynchronize(cudaStreamPerThread);
+			CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
 
 			logger->copyTimesToHost(timesOut, timesCount);
 			std::cout << (*timesCount) << " times copied to host" << "Copying states to host." << std::endl;
@@ -207,7 +203,7 @@ int integrateAugmentedOptomechanicalSimulationRK4_N(double* initialState, double
 			stepper.runEvolution(t0, t1);
 
 			std::cout << "Augmented RK4 evolution completed. Copying results to host." << std::endl;
-			cudaStreamSynchronize(cudaStreamPerThread);
+			CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
 
 			logger->copyTimesToHost(timesOut, timesCount);
 			std::cout << (*timesCount) << " times copied to host" << "Copying states to host." << std::endl;
@@ -288,16 +284,12 @@ template <size_t N>
 int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimProperties* simProperties, COptomechanicalVariables* optomechanicalVariables)
 {
 	try {
-		ProblemProperties properties;
-		//OptomechanicalVariables optoVars;
-		copyProperties(*simProperties, properties);
+		DimensionlessParameters properties = toDimensionlessParameters(*simProperties);
 		OptomechanicalVariables optoVars;
 
 		copyProperties(*optomechanicalVariables, optoVars);
 
-		// adimensionalize properties
-		properties = adimensionalizeProperties(properties);
-		optoVars = adimensionalizeOptomechanicalVariables(optoVars, properties);
+		optoVars = NonDimensionalization::nonDimensionalize(optoVars, properties.scales);
 
 		std::vector<std_complex> cplx_initialState(3 * N);
 
@@ -318,17 +310,17 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 
 		// copy the state to device
 
-		CHECK_CUDA(setDevice());
+		CUSH_CHECK(setDevice());
 		DeviceBuffer<std_complex> devState(3 * N);
 		DeviceBuffer<std_complex> devRhs(3 * N);
-		CHECK_CUDA(cudaMemcpy(devState.get(), cplx_initialState.data(), devState.bytes(), cudaMemcpyHostToDevice));
+		CUSH_CHECK(cudaMemcpy(devState.get(), cplx_initialState.data(), devState.bytes(), cudaMemcpyHostToDevice));
 
 		integrator.run(devState.get(), devRhs.get());
 
-		cudaStreamSynchronize(cudaStreamPerThread);
+		CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
 		// copy rhs back to host
 		std::vector<std_complex> hostRhs(3 * N);
-		CHECK_CUDA(cudaMemcpy(hostRhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
+		CUSH_CHECK(cudaMemcpy(hostRhs.data(), devRhs.get(), devRhs.bytes(), cudaMemcpyDeviceToHost));
 		// transform to output format
 		for (size_t i = 0; i < N; i++)
 		{
@@ -337,7 +329,7 @@ int calculateRhsAugmentedOptomechanical_N(double* state, double* rhs, SimPropert
 			rhs[i + 2 * N] = hostRhs[i + N].real(); // d/dt phi 
 			rhs[i + 3 * N] = hostRhs[i + 2 * N].real(); // d/dt delayed intensity
 		}
-		CHECK_CUDA(cudaDeviceSynchronize());
+		CUSH_CHECK(cudaDeviceSynchronize());
 	}
 	catch(const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;

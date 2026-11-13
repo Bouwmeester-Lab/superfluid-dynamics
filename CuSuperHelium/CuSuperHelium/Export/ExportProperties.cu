@@ -2,17 +2,33 @@
 
 #include <cmath>
 
-void copyProperties(SimProperties& simProperties, ProblemProperties& properties)
+PhysicalParameters toPhysicalParameters(const SimProperties& simProperties)
 {
-	properties.L = simProperties.L;
-	properties.rho = simProperties.rho;
-	properties.kappa = simProperties.kappa;
-	properties.depth = simProperties.depth;
+	PhysicalParameters p;
+	p.L = simProperties.L;
+	p.depth = simProperties.depth;
+	p.rho = simProperties.rho;
+	p.kappa = simProperties.kappa;
+	p.hamakerConstant = simProperties.hamaker_constant;
+	p.filmDensity = simProperties.film_density;
+	return p;
+}
 
+DimensionlessParameters toDimensionlessParameters(const SimProperties& simProperties)
+{
+	DimensionlessParameters properties = NonDimensionalization::nonDimensionalize(toPhysicalParameters(simProperties));
 	properties.expansion_order = simProperties.expansion_order;
 	properties.use_expansions = simProperties.use_expansions;
-
 	properties.infinite_depth = simProperties.infinite_depth;
+	return properties;
+}
+
+RK4SolverOptions toDimensionless(RK4SolverOptions options, const Scales& scales)
+{
+	options.t0 = NonDimensionalization::toDimensionlessTime(options.t0, scales);
+	options.t1 = NonDimensionalization::toDimensionlessTime(options.t1, scales);
+	options.timeStep = NonDimensionalization::toDimensionlessTime(options.timeStep, scales);
+	return options;
 }
 
 void printOptomechanicalVariables(OptomechanicalVariables& variables)
@@ -55,72 +71,9 @@ void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, Optomec
 		opto_variables.drive_type = DriveType::Sine;
 		break;
 	default:
-		std::cerr << "Invalid drive type specified in COptomechanicalVariables: " << c_optomechanicalVariables.drive_type << std::endl;
-		exit(1);
+		throw std::invalid_argument("Invalid drive type in COptomechanicalVariables: " + std::to_string(static_cast<int>(c_optomechanicalVariables.drive_type)));
 	}
 	opto_variables.ramp_rate = c_optomechanicalVariables.ramp_rate; // (intensity / seconds)
 	opto_variables.omega_drive = c_optomechanicalVariables.omega_drive; // (radians / second) 
 }
 
-RK4SolverOptions adimensionalizeRK4SolverOptions(RK4SolverOptions options, ProblemProperties properties)
-{
-	options.t0 /= properties.base_time;
-	options.t1 /= properties.base_time;
-	options.timeStep /= properties.base_time;
-
-	return options;
-}
-
-ProblemProperties adimensionalizeProperties(ProblemProperties props, double rhoHelium)
-{
-	// calculate base units
-	props.base_length = props.L / (2.0 * PI_d); // characteristic length
-	props.base_acceleration = 3 * alpha_hamaker_d / std::pow(props.depth, 4);
-	props.base_time = std::sqrt(props.base_length / props.base_acceleration);
-	props.base_energy = 3.0 * rhoHelium * alpha_hamaker_d * std::pow(props.base_length, 4) / std::pow(props.depth, 4);
-
-	double surfaceTensionFactor = rhoHelium * props.base_length * props.base_length * props.base_length / (props.base_time * props.base_time);
-
-	// adimensionalize properties
-	props.kappa = props.kappa / surfaceTensionFactor;
-	props.depth = props.depth / props.base_length;
-
-	props.rho /= rhoHelium; 
-
-	std::cout << "Adimensionalized properties: " << std::endl;
-	std::cout << "rho: " << props.rho << std::endl;
-	std::cout << "kappa: " << props.kappa << std::endl;
-	std::cout << "depth: " << props.depth << std::endl;
-
-	return props;
-}
-
-OptomechanicalVariables adimensionalizeOptomechanicalVariables(OptomechanicalVariables optomechanicalVariables, ProblemProperties properties, double rhoHelium)
-{
-	// adimensionalize optomechanical variables
-	// gamma is a frequency , so it gets multiplied by time
-	optomechanicalVariables.gamma *= properties.base_time;
-	// detuning is also a frequency
-	optomechanicalVariables.detuning *= properties.base_time;
-	// G is a coupling strength (Hz / m), so it gets multiplied by time and base_length
-	optomechanicalVariables.G *= properties.base_time * properties.base_length;
-	
-	// Tau is a time delay, so it gets divided by base_time
-	optomechanicalVariables.Tau /= properties.base_time;
-
-	// location_x0_mode is a length, so it gets divided by base_length
-	optomechanicalVariables.location_x0_mode /= properties.base_length;
-	// sigma_optical_mode is also a length, so it gets divided by base_length
-	optomechanicalVariables.sigma_optical_mode /= properties.base_length;
-	optomechanicalVariables.sigma_thermal_mode /= properties.base_length;
-
-	// ramp rate is intensity per second, so it gets multiplied by base_time:
-	optomechanicalVariables.ramp_rate *= properties.base_time;
-
-	// omega_drive is a frequency, so it gets multiplied by base_time:
-	optomechanicalVariables.omega_drive *= properties.base_time;
-
-	// TODO: deal with max_intensity and Beta
-
-	return optomechanicalVariables;
-}

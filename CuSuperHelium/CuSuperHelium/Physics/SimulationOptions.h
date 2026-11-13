@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "Core/constants.cuh"
+#include "Core/DeviceBuffer.cuh"
 
 struct SimulationOptions
 {
@@ -23,7 +24,12 @@ struct ParticleData {
 	ParticleData(std::vector<std::complex<double>>& positions, std::vector<double>& potential) : Z(positions), Potential(potential) {}
 };
 
+/// <summary>
+/// Device copy of the particle state, filled by loadDataToDevice: positions, then potentials.
+/// Owns its memory, which is freed when the object goes out of scope.
+/// </summary>
 struct DeviceParticleData
 {
-	std_complex* devZ; // device pointer to particle positions and potentials
+	DeviceBuffer<std_complex> buffer;
+	std_complex* devZ() const noexcept { return buffer.get(); }
 };

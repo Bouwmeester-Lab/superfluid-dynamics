@@ -21,20 +21,20 @@ public:
 		{
 			throw std::invalid_argument("DenseLuSolver requires a positive matrix size");
 		}
-		checkCusolver(cusolverDnCreate(&handle));
-		CHECK_CUDA(cudaMalloc(&devPivot, n * sizeof(int)));
-		CHECK_CUDA(cudaMalloc(&devInfo, sizeof(int)));
-		checkCusolver(cusolverDnDgetrf_bufferSize(handle, n, n, nullptr, n, &workSize));
-		CHECK_CUDA(cudaMalloc(&devWork, workSize * sizeof(double)));
-		checkCusolver(cusolverDnSetStream(handle, stream));
+		CUSH_CHECK(cusolverDnCreate(&handle));
+		CUSH_CHECK(cudaMalloc(&devPivot, n * sizeof(int)));
+		CUSH_CHECK(cudaMalloc(&devInfo, sizeof(int)));
+		CUSH_CHECK(cusolverDnDgetrf_bufferSize(handle, n, n, nullptr, n, &workSize));
+		CUSH_CHECK(cudaMalloc(&devWork, workSize * sizeof(double)));
+		CUSH_CHECK(cusolverDnSetStream(handle, stream));
 	}
 
 	~DenseLuSolver()
 	{
-		if (devPivot) cudaFree(devPivot);
-		if (devInfo) cudaFree(devInfo);
-		if (devWork) cudaFree(devWork);
-		if (handle) cusolverDnDestroy(handle);
+		if (devPivot) CUSH_CHECK_NOTHROW(cudaFree(devPivot));
+		if (devInfo) CUSH_CHECK_NOTHROW(cudaFree(devInfo));
+		if (devWork) CUSH_CHECK_NOTHROW(cudaFree(devWork));
+		if (handle) CUSH_CHECK_NOTHROW(cusolverDnDestroy(handle));
 	}
 
 	DenseLuSolver(const DenseLuSolver&) = delete;
@@ -50,20 +50,12 @@ public:
 	{
 		if (deva != devb)
 		{
-			CHECK_CUDA(cudaMemcpyAsync(deva, devb, n * sizeof(double), cudaMemcpyDeviceToDevice, stream));
+			CUSH_CHECK(cudaMemcpyAsync(deva, devb, n * sizeof(double), cudaMemcpyDeviceToDevice, stream));
 		}
-		const cusolverStatus_t getrfStatus = cusolverDnDgetrf(handle, n, n, devM, n, devWork, devPivot, devInfo);
-		if (getrfStatus != CUSOLVER_STATUS_SUCCESS)
-		{
-			throw std::runtime_error("cusolverDnDgetrf failed with status " + std::to_string(static_cast<int>(getrfStatus)));
-		}
+		CUSH_CHECK(cusolverDnDgetrf(handle, n, n, devM, n, devWork, devPivot, devInfo));
 		checkInfo("cusolverDnDgetrf");
 
-		const cusolverStatus_t getrsStatus = cusolverDnDgetrs(handle, CUBLAS_OP_N, n, 1, devM, n, devPivot, deva, n, devInfo);
-		if (getrsStatus != CUSOLVER_STATUS_SUCCESS)
-		{
-			throw std::runtime_error("cusolverDnDgetrs failed with status " + std::to_string(static_cast<int>(getrsStatus)));
-		}
+		CUSH_CHECK(cusolverDnDgetrs(handle, CUBLAS_OP_N, n, 1, devM, n, devPivot, deva, n, devInfo));
 		checkInfo("cusolverDnDgetrs");
 	}
 
@@ -79,15 +71,15 @@ private:
 	void checkInfo(const char* operation)
 	{
 		int hostInfo = 0;
-		CHECK_CUDA(cudaMemcpyAsync(&hostInfo, devInfo, sizeof(int), cudaMemcpyDeviceToHost, stream));
-		CHECK_CUDA(cudaStreamSynchronize(stream));
+		CUSH_CHECK(cudaMemcpyAsync(&hostInfo, devInfo, sizeof(int), cudaMemcpyDeviceToHost, stream));
+		CUSH_CHECK(cudaStreamSynchronize(stream));
 		if (hostInfo < 0)
 		{
-			throw std::runtime_error(std::string(operation) + " failed: argument " + std::to_string(-hostInfo) + " had an illegal value");
+			cush::throwNumericalError("cuSOLVER", hostInfo, std::string(operation) + ": argument " + std::to_string(-hostInfo) + " had an illegal value");
 		}
 		if (hostInfo > 0)
 		{
-			throw std::runtime_error(std::string(operation) + " failed: matrix is singular at U(" + std::to_string(hostInfo) + "," + std::to_string(hostInfo) + ")");
+			cush::throwNumericalError("cuSOLVER", hostInfo, std::string(operation) + ": matrix is singular at U(" + std::to_string(hostInfo) + "," + std::to_string(hostInfo) + ")");
 		}
 	}
 };

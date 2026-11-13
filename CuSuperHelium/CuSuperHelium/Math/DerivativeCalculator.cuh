@@ -39,6 +39,7 @@ static __global__ void calculateFirstDerivativeKernel(const double* input, const
 void FiniteDifferenceDerivativeCalculator::calculateFirstDerivative(const double* input, const double* x, double* output, size_t N)
 {
 	calculateFirstDerivativeKernel<<<(N + 255) / 256, 256>>>(input, x, output, N);
+	CUSH_CHECK_LAUNCH();
 }
 
 #endif // !DERIVATIVE_CALCULATOR_H

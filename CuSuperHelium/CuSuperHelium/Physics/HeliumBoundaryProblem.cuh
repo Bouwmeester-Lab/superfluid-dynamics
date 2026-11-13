@@ -9,14 +9,17 @@ template<int N, size_t batchSize>
 class HeliumBoundaryProblem : public BoundaryProblem<N, batchSize>
 {
 	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
+protected:
+	DimensionlessParameters parameters; ///< Full parameters (with scales) for derived problems that need more than InterfaceParameters
 public:
-	HeliumBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	HeliumBoundaryProblem(DimensionlessParameters& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator(), parameters(properties)
 	{
 		// Constructor for the helium boundary problem, initializing the velocity calculator with the problem properties
 	}
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, InterfaceParameters& properties) override
 	{
 		createFiniteDepthMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, N, batchSize, properties.infinite_depth);
+		CUSH_CHECK_LAUNCH();
 	}
 
 	virtual void CalculateVelocities(const std_complex* Z,
@@ -27,24 +30,26 @@ public:
 		std_complex* V1,
 		std_complex* V2,
 		std_complex* velocities,
-		ProblemProperties& properties,
+		InterfaceParameters& properties,
 		bool lower) override
 	{
 		// create the V1 matrix and V2 diagonal vector
 		createHeliumVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, properties.depth, N, V1, V2, lower, batchSize, properties.infinite_depth);
+		CUSH_CHECK_LAUNCH();
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, InterfaceParameters& properties) override
 	{
 		if (properties.use_expansions)
 		{
 			compute_rhs_helium_phi_expression_expansion_terms << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N, properties.expansion_order);
+			CUSH_CHECK_LAUNCH();
 			return;
 		}
 		if (properties.kappa != 0.0)
-			compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, batchSize * N);
+			{ compute_rhs_helium_phi_expression_with_surface_tension << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.Zp, problemPointers.Zpp, problemPointers.VelocitiesLower, result, properties.depth, properties.kappa, batchSize * N); CUSH_CHECK_LAUNCH(); }
 		else
-			compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N);
+			{ compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N); CUSH_CHECK_LAUNCH(); }
 	}
 };
 
@@ -54,13 +59,14 @@ class HeliumInfiniteDepthBoundaryProblem : public BoundaryProblem<N, batchSize>
 {
 	VelocityCalculator<N, batchSize> velocityCalculator; ///< Velocity calculator for calculating the velocities based on the vorticities and matrices.
 public:
-	HeliumInfiniteDepthBoundaryProblem(ProblemProperties& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
+	HeliumInfiniteDepthBoundaryProblem(DimensionlessParameters& properties) : BoundaryProblem<N, batchSize>(new KineticEnergy<N>(properties), new VanDerWaalsEnergy<N>(properties), new SurfaceEnergy<N>(properties)), velocityCalculator()
 	{
 		// Constructor for the helium infinite depth boundary problem, initializing the velocity calculator with the problem properties
 	}
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) override
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, InterfaceParameters& properties) override
 	{
 		createMKernel << <this->matrix_blocks, this->matrix_threads >> > (M, Z, Zp, Zpp, properties.depth, N, batchSize);
+		CUSH_CHECK_LAUNCH();
 	}
 	virtual void CalculateVelocities(const std_complex* Z,
 		const std_complex* Zp,
@@ -70,15 +76,17 @@ public:
 		std_complex* V1,
 		std_complex* V2,
 		std_complex* velocities,
-		ProblemProperties& properties,
+		InterfaceParameters& properties,
 		bool lower) override
 	{
 		// create the V1 matrix and V2 diagonal vector
 		createVelocityMatrices << <this->matrix_blocks, this->matrix_threads >> > (Z, Zp, Zpp, N, V1, V2, lower);
+		CUSH_CHECK_LAUNCH();
 		velocityCalculator.calculateVelocities(Z, Zp, Zpp, a, aprime, V1, V2, velocities, lower);
 	}
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) override
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, InterfaceParameters& properties) override
 	{
 		compute_rhs_helium_phi_expression << <this->blocks, this->threads >> > (problemPointers.Z, problemPointers.VelocitiesLower, result, properties.depth, batchSize * N);
+		CUSH_CHECK_LAUNCH();
 	}
 };

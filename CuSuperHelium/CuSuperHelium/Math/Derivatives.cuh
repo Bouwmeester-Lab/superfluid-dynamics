@@ -2,7 +2,6 @@
 #ifndef DERIVATIVES_H
 #define DERIVATIVES_H
 
-#include "Physics/ProblemProperties.hpp"
 
 #include "device_launch_parameters.h"
 //#include <thrust/complex.h>
@@ -91,9 +90,10 @@ private:
 	std_complex* devPeriodicZ;
 	std_complex* devPeriodicPhi;
 
-	ProblemProperties& properties;
+	double densityRatio;   // rho of the problem (enters the linear part of phi)
+	double backgroundFlow; // U of the problem
 public:
-	ZPhiDerivative(ProblemProperties& properties);
+	ZPhiDerivative(double densityRatio, double backgroundFlow);
 	~ZPhiDerivative();
 	/// <summary>
 	/// Calculates the derivative of Z and Phi.
@@ -108,8 +108,6 @@ public:
 template <int N, int batchSize>
 cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 {
-	cudaError_t cudaStatus;
-
 	std::vector<cufftDoubleComplex> der(N * batchSize);
 	// TODO: fix filtering for batchSize > 512. Currently no filtering is used.
 	//std::vector<double> derReal(N * batchSize);
@@ -144,16 +142,8 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 
 
 
-	cudaStatus = cudaMalloc(&filterCoeffs, sizeof(cufftDoubleComplex) * N * batchSize);
-	if (cudaStatus != cudaSuccess) {
-		//fprintf(stderr, "cudaMalloc failed!");
-		return cudaStatus;
-	}
-	cudaStatus = cudaMalloc(&coeffs, N * batchSize * sizeof(cufftDoubleComplex)); // allocates the array with all the coefficients of the FFT
-	if (cudaStatus != cudaSuccess) {
-		//fprintf(stderr, "cudaMalloc failed!");
-		return cudaStatus;
-	}
+	CUSH_CHECK(cudaMalloc(&filterCoeffs, sizeof(cufftDoubleComplex) * N * batchSize));
+	CUSH_CHECK(cudaMalloc(&coeffs, N * batchSize * sizeof(cufftDoubleComplex))); // allocates the array with all the coefficients of the FFT
 	// copy the coefficients to GPU
 	//cudaStatus = cudaMemcpy(filterCoeffs, der.data(), sizeof(cufftDoubleComplex) * N * batchSize, cudaMemcpyHostToDevice);
 	//if (cudaStatus != cudaSuccess) {
@@ -161,7 +151,7 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 	//	return cudaStatus;
 	//}
 	if(batchSize == 1)
-		cufftPlan1d(&plan, N, CUFFT_Z2Z, batchSize);
+		CUSH_CHECK(cufftPlan1d(&plan, N, CUFFT_Z2Z, batchSize));
 	else {
 		int n[1] = { N };
 		int istride = 1, ostride = 1;
@@ -171,12 +161,12 @@ cudaError_t FftDerivative<N, batchSize>::initialize(bool filterIndx)
 		int onembed[1] = { static_cast<int>(N) };
 		//int batch = static_cast<int>(2 * M);
 
-		cufftPlanMany(&plan, 1, n, inembed, istride, idist,
+		CUSH_CHECK(cufftPlanMany(&plan, 1, n, inembed, istride, idist,
 			onembed, ostride, odist,
-			CUFFT_Z2Z, batchSize);
+			CUFFT_Z2Z, batchSize));
 	}
 	//printf("Initialized cufft");
-	return cudaStatus;
+	return cudaSuccess;
 }
 
 template<int N, int batchSize>
@@ -187,11 +177,7 @@ void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, 
 		throw std::runtime_error("The FFT class wasn't initialized!");
 	}
 
-	auto result = cufftExecZ2Z(plan, reinterpret_cast<cufftDoubleComplex*>(const_cast<std_complex*>(in)), coeffs, CUFFT_FORWARD);
-
-	if (result != CUFFT_SUCCESS) {
-		printf("failed fft forward");
-	}
+	CUSH_CHECK(cufftExecZ2Z(plan, reinterpret_cast<cufftDoubleComplex*>(const_cast<std_complex*>(in)), coeffs, CUFFT_FORWARD));
 
 	const int threads = 256;
 	const int blocks = (batchSize * N + threads - 1) / threads;
@@ -200,7 +186,7 @@ void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, 
 	
 #ifdef DEBUG_FFT
 	std::array<cufftDoubleComplex, N* batchSize> coeffsHost;
-	cudaMemcpy(coeffsHost.data(), coeffs, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	CUSH_CHECK(cudaMemcpy(coeffsHost.data(), coeffs, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost));
 	printf("Coefficients after FFT:\n");
 	for (int i = 0; i < N * batchSize; i++) 
 	{
@@ -212,30 +198,33 @@ void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, 
 	{
 		
 		second_derivative_fft<< <blocks, threads>> >(coeffs, coeffs, N, batchSize);
+		CUSH_CHECK_LAUNCH();
 	}
 	else 
 	{
 		first_derivative_multiplication << <blocks, threads >> > (coeffs, coeffs, N, batchSize);
+		CUSH_CHECK_LAUNCH();
 	}
 	if (filter) 
 	{
-		multiply_element_wise<< <blocks, threads >> > (coeffs, filterCoeffs, coeffs, N * batchSize); // multiply the coefficients with the filter coefficients
+		multiply_element_wise<< <blocks, threads >> > (coeffs, filterCoeffs, coeffs, N * batchSize);
+		CUSH_CHECK_LAUNCH(); // multiply the coefficients with the filter coefficients
 	}
 #ifdef  DEBUG_FFT
 
 
 
-	cudaMemcpy(coeffsHost.data(), coeffs, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	CUSH_CHECK(cudaMemcpy(coeffsHost.data(), coeffs, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost));
 	printf("Coefficients after multiplication k:\n\n");
 	for (int i = 0; i < N * batchSize; i++)
 	{
 		printf("%.10e, %.10e \n", coeffsHost[i].x, coeffsHost[i].y);
 	}
-	cudaDeviceSynchronize();
+	CUSH_CHECK(cudaDeviceSynchronize());
 #endif //  DEBUG_FFT
-	cufftExecZ2Z(plan, coeffs, reinterpret_cast<cufftDoubleComplex*>(out), CUFFT_INVERSE); // doesn't normalize by 1/N https://stackoverflow.com/questions/14441142/scaling-in-inverse-fft-by-cufft
+	CUSH_CHECK(cufftExecZ2Z(plan, coeffs, reinterpret_cast<cufftDoubleComplex*>(out), CUFFT_INVERSE)); // doesn't normalize by 1/N https://stackoverflow.com/questions/14441142/scaling-in-inverse-fft-by-cufft
 #ifdef DEBUG_FFT
-	cudaMemcpy(coeffsHost.data(), out, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost);
+	CUSH_CHECK(cudaMemcpy(coeffsHost.data(), out, N * batchSize * sizeof(cufftDoubleComplex), cudaMemcpyDeviceToHost));
 	printf("Final result after inverse FFT:\n\n");
 	for (int i = 0; i < N * batchSize; i++)
 	{
@@ -245,27 +234,25 @@ void FftDerivative<N, batchSize>::exec(const std_complex* in, std_complex* out, 
 #endif // DEBUG_FFT
 	if(scaling != 1.0) 
 	{
-		vector_mutiply_scalar << <blocks, threads >> > (out, scaling, out, N * batchSize, 0); // multiply by the scaling factor
+		vector_mutiply_scalar << <blocks, threads >> > (out, scaling, out, N * batchSize, 0);
+		CUSH_CHECK_LAUNCH(); // multiply by the scaling factor
 	}
 }
 
 template<int N, int batchSize>
 FftDerivative<N, batchSize>::~FftDerivative()
 {
-	if(plan) cufftDestroy(plan);
+	if (plan) CUSH_CHECK_NOTHROW(cufftDestroy(plan));
 	// delete all pointers
-	if(filterCoeffs) cudaFree(filterCoeffs);
-	if(coeffs) cudaFree(coeffs);
+	if (filterCoeffs) CUSH_CHECK_NOTHROW(cudaFree(filterCoeffs));
+	if (coeffs) CUSH_CHECK_NOTHROW(cudaFree(coeffs));
 	//cudaFree()
 
-	auto error = cudaGetLastError();
-	if (error != cudaSuccess) {
-		std::cerr << "CUDA error in FftDerivative destructor: " << cudaGetErrorString(error) << std::endl;
-	}
+	CUSH_CHECK_NOTHROW(cudaGetLastError());
 }
 
 template<int N, size_t batchSize>
-inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(ProblemProperties& properties) : properties(properties)
+inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(double densityRatio, double backgroundFlow) : densityRatio(densityRatio), backgroundFlow(backgroundFlow)
 {
 	//std::cout << "Initializing ZPhiDerivative\n";
 	fftDerivative.initialize();
@@ -276,17 +263,17 @@ inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(ProblemProperties& propertie
 	for (int j = 0; j < N; j++) 
 	{
 		ZLinear[j] = 2 * PI_d * (double)j / N;
-		PhiLinear[j] = -(1 + properties.rho) * PI_d * properties.U / N * (double)j; // Phi linear part
+		PhiLinear[j] = -(1 + densityRatio) * PI_d * backgroundFlow / N * (double)j; // Phi linear part
 	}
 	// copy the array to the device
-	checkCuda(cudaMalloc(&devLinearPartZ, N * sizeof(double)));
-	checkCuda(cudaMalloc(&devLinearPartPhi, N * sizeof(double)));
+	CUSH_CHECK(cudaMalloc(&devLinearPartZ, N * sizeof(double)));
+	CUSH_CHECK(cudaMalloc(&devLinearPartPhi, N * sizeof(double)));
 
-	checkCuda(cudaMemcpy(devLinearPartZ, ZLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice));
-	checkCuda(cudaMemcpy(devLinearPartPhi, PhiLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMemcpy(devLinearPartZ, ZLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMemcpy(devLinearPartPhi, PhiLinear.data(), N * sizeof(double), cudaMemcpyHostToDevice));
 
-	checkCuda(cudaMalloc(&devPeriodicZ, batchSize * N * sizeof(std_complex)));
-	checkCuda(cudaMalloc(&devPeriodicPhi, batchSize * N * sizeof(std_complex)));
+	CUSH_CHECK(cudaMalloc(&devPeriodicZ, batchSize * N * sizeof(std_complex)));
+	CUSH_CHECK(cudaMalloc(&devPeriodicPhi, batchSize * N * sizeof(std_complex)));
 
 	//std::cout << "Initialized ZPhiDerivative\n";
 }
@@ -294,10 +281,10 @@ inline ZPhiDerivative<N, batchSize>::ZPhiDerivative(ProblemProperties& propertie
 template<int N, size_t batchSize>
 inline ZPhiDerivative<N, batchSize>::~ZPhiDerivative()
 {
-	cudaFree(devLinearPartZ);
-	cudaFree(devLinearPartPhi);
-	cudaFree(devPeriodicZ);
-	cudaFree(devPeriodicPhi);
+	CUSH_CHECK_NOTHROW(cudaFree(devLinearPartZ));
+	CUSH_CHECK_NOTHROW(cudaFree(devLinearPartPhi));
+	CUSH_CHECK_NOTHROW(cudaFree(devPeriodicZ));
+	CUSH_CHECK_NOTHROW(cudaFree(devPeriodicPhi));
 }
 
 template<int N, size_t batchSize>
@@ -308,7 +295,9 @@ inline void ZPhiDerivative<N, batchSize>::exec(const std_complex* Z, const std_c
 	const int blocks = (batchSize * N + threads - 1) / threads;
 
 	batched_vector_subtract_singletime_complex_real <<< blocks, threads>>>(Z, devLinearPartZ, devPeriodicZ, N, batchSize);
-	batched_vector_subtract_singletime_complex_real << < blocks, threads >> > (Phi, devLinearPartPhi, devPeriodicPhi, N, batchSize); // subtract the linear part of Z and Phi
+		CUSH_CHECK_LAUNCH();
+	batched_vector_subtract_singletime_complex_real << < blocks, threads >> > (Phi, devLinearPartPhi, devPeriodicPhi, N, batchSize);
+	CUSH_CHECK_LAUNCH(); // subtract the linear part of Z and Phi
 	//cudaDeviceSynchronize();
 
 	fftDerivative.exec(devPeriodicZ, Zpp, true, 4.0 * PI_d * PI_d / (N*N)); // TODO: check the scaling here, not sure about dividing by N again here since the inverse FFT already does that in the coefficients
@@ -323,14 +312,16 @@ inline void ZPhiDerivative<N, batchSize>::exec(const std_complex* Z, const std_c
 	//cudaDeviceSynchronize();
 	// add the linear part back
 	vector_scalar_add_complex_real << <blocks, threads >> > (ZPrime, 2.0* PI_d/N, ZPrime, N * batchSize, 0);
+	CUSH_CHECK_LAUNCH();
 
 	//vector_mutiply_scalar << < blocks2N, threads >> > (ZPhiPrime,  2.0 * PI_d / (double)(N), ZPhiPrime, 2*N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
 	//
 	//vector_mutiply_scalar << < blocks, threads >> > (Zpp, 4.0 * PI_d * PI_d / (N * N), Zpp, N, 0); // multiply by 2*pi/N to account for the 2*pi/N term from the dj'/dj where j' = 2*pi/N * j on each derivative
 
-	if (properties.U != 0) 
+	if (backgroundFlow != 0) 
 	{
-		vector_scalar_add_complex_real << <blocks, threads >> > (PhiPrime, -(1 + properties.rho) * PI_d * properties.U / N, PhiPrime, N * batchSize, 0); // add the linear part of Phi
+		vector_scalar_add_complex_real << <blocks, threads >> > (PhiPrime, -(1 + densityRatio) * PI_d * backgroundFlow / N, PhiPrime, N * batchSize, 0);
+		CUSH_CHECK_LAUNCH(); // add the linear part of Phi
 	}
 }
 

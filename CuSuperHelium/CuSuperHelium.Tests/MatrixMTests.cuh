@@ -3,6 +3,7 @@
 #include "BoundaryIntegral/Periodic2D/MatrixKernels.cuh"
 #include "BoundaryIntegral/Periodic2D/PhiRhsKernels.cuh"
 #include "gtest/gtest.h"
+#include "Physics/DimensionlessParameters.h"
 #include <complex>
 #include <array>
 #include <stdexcept>
@@ -347,16 +348,16 @@ TEST(Kernels, BatchedFormationForJacobian)
 	std::vector<std_complex> Zperturbed(6 * N * N);
 
 
-	checkCuda(setDevice());
+	CUSH_CHECK(setDevice());
 
-	checkCuda(cudaMalloc(&devState, sizeof(double) * 3 * N));
-	checkCuda(cudaMalloc(&initialState, sizeof(std_complex) * 2 * N));
-	checkCuda(cudaMalloc(&devZPhiBatched, sizeof(std_complex) * 6 * N * N));
+	CUSH_CHECK(cudaMalloc(&devState, sizeof(double) * 3 * N));
+	CUSH_CHECK(cudaMalloc(&initialState, sizeof(std_complex) * 2 * N));
+	CUSH_CHECK(cudaMalloc(&devZPhiBatched, sizeof(std_complex) * 6 * N * N));
 
 	// copy the initial data to the devState
-	checkCuda(cudaMemcpy(devState, x.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
-	checkCuda(cudaMemcpy((devState + N), y.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
-	checkCuda(cudaMemcpy((devState + 2 * N), phi.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMemcpy(devState, x.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMemcpy((devState + N), y.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMemcpy((devState + 2 * N), phi.data(), sizeof(double) * N, cudaMemcpyHostToDevice));
 
 
 
@@ -385,7 +386,7 @@ TEST(Kernels, BatchedFormationForJacobian)
 
 	//std::vector<std::complex<double>> hostZPhiBatched(6 * N * N);
 	// copy to host for saving
-	checkCuda(cudaMemcpy(Zperturbed.data(), devZPhiBatched, sizeof(std_complex) * 6 * N * N, cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(Zperturbed.data(), devZPhiBatched, sizeof(std_complex) * 6 * N * N, cudaMemcpyDeviceToHost));
 
 
 
@@ -394,9 +395,9 @@ TEST(Kernels, BatchedFormationForJacobian)
 	cudaDeviceSynchronize();
 
 	// free device memory
-	checkCuda(cudaFree(devState));
-	checkCuda(cudaFree(initialState));
-	checkCuda(cudaFree(devZPhiBatched));
+	CUSH_CHECK(cudaFree(devState));
+	CUSH_CHECK(cudaFree(initialState));
+	CUSH_CHECK(cudaFree(devZPhiBatched));
 }
 
 TEST(Kernels, Velocities) {
@@ -490,7 +491,7 @@ TEST(Kernels, ZPhiDerivatives)
 	double h = 0.5;
 	double omega = 10;
 
-	ProblemProperties properties;
+	DimensionlessParameters properties;
 	properties.rho = 0.0;
 	properties.kappa = 0.0;
 	properties.U = 0.0;
@@ -532,7 +533,7 @@ TEST(Kernels, ZPhiDerivatives)
 		PhiPrimeValues[i] = PhiPrime[i].real();
 	}
 
-	ZPhiDerivative<N, 1> zPhiDerivative(properties);
+	ZPhiDerivative<N, 1> zPhiDerivative(properties.rho, properties.U);
 	
 	std_complex* devZ;
 	std_complex* devZp;
@@ -627,7 +628,7 @@ TEST(Kernels, ZPhiDerivatives)
 //	double h = 0.5;
 //	double omega = 10;
 //
-//	ProblemProperties properties;
+//	DimensionlessParameters properties;
 //	properties.rho = 0.0;
 //	properties.kappa = 0.0;
 //	properties.U = 0.0;

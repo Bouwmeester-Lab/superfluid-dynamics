@@ -1,7 +1,7 @@
 #pragma once
 #ifndef BOUNDARY_PROBLEM_H
 
-#include "Physics/ProblemProperties.hpp"
+#include "BoundaryIntegral/Periodic2D/InterfaceParameters.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "Core/constants.cuh"
@@ -43,7 +43,7 @@ public:
 	/// <param name="Zpp"></param>
 	/// <param name="rho"></param>
 	/// <param name="n"></param>
-	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, ProblemProperties& properties) = 0;
+	virtual void CreateMMatrix(double* M, const std_complex* Z, const std_complex* Zp, const std_complex* Zpp, InterfaceParameters& properties) = 0;
 	virtual void CalculateVelocities(const std_complex* Z,
 		const std_complex* Zp,
 		const std_complex* Zpp,
@@ -52,9 +52,9 @@ public:
 		std_complex* V1,
 		std_complex* V2,
 		std_complex* velocities,
-		ProblemProperties& properties,
+		InterfaceParameters& properties,
 		bool lower) = 0;
-	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, ProblemProperties& properties) = 0;
+	virtual void CalculateRhsPhi(const ProblemPointers problemPointers, std_complex* result, InterfaceParameters& properties) = 0;
 	virtual void CalculateEnergy(const DevicePointers& devPointers, cudaStream_t stream)
 	{
 		energyContainer.CalculateEnergy(devPointers, stream); ///< Calculate the energies based on the device pointers containing the state variables

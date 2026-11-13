@@ -32,6 +32,8 @@ SimProperties makeExportTestSimProperties()
 	properties.use_expansions = false;
 	properties.expansion_order = 2;
 	properties.infinite_depth = false;
+	properties.hamaker_constant = 3.5e-24; // helium film; the value the library used before it became an input
+	properties.film_density = 150.0;
 	return properties;
 }
 

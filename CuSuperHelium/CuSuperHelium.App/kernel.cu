@@ -3,7 +3,8 @@
 //#define DEBUG_RUNGE_KUTTA
 //#define DEBUG_DERIVATIVES_3
 //#define DEBUG_VELOCITIES
-#include "Physics/ProblemProperties.hpp"
+#include "Physics/DimensionlessParameters.h"
+#include "Physics/NonDimensionalization.h"
 #include "array"
 #include "vector"
 
@@ -83,7 +84,7 @@ int augmentedSystem() {
 
     
 
-    ProblemProperties properties;
+    DimensionlessParameters properties;
     properties.depth = 0.0942478;
     properties.rho = 1;
     properties.use_expansions = false;
@@ -264,7 +265,7 @@ int drivingHelium()
 {
     const int N = 256;
 
-    ProblemProperties properties;
+    DimensionlessParameters properties;
     properties.depth = 9.4247780e-2;
     properties.rho = 1;
     properties.use_expansions = false;
@@ -338,7 +339,7 @@ int drivingHelium()
 
 	std::vector<std::complex<double>> Z0_host(2*N);
 
-	cudaMemcpy(Z0_host.data(), deviceParticleData.devZ, 2 * N * sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+	cudaMemcpy(Z0_host.data(), deviceParticleData.devZ(), 2 * N * sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
 
     //plt::figure();
 	//plt::annotate("Host Copy", 0, 0);
@@ -361,7 +362,7 @@ int drivingHelium()
 
     //plt::show();
 
-	stepper.initialize(deviceParticleData.devZ, true);
+	stepper.initialize(deviceParticleData.devZ(), true);
 
 	stepper.runEvolution(0, 5);
 
@@ -412,7 +413,7 @@ int drivingHelium()
 }
 
 int modeSum() {
-    ProblemProperties problemProperties;
+    DimensionlessParameters problemProperties;
     problemProperties.rho = 0;
     problemProperties.kappa = 0;
     problemProperties.U = 0;
@@ -425,12 +426,16 @@ int modeSum() {
     double finalTime = 15e-3; // 15 ms
 
     double H0 = 15e-7; // 15 nm
-    double g = 3 * 2.6e-24 / std::pow(H0, 4); //
-    double L0 = 500e-6 / (2.0 * PI_d); // 6mm
+    // Material of this run, chosen here by the caller (the library has no default material).
+    const PhysicalParameters physical{ .L = 500e-6, .depth = H0, .rho = 0.0, .kappa = 0.0,
+                                       .hamakerConstant = 2.6e-24, .filmDensity = 150.0 };
+    const Scales scales = NonDimensionalization::computeScales(physical);
+    const double g = scales.acceleration;
+    const double L0 = scales.length;
+    const double _t0 = scales.time;
 
-    double _t0 = std::sqrt(L0 / g);
-
-    problemProperties.depth = H0 / L0;
+    problemProperties.depth = NonDimensionalization::nonDimensionalize(physical).depth;
+    problemProperties.scales = scales;
     double h = 0.001 * problemProperties.depth;
 
     problemProperties.initial_amplitude = h;
@@ -490,7 +495,7 @@ int modeSum() {
 
 int main()
 {
-    //ProblemProperties problemProperties;
+    //DimensionlessParameters problemProperties;
     //problemProperties.rho = 0;
     //problemProperties.kappa = 3.5e-6; // in kg/s^2
     //problemProperties.depth = 15e-8;

@@ -9,12 +9,20 @@
 #include "Core/constants.cuh"
 #include "Export/ExportTypes.cuh"
 #include "Optomechanics/OptomechanicalVariables.h"
-#include "Physics/ProblemProperties.hpp"
+#include "Optomechanics/OptomechanicalNonDimensionalization.h"
+#include "Physics/DimensionlessParameters.h"
+#include "Physics/NonDimensionalization.h"
+#include "Physics/PhysicalParameters.h"
 
 #include <cstdlib>
 #include <iostream>
 
-void copyProperties(SimProperties& simProperties, ProblemProperties& properties);
+/// SI inputs from the C ABI struct, including the caller's material.
+PhysicalParameters toPhysicalParameters(const SimProperties& simProperties);
+/// Non-dimensionalized solver parameters (with their scales) plus the solver options from the ABI struct.
+DimensionlessParameters toDimensionlessParameters(const SimProperties& simProperties);
+/// Times in seconds to dimensionless times.
+RK4SolverOptions toDimensionless(RK4SolverOptions options, const Scales& scales);
 void copyProperties(COptomechanicalVariables& c_optomechanicalVariables, OptomechanicalVariables& opto_variables);
 void printOptomechanicalVariables(OptomechanicalVariables& variables);
 

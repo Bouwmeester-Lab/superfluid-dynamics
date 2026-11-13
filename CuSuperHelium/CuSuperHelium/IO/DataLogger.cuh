@@ -28,10 +28,10 @@ public:
 	{
 		// return;
 
-		cudaEventRecord(readyToCopy, stream);
+		CUSH_CHECK(cudaEventRecord(readyToCopy, stream));
 		copyScheduled = true;
 
-		cudaStreamWaitEvent(copyStream, readyToCopy, 0);
+		CUSH_CHECK(cudaStreamWaitEvent(copyStream, readyToCopy, 0));
 		if (logTimes) {
 			times.push_back(time);
 		}
@@ -39,9 +39,9 @@ public:
 			data.emplace_back(N); // Add a new vector to hold the data if the size we reached capacity
 		//}
 		
-		cudaMemcpyAsync(data.at(currentIndex++).data(), devPointer, N * sizeof(T), cudaMemcpyDeviceToHost, copyStream);
+		CUSH_CHECK(cudaMemcpyAsync(data.at(currentIndex++).data(), devPointer, N * sizeof(T), cudaMemcpyDeviceToHost, copyStream));
 		
-		cudaEventRecord(copyDone, copyStream);
+		CUSH_CHECK(cudaEventRecord(copyDone, copyStream));
 	}
 
 	bool isCopyScheduled() const
@@ -52,7 +52,7 @@ public:
 	void waitForCopy(cudaStream_t stream = cudaStreamPerThread)
 	{
 		if (copyScheduled) {
-			cudaStreamWaitEvent(stream, copyDone, 0);
+			CUSH_CHECK(cudaStreamWaitEvent(stream, copyDone, 0));
 			copyScheduled = false;
 		}
 	}
@@ -99,17 +99,17 @@ private:
 template <typename T, size_t N>
 DataLogger<T, N>::DataLogger()
 {
-	cudaEventCreate(&readyToCopy);
-	cudaEventCreate(&copyDone);
-	cudaStreamCreate(&copyStream);
+	CUSH_CHECK(cudaEventCreate(&readyToCopy));
+	CUSH_CHECK(cudaEventCreate(&copyDone));
+	CUSH_CHECK(cudaStreamCreate(&copyStream));
 	setSize(10);
 }
 template <typename T, size_t N>
 DataLogger<T, N>::~DataLogger()
 {
-	cudaEventDestroy(readyToCopy);
-	cudaEventDestroy(copyDone);
-	cudaStreamDestroy(copyStream);
+	CUSH_CHECK_NOTHROW(cudaEventDestroy(readyToCopy));
+	CUSH_CHECK_NOTHROW(cudaEventDestroy(copyDone));
+	CUSH_CHECK_NOTHROW(cudaStreamDestroy(copyStream));
 	//for(auto& vec : data) {
 	//	vec.clear();
 	//}

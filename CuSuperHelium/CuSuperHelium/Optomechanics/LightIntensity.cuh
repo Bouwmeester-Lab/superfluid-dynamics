@@ -9,8 +9,9 @@
 
 #include "Optomechanics/OptomechanicalVariables.h"
 #include "Core/constants.cuh"
-#include "Physics/ProblemProperties.hpp"
-#include "Physics/ProblemProperties.hpp"
+#include "Core/CudaChecks.cuh"
+#include "Physics/DimensionlessParameters.h"
+#include "Physics/DimensionlessParameters.h"
 
 
 
@@ -80,12 +81,12 @@ public:
 	}
 
 	void free() {
-		cudaFree(weights);
+		CUSH_CHECK(cudaFree(weights));
 		if(tempStorage != nullptr) {
-			cudaFree(tempStorage);
+			CUSH_CHECK(cudaFree(tempStorage));
 		}
 		if(frequency_shift_result != nullptr) {
-			cudaFree(frequency_shift_result);
+			CUSH_CHECK(cudaFree(frequency_shift_result));
 		}
 	}
 
@@ -96,8 +97,8 @@ public:
 	void allocate(int N)
 	{
 		this->N = N;
-		cudaMalloc(&weights, N * sizeof(double));
-		cudaMalloc(&frequency_shift_result, sizeof(double));
+		CUSH_CHECK(cudaMalloc(&weights, N * sizeof(double)));
+		CUSH_CHECK(cudaMalloc(&frequency_shift_result, sizeof(double)));
 		allocated = true;
 	}
 
@@ -108,6 +109,7 @@ public:
 		const int threadsPerBlock = 256;
 		const int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
 		_compute_weights<T><<<blocksPerGrid, threadsPerBlock>>>(weights, N, Z, shape);
+		CUSH_CHECK_LAUNCH();
 	}
 
 	static __device__ __host__ double compute_x_profile(double x, double x0, double sigma)
@@ -126,7 +128,7 @@ public:
 		return frequency_shift_result;
 	}
 
-	double* compute_frequency_shift(const std_complex* Z, OptomechanicalVariables variables, ProblemProperties properties)
+	double* compute_frequency_shift(const std_complex* Z, OptomechanicalVariables variables, DimensionlessParameters properties)
 	{
 		guardAgainstNotAllocated();
 		thrust::counting_iterator<int> countingIterator(0);
@@ -141,21 +143,21 @@ public:
 
 
 		// allocate temporary storage
-		cudaMalloc(&this->tempStorage, this->tempStorageBytes);
+		CUSH_CHECK(cudaMalloc(&this->tempStorage, this->tempStorageBytes));
 
 		// perform the reduction
 		cub::DeviceReduce::Sum(this->tempStorage, this->tempStorageBytes, transformIterator, this->frequency_shift_result, N);
 
-		cudaFreeAsync(this->tempStorage, stream);
+		CUSH_CHECK(cudaFreeAsync(this->tempStorage, stream));
 
 		this->tempStorage = nullptr; // reset tempStorage pointer after freeing
 
 		return frequency_shift_result;
 	}
 
-	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables, double sigma, ProblemProperties properties)
+	static __device__ __host__ inline double get_current_intensity_drive_strength(OptomechanicalVariables variables, double sigma, DimensionlessParameters properties)
 	{
-		return hbar_d / (properties.base_energy * properties.base_time * properties.rho) * variables.G / cuda::std::pow(sigma, 2.0); // G is in a.u. of frequency per length. So hbar gets converted adimensionalized this way.
+		return hbar_d / (properties.scales.energy * properties.scales.time * properties.rho) * variables.G / cuda::std::pow(sigma, 2.0); // G is in a.u. of frequency per length. So hbar gets converted adimensionalized this way.
 	}
 };
 

@@ -20,9 +20,23 @@ from scipy.sparse.linalg import eigs, LinearOperator
 import tqdm
 from time import process_time, sleep
 from pathlib import Path
+from dataclasses import dataclass
 
 
-# print(paths)
+@dataclass(frozen=True)
+class FilmMaterial:
+    """Material of the film. The C++ library has no default material: every call states it. These Python
+    defaults only save callers from repeating the same values; pass another FilmMaterial, or the fields
+    directly, to simulate a different material."""
+    hamaker_constant: float  # van der Waals coefficient alpha [m^5/s^2]; the film feels 3 alpha / h^4
+    density: float           # [kg/m^3]
+
+
+# Helium-4 film. alpha: https://arxiv.org/html/2504.13001v1#S5 (section 6.3); the value the library hard-coded
+# before the material became an input.
+HELIUM_FILM = FilmMaterial(hamaker_constant=3.5e-24, density=150.0)
+
+
 class CSimulationProperties(Structure):
         _fields_ = [("L", c_double),
                     ("rho", c_double),
@@ -30,8 +44,26 @@ class CSimulationProperties(Structure):
                     ("depth", c_double),
                     ("use_expansions", c_bool),
                     ("expansion_order", c_int),
-                    ("infinite_depth", c_bool)
+                    ("infinite_depth", c_bool),
+                    ("hamaker_constant", c_double),
+                    ("film_density", c_double),
                     ]
+
+        def __init__(self, *args, material: FilmMaterial = HELIUM_FILM, **kwargs):
+            # ctypes would leave unset fields at 0, which the library rejects; fill the material from `material`
+            # unless the caller gives the fields explicitly.
+            names = [name for name, _ in self._fields_]
+            for name, value in (("hamaker_constant", material.hamaker_constant), ("film_density", material.density)):
+                if names.index(name) >= len(args):
+                    kwargs.setdefault(name, value)
+            super().__init__(*args, **kwargs)
+
+
+def _sim_props(L: float, rho: float, kappa: float, depth: float, hamaker_constant: float, film_density: float) -> CSimulationProperties:
+    return CSimulationProperties(L=L, rho=rho, kappa=kappa, depth=depth, use_expansions=False, expansion_order=1,
+                                 infinite_depth=False, hamaker_constant=hamaker_constant, film_density=film_density)
+
+
 class CGaussLegendreProperties(Structure):
     _fields_ = [("t0", c_double),
                 ("t1", c_double),
@@ -106,19 +138,19 @@ class SimulationManager:
         # return ctypes.CDLL(None, handle=handle)
         return ctypes.CDLL(path)
 
-    def calculate_rhs256(self : Self, input_file : str, output_file : str, L : float, rho : float, kappa : float, depth : float) -> int:
+    def calculate_rhs256(self : Self, input_file : str, output_file : str, L : float, rho : float, kappa : float, depth : float, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density) -> int:
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-        self.lib.calculateRHS256FromFile.argtypes = (c_char_p, c_char_p, c_double, c_double, c_double, c_double)
+        self.lib.calculateRHS256FromFile.argtypes = (c_char_p, c_char_p, POINTER(CSimulationProperties))
         self.lib.calculateRHS256FromFile.restype = c_int
 
         input_file_b = input_file.encode()
         output_file_b = output_file.encode()
 
-        return self.lib.calculateRHS256FromFile(input_file_b, output_file_b, L, rho, kappa, depth)
+        return self.lib.calculateRHS256FromFile(input_file_b, output_file_b, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density)))
 
 
-    def calculate_rhs256_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
-        self.lib.calculateRHS256FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
+    def calculate_rhs256_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density):
+        self.lib.calculateRHS256FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), POINTER(CSimulationProperties))
         self.lib.calculateRHS256FromVectors.restype = c_int
 
         n = x.shape[0]
@@ -129,16 +161,16 @@ class SimulationManager:
         vy = np.empty_like(x)
         dphi = np.empty_like(x)
 
-        return self.lib.calculateRHS256FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
+        return self.lib.calculateRHS256FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density))), vx, vy, dphi
 
-    def calculate_rhs_from_vectors(self : Self, x : NDArray,y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+    def calculate_rhs_from_vectors(self : Self, x : NDArray,y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density):
         self.lib.calculateRHSFromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                                          ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                                            ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                                              ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                                                ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
                                                                  ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")),
-                                                                   c_double, c_double, c_double, c_double, c_size_t)
+                                                                   POINTER(CSimulationProperties), c_size_t)
         self.lib.calculateRHSFromVectors.restype = c_int
 
         n = x.shape[0]
@@ -149,7 +181,7 @@ class SimulationManager:
         vy = np.empty_like(x)
         dphi = np.empty_like(x)
 
-        return self.lib.calculateRHSFromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, n), vx, vy, dphi
+        return self.lib.calculateRHSFromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density)), n), vx, vy, dphi
 
     def calculate_velocities_radial_symmetry(self : Self, r : NDArray, z : NDArray, phi: NDArray, sim_props : CSimulationProperties, n_modes : int | None = None):
         """Surface velocities (vr, vz) of an axisymmetric flow. n_modes sets the number of Bessel modes
@@ -189,9 +221,9 @@ class SimulationManager:
             raise ValueError("n_modes must be at least 1")
         return self.lib.calculateVelocitiesRadialSymmetryModes(r, z, phi, vr, vz, byref(sim_props), n, n_modes), vr, vz
     
-    def calculate_rhs2048_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+    def calculate_rhs2048_from_vectors(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density):
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-        self.lib.calculateRHS2048FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double)
+        self.lib.calculateRHS2048FromVectors.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), POINTER(CSimulationProperties))
         self.lib.calculateRHS2048FromVectors.restype = c_int
 
         n = x.shape[0]
@@ -202,15 +234,15 @@ class SimulationManager:
         vy = np.empty_like(x)
         dphi = np.empty_like(x)
 
-        return self.lib.calculateRHS2048FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth), vx, vy, dphi
+        return self.lib.calculateRHS2048FromVectors(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density))), vx, vy, dphi
 
     class CDouble(Structure):
         _fields_ = [("re", c_double), ("im", c_double)]
     
 
-    def calculate_vorticities256_from_vectors(self : Self, Z : NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float):
+    def calculate_vorticities256_from_vectors(self : Self, Z : NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density):
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-        self.lib.calculateVorticities256FromVectors.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), c_double, c_double, c_double, c_double)
+        self.lib.calculateVorticities256FromVectors.argtypes = (ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED", "WRITEABLE")), POINTER(CSimulationProperties))
         self.lib.calculateVorticities256FromVectors.restype = c_int
 
         n = Z.shape[0]
@@ -220,7 +252,7 @@ class SimulationManager:
         vorticity = np.empty(n, dtype=np.float64)
         Zp = np.empty(n, dtype=np.complex128)
         Zpp = np.empty(n, dtype=np.complex128)
-        return self.lib.calculateVorticities256FromVectors(np.ascontiguousarray(Z, dtype=np.complex128), np.ascontiguousarray(phi, dtype=np.complex128), vorticity, Zp, Zpp, L, rho, kappa, depth), vorticity, Zp, Zpp
+        return self.lib.calculateVorticities256FromVectors(np.ascontiguousarray(Z, dtype=np.complex128), np.ascontiguousarray(phi, dtype=np.complex128), vorticity, Zp, Zpp, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density))), vorticity, Zp, Zpp
 
 
     def calculate_derivativeFFT256(self : Self, input : NDArray) -> tuple[int, NDArray]:
@@ -235,9 +267,9 @@ class SimulationManager:
 
         return self.lib.calculateDerivativeFFT256(np.ascontiguousarray(input), output), output
 
-    def calculate_rhs256_from_vectors_batched(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, batch_size: int):
+    def calculate_rhs256_from_vectors_batched(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, batch_size: int, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density):
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-        self.lib.calculateRHS256FromVectorsBatched.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_int)
+        self.lib.calculateRHS256FromVectorsBatched.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), POINTER(CSimulationProperties), c_int)
         self.lib.calculateRHS256FromVectorsBatched.restype = c_int
 
         n = x.shape[0] // batch_size
@@ -248,11 +280,11 @@ class SimulationManager:
         vy = np.empty_like(x)
         dphi = np.empty_like(x)
 
-        return self.lib.calculateRHS256FromVectorsBatched(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, L, rho, kappa, depth, batch_size), vx, vy, dphi
+        return self.lib.calculateRHS256FromVectorsBatched(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), vx, vy, dphi, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density)), batch_size), vx, vy, dphi
 
-    def calculate_perturbed_states256(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon: float = 1e-6):
+    def calculate_perturbed_states256(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon: float = 1e-6, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density):
         # self.lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-        self.lib.calculatePerturbedStates256.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double)
+        self.lib.calculatePerturbedStates256.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), ndpointer(np.complex128, flags=("C_CONTIGUOUS","ALIGNED","WRITEABLE")), POINTER(CSimulationProperties), c_double)
         self.lib.calculatePerturbedStates256.restype = c_int
 
         n = x.shape[0]
@@ -264,18 +296,18 @@ class SimulationManager:
         # print(hex(Zperturbed.ctypes.data))
         # print(Zperturbed.shape)
 
-        return self.lib.calculatePerturbedStates256(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), Zperturbed, L, rho, kappa, depth, epsilon), Zperturbed
+        return self.lib.calculatePerturbedStates256(np.ascontiguousarray(x), np.ascontiguousarray(y), np.ascontiguousarray(phi), Zperturbed, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density)), epsilon), Zperturbed
 
-    def calculate_jacobian(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon : float = 1e-6):
+    def calculate_jacobian(self : Self, x : NDArray, y: NDArray, phi: NDArray, L : float, rho : float, kappa : float, depth : float, epsilon : float = 1e-6, *, hamaker_constant : float = HELIUM_FILM.hamaker_constant, film_density : float = HELIUM_FILM.density):
         # lib = load_dll(os.path.dirname(os.getcwd()) + "\\CuSuperHelium\\x64\\Release\\CuSuperHelium.dll")
-        self.lib.calculateJacobian.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("F_CONTIGUOUS","ALIGNED","WRITEABLE")), c_double, c_double, c_double, c_double, c_double, c_size_t)
+        self.lib.calculateJacobian.argtypes = (ndpointer(c_double, flags=("C_CONTIGUOUS","ALIGNED")), ndpointer(c_double, flags=("F_CONTIGUOUS","ALIGNED","WRITEABLE")), POINTER(CSimulationProperties), c_double, c_size_t)
         self.lib.calculateJacobian.restype = c_int
 
         n = x.shape[0]
         if y.shape[0] != n or phi.shape[0] != n:
             raise ValueError("Input arrays must have the same length")
         J = np.ones((3*n, 3*n), dtype=np.float64, order='F')*100
-        return self.lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, L, rho, kappa, depth, epsilon, n), J
+        return self.lib.calculateJacobian(np.ascontiguousarray(np.concatenate((x, y, phi))), J, byref(_sim_props(L, rho, kappa, depth, hamaker_constant, film_density)), epsilon, n), J
     
     def integrate(self : Self, y0 : NDArray, sim_props : CSimulationProperties, gl_props : CGaussLegendreProperties):
         # TODO(struct-pointers): structs passed by value, see note above SimulationManager.

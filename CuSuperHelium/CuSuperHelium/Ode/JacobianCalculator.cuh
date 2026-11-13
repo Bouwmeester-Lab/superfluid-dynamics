@@ -184,28 +184,25 @@ public:
 
 	JacobianCalculator(std::unique_ptr<AutonomousProblem<std_complex, 6*N*N>> autonomousPtr) : matrix_threads(256, 1, 1), matrix_blocks((2 * N + 255) / 256, 3 * N, 1), autonomousProblem(std::move(autonomousPtr))
 	{
-		checkCuda(cudaMallocAsync(&initialState, sizeof(std_complex) * 2 * N, stream));
-		checkCuda(cudaMallocAsync(&devZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
-		checkCuda(cudaMallocAsync(&devNegZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
+		CUSH_CHECK(cudaMallocAsync(&initialState, sizeof(std_complex) * 2 * N, stream));
+		CUSH_CHECK(cudaMallocAsync(&devZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
+		CUSH_CHECK(cudaMallocAsync(&devNegZPhiBatched, sizeof(std_complex) * 6 * N * N, stream));
 
-		checkCuda(cudaMallocAsync(&devPositiveRhsCalculated, sizeof(std_complex) * 6 * N * N, stream));
-		checkCuda(cudaMallocAsync(&devNegativeRhsCalculated, sizeof(std_complex) * 6 * N * N, stream));
+		CUSH_CHECK(cudaMallocAsync(&devPositiveRhsCalculated, sizeof(std_complex) * 6 * N * N, stream));
+		CUSH_CHECK(cudaMallocAsync(&devNegativeRhsCalculated, sizeof(std_complex) * 6 * N * N, stream));
 	}
 
 	~JacobianCalculator()
 	{
-		checkCuda(cudaFree(initialState));
-		checkCuda(cudaFree(devZPhiBatched));
-		checkCuda(cudaFree(devNegZPhiBatched));
-		checkCuda(cudaFree(devPositiveRhsCalculated));
-		checkCuda(cudaFree(devNegativeRhsCalculated));
+		CUSH_CHECK_NOTHROW(cudaFree(initialState));
+		CUSH_CHECK_NOTHROW(cudaFree(devZPhiBatched));
+		CUSH_CHECK_NOTHROW(cudaFree(devNegZPhiBatched));
+		CUSH_CHECK_NOTHROW(cudaFree(devPositiveRhsCalculated));
+		CUSH_CHECK_NOTHROW(cudaFree(devNegativeRhsCalculated));
 
-		checkCuda(cudaDeviceSynchronize()); // ensure all async frees are done before checking for errors
+		CUSH_CHECK_NOTHROW(cudaDeviceSynchronize()); // ensure all async frees are done before checking for errors
 
-		auto error = cudaGetLastError();
-		if (error != cudaSuccess) {
-			std::cerr << "CUDA after trying to free memory in JacobianCalculator error: " << cudaGetErrorString(error) << std::endl;
-		}
+		CUSH_CHECK_NOTHROW(cudaGetLastError());
 	}
 };
 
@@ -232,39 +229,17 @@ void JacobianCalculator<N>::calculateJacobian(const double* devState, double* de
 	//// create the initial state in complex numbers using the custom kernel
 	int blockSize = 256;
 	int numBlocks = (N + blockSize - 1) / blockSize;
-	auto error = cudaGetLastError();
-
-	if(error != cudaSuccess)
-	{
-		printf("CUDA error before create Initial State kernel launch: %s\n", cudaGetErrorString(error));
-	}
+	CUSH_CHECK(cudaGetLastError());
 	createInitialState << <numBlocks, blockSize, 0, this->stream >> > (devState, initialState, N);
-	error = cudaGetLastError();
-	if (error != cudaSuccess)
-	{
-		printf("CUDA error after create Initial State kernel launch: %s\n", cudaGetErrorString(error));
-		/*std::cerr << "MAtrix Blocks: " << this->matrix_blocks.x << ", " << this->matrix_blocks.y << ", " << this->matrix_blocks.z << std::endl;
-		std::cerr << "Matrix Threads: " << this->matrix_threads.x << ", " << this->matrix_threads.y << ", " << this->matrix_threads.z << std::endl;*/
-		std::cerr << "arguments: " << devState << ", " << initialState << std::endl;
-	}
+	CUSH_CHECK_LAUNCH();
 
 	createInitialBatchedZ << <this->matrix_blocks, this->matrix_threads, 0, this->stream >> > (initialState, devZPhiBatched, this->eps, N);
-	error = cudaGetLastError();
-	if (error != cudaSuccess)
-	{
-		printf("CUDA error after first createInitialBatchedZ kernel launch: %s\n", cudaGetErrorString(error));
-		std::cerr << "MAtrix Blocks: " << this->matrix_blocks.x << ", " << this->matrix_blocks.y << ", " << this->matrix_blocks.z << std::endl;
-		std::cerr << "Matrix Threads: " << this->matrix_threads.x << ", " << this->matrix_threads.y << ", " << this->matrix_threads.z << std::endl;
-		std::cerr << "arguments: " << initialState << ", " << devZPhiBatched << ", " << this->eps << ", " << N << std::endl;
-	}
+	CUSH_CHECK_LAUNCH();
 
-	createInitialBatchedZ << <this->matrix_blocks, this->matrix_threads, 0, this->stream >> > (initialState, devNegZPhiBatched, -this->eps, N); // negative perturbation
+	createInitialBatchedZ << <this->matrix_blocks, this->matrix_threads, 0, this->stream >> > (initialState, devNegZPhiBatched, -this->eps, N);
+	CUSH_CHECK_LAUNCH(); // negative perturbation
 	// check for errors from CUDA kernel launches
-	error = cudaGetLastError();
-	if (error != cudaSuccess)
-	{
-		printf("CUDA error after second createInitialBatchedZ kernel launch: %s\n", cudaGetErrorString(error));
-	}
+	CUSH_CHECK(cudaGetLastError());
 
 
 	autonomousProblem->setStream(this->stream);
@@ -276,9 +251,5 @@ void JacobianCalculator<N>::calculateJacobian(const double* devState, double* de
 	//// J_ij = (f(x + eps) - f(x - eps)) / (2 * eps)
 	createJacobianMatrixFromPerturbedRhs << <(6 * N * N + 255) / 256, 256, 0, this->stream >> > (devPositiveRhsCalculated, devNegativeRhsCalculated, devJacobian, N, this->eps);
 
-	error = cudaGetLastError();
-	if (error != cudaSuccess)
-	{
-		printf("CUDA error after createJacobianMatrixFromPerturbedRhs kernel launch: %s\n", cudaGetErrorString(error));
-	}
+	CUSH_CHECK_LAUNCH();
 }

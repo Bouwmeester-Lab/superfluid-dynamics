@@ -48,7 +48,7 @@ tau = 55e-6
 
 L = 1500e-6
 depth = 10e-9
-alpha_hamaker = 3.5e-24 # 6.3 https://arxiv.org/html/2504.13001v1#S5
+alpha_hamaker = rhs.HELIUM_FILM.hamaker_constant  # the material passed to the DLL (sim_props defaults to it)
 
 drive_type = rhs.DriveType.Sine
 

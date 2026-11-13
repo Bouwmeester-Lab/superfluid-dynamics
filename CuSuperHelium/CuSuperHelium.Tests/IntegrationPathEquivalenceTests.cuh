@@ -27,13 +27,13 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 	constexpr double t1 = 1'000* dt;
 	constexpr double tolerance = 1e-10;
 
-	ProblemProperties timedProperties;
-	timedProperties.base_energy = 1.0;
-	timedProperties.base_time = 1.0;
+	DimensionlessParameters timedProperties;
+	timedProperties.scales.energy = 1.0;
+	timedProperties.scales.time = 1.0;
 	timedProperties.rho = 1.0;
 	timedProperties.depth = 1.0;
 
-	ProblemProperties augmentedProperties = timedProperties;
+	DimensionlessParameters augmentedProperties = timedProperties;
 
 	OptomechanicalVariables timedVariables;
 	timedVariables.detuning = 0.0;
@@ -64,10 +64,10 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 
 	std_complex* devTimedState = nullptr;
 	std_complex* devAugmentedState = nullptr;
-	checkCuda(cudaMalloc(&devTimedState, timedInitialState.size() * sizeof(std_complex)));
-	checkCuda(cudaMalloc(&devAugmentedState, augmentedInitialState.size() * sizeof(std_complex)));
-	checkCuda(cudaMemcpy(devTimedState, timedInitialState.data(), timedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
-	checkCuda(cudaMemcpy(devAugmentedState, augmentedInitialState.data(), augmentedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMalloc(&devTimedState, timedInitialState.size() * sizeof(std_complex)));
+	CUSH_CHECK(cudaMalloc(&devAugmentedState, augmentedInitialState.size() * sizeof(std_complex)));
+	CUSH_CHECK(cudaMemcpy(devTimedState, timedInitialState.data(), timedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMemcpy(devAugmentedState, augmentedInitialState.data(), augmentedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
 
 	std::unique_ptr<LightIntensity> lightIntensityTimed = std::make_unique<LightIntensity>();
 
@@ -105,12 +105,12 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 
 	EXPECT_EQ(resTimed, OdeSolverResult::ReachedEndTime);
 	EXPECT_EQ(resAugmented, OdeSolverResult::ReachedEndTime);
-	checkCuda(cudaDeviceSynchronize());
+	CUSH_CHECK(cudaDeviceSynchronize());
 
 	std::vector<std_complex> timedFinalState(2 * N);
 	std::vector<std_complex> augmentedFinalState(3 * N);
-	checkCuda(cudaMemcpy(timedFinalState.data(), devTimedState, timedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
-	checkCuda(cudaMemcpy(augmentedFinalState.data(), devAugmentedState, augmentedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(timedFinalState.data(), devTimedState, timedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(augmentedFinalState.data(), devAugmentedState, augmentedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
 
 	for (int i = 0; i < N; ++i)
 	{
@@ -138,8 +138,8 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 	plt::plot(x_augmented, y_augmented, {{"label", "Augmented"}});
 	plt::legend();
 
-	checkCuda(cudaFree(devTimedState));
-	checkCuda(cudaFree(devAugmentedState));
+	CUSH_CHECK(cudaFree(devTimedState));
+	CUSH_CHECK(cudaFree(devAugmentedState));
 }
 
 TEST(IntegrationPaths, RampedIntensityAugmentedTest) 
@@ -150,9 +150,9 @@ TEST(IntegrationPaths, RampedIntensityAugmentedTest)
 	constexpr double t1 = 1'000 * dt;
 	constexpr double tolerance = 1e-10;
 
-	ProblemProperties properties;
-	properties.base_energy = 1.0;
-	properties.base_time = 1.0;
+	DimensionlessParameters properties;
+	properties.scales.energy = 1.0;
+	properties.scales.time = 1.0;
 	properties.rho = 1.0;
 	properties.depth = 1.0;
 
@@ -180,8 +180,8 @@ TEST(IntegrationPaths, RampedIntensityAugmentedTest)
 	}
 
 	std_complex* devInitialState = nullptr;
-	checkCuda(cudaMalloc(&devInitialState, augmentedInitialState.size() * sizeof(std_complex)));
-	checkCuda(cudaMemcpy(devInitialState, augmentedInitialState.data(), augmentedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
+	CUSH_CHECK(cudaMalloc(&devInitialState, augmentedInitialState.size() * sizeof(std_complex)));
+	CUSH_CHECK(cudaMemcpy(devInitialState, augmentedInitialState.data(), augmentedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
 
 	std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
 
@@ -202,7 +202,7 @@ TEST(IntegrationPaths, RampedIntensityAugmentedTest)
 
 	EXPECT_EQ(augmentedStepper.runEvolution(t0, t1), OdeSolverResult::ReachedEndTime);
 
-	checkCuda(cudaDeviceSynchronize());
+	CUSH_CHECK(cudaDeviceSynchronize());
 
 	std::vector<std_complex> augmentedFinalState(3 * N + 1);
 
@@ -234,7 +234,7 @@ TEST(IntegrationPaths, RampedIntensityAugmentedTest)
 	plt::plot(ramped_intensity, { {"label", "Ramped Intensity"} });
 	plt::legend();
 
-	//checkCuda(cudaMemcpy(augmentedFinalState.data(), logger->, augmentedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
+	//CUSH_CHECK(cudaMemcpy(augmentedFinalState.data(), logger->, augmentedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
 	// delete the hostStates array
 	std::free(hostStates);
 

@@ -14,6 +14,7 @@
 #include "ExportFunctionTests.cuh"
 #include "RadialBoundaryNodesTests.cuh"
 #include "DeviceBufferTests.cuh"
+#include "CudaChecksTests.cuh"
 
 int main(int argc, char** argv) {
     // Optional: CUDA setup check

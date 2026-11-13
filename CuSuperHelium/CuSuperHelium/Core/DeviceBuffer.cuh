@@ -11,7 +11,7 @@
 /// <summary>
 /// Owns a device array of `count` elements of T, allocated with cudaMalloc and freed when the buffer goes out of
 /// scope, including when an exception unwinds the stack. Move-only. Allocation failures throw std::runtime_error
-/// (CHECK_CUDA). The memory is not initialized.
+/// (CUSH_CHECK). The memory is not initialized.
 /// </summary>
 template <typename T>
 class DeviceBuffer
@@ -23,7 +23,7 @@ public:
 	{
 		if (count_ > 0)
 		{
-			CHECK_CUDA(cudaMalloc(&ptr_, bytes()));
+			CUSH_CHECK(cudaMalloc(&ptr_, bytes()));
 		}
 	}
 

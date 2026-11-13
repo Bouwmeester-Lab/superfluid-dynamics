@@ -1,16 +1,16 @@
-#include "ExportInternal.cuh"
+#include "Export/ExportInternal.cuh"
 
-#include "../AugmentedBoundaryIntegrator.cuh"
-#include "../AugmentedIntensityBoundaryIntegrator.cuh"
-#include "../AutonomousRungeKuttaStepper.cuh"
-#include "../BaseBoundaryIntegrator.cuh"
-#include "../DelayedIntensityIntegrator.cuh"
-#include "../HeliumDrivenAutonomousProblem.cuh"
-#include "../HeliumRampedIntensityAutonomousProblem.cuh"
-#include "../LightIntensity.cuh"
-#include "../TrajectoryLogger.cuh"
-#include "../HeliumSineAutonomousProblem.cuh"
-#include "../GeneralAugmentedBoundaryIntegrator.cuh"
+#include "Optomechanics/AugmentedBoundaryIntegrator.cuh"
+#include "Optomechanics/AugmentedIntensityBoundaryIntegrator.cuh"
+#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
+#include "Optomechanics/DelayedIntensityIntegrator.cuh"
+#include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
+#include "Optomechanics/HeliumRampedIntensityAutonomousProblem.cuh"
+#include "Optomechanics/LightIntensity.cuh"
+#include "IO/TrajectoryLogger.cuh"
+#include "Optomechanics/HeliumSineAutonomousProblem.cuh"
+#include "Optomechanics/GeneralAugmentedBoundaryIntegrator.cuh"
 
 #include <memory>
 #include <vector>

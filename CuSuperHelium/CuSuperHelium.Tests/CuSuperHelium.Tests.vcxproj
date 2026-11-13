@@ -46,7 +46,7 @@
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;D:\repos\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\vcpkg\packages\gtest_x64-windows\include;C:\Users\emore\source\repos\Bouwmeester-Lab\superfluid-dynamics\CuSuperHelium\CuSuperHelium;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/</IncludePath>
+    <IncludePath>$(CudaToolkitDir)include;$(CudaToolkitDir)include\cccl;$(ProjectDir)..\CuSuperHelium;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath);C:/Users/emore/anaconda3/Lib/site-packages/numpy/core/include/;C:/Users/emore/anaconda3/include;C:\vcpkg\packages\gtest_x64-windows\include;C:\ProgramData\anaconda3/include;C:\vcpkg\packages\matplotlib-cpp_x64-windows\include;C:\ProgramData\anaconda3/Lib/site-packages/numpy/core/include/</IncludePath>
     <LibraryPath>C:\vcpkg\packages\gtest_x64-windows\lib;$(LibraryPath);$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(CudaToolkitLibDir);C:\Users\emore\anaconda3\libs;C:\ProgramData\anaconda3\libs</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>

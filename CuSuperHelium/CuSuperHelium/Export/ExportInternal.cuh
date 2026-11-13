@@ -2,14 +2,14 @@
 #ifndef EXPORT_INTERNAL_H
 #define EXPORT_INTERNAL_H
 
-#include "ExportApi.cuh"
+#include "Export/ExportApi.cuh"
 
-#include "../Common/CudaChecks.cuh"
-#include "../Common/DeviceBuffer.cuh"
-#include "../constants.cuh"
-#include "../ExportTypes.cuh"
-#include "../OptomechanicalVariables.h"
-#include "../ProblemProperties.hpp"
+#include "Core/CudaChecks.cuh"
+#include "Core/DeviceBuffer.cuh"
+#include "Core/constants.cuh"
+#include "Export/ExportTypes.cuh"
+#include "Optomechanics/OptomechanicalVariables.h"
+#include "Physics/ProblemProperties.hpp"
 
 #include <cstdlib>
 #include <iostream>

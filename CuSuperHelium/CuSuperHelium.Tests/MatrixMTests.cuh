@@ -1,17 +1,17 @@
 #pragma once
 
-#include "BoundaryKernels/MatrixKernels.cuh"
-#include "BoundaryKernels/PhiRhsKernels.cuh"
+#include "BoundaryIntegral/Periodic2D/MatrixKernels.cuh"
+#include "BoundaryIntegral/Periodic2D/PhiRhsKernels.cuh"
 #include "gtest/gtest.h"
 #include <complex>
 #include <array>
 #include <stdexcept>
-#include "Derivatives.cuh"
-#include "WaterVelocities.cuh"
+#include "Math/Derivatives.cuh"
+#include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
 #include "matplotlibcpp.h"
-#include "Common/CudaChecks.cuh"
+#include "Core/CudaChecks.cuh"
 //#include "SimulationRunner.cuh"
-#include "JacobianCalculator.cuh"
+#include "Ode/JacobianCalculator.cuh"
 
 namespace plt = matplotlibcpp;
 

@@ -1,11 +1,11 @@
-#include "ExportInternal.cuh"
+#include "Export/ExportInternal.cuh"
 
-#include "../BaseBoundaryIntegrator.cuh"
-#include "../Derivatives.cuh"
-#include "../HeliumBoundaryProblem.cuh"
-#include "../DeviceParticleLoading.cuh"
-#include "../StateFile.h"
-#include "../DerivativeCalculator.cuh"
+#include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
+#include "Math/Derivatives.cuh"
+#include "Physics/HeliumBoundaryProblem.cuh"
+#include "Export/DeviceParticleLoading.cuh"
+#include "IO/StateFile.h"
+#include "Math/DerivativeCalculator.cuh"
 
 #include <algorithm>
 #include <complex>

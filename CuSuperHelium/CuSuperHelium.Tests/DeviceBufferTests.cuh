@@ -1,7 +1,7 @@
 #pragma once
 
 #include "gtest/gtest.h"
-#include "Common/DeviceBuffer.cuh"
+#include "Core/DeviceBuffer.cuh"
 
 #include <utility>
 #include <vector>

@@ -1,8 +1,8 @@
 #pragma once
 #include <gtest/gtest.h>
-#include "constants.cuh"
-#include "Common/VectorKernels.cuh"
-#include "Math/ComplexMath.cuh"
+#include "Core/constants.cuh"
+#include "Core/VectorKernels.cuh"
+#include "Core/ComplexMath.cuh"
 #include "array"
 #include "complex"
 #include <algorithm>

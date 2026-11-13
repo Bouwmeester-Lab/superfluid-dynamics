@@ -1,9 +1,9 @@
-#include "ExportInternal.cuh"
+#include "Export/ExportInternal.cuh"
 
-#include "../AutonomousProblem.h"
-#include "../BaseBoundaryIntegrator.cuh"
-#include "../HeliumBoundaryProblem.cuh"
-#include "../JacobianCalculator.cuh"
+#include "Ode/AutonomousProblem.h"
+#include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
+#include "Physics/HeliumBoundaryProblem.cuh"
+#include "Ode/JacobianCalculator.cuh"
 
 #include <chrono>
 #include <memory>

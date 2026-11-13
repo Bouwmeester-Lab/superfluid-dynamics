@@ -2,10 +2,9 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-#include "Ode/AutonomousProblem.h"
+#include "Ode/OdeProblem.h"
 #include "Core/cuDoubleComplexOperators.cuh"
 #include "cublas_v2.h"
-#include "IO/DataLogger.cuh"
 #include <limits>
 #include "Core/CudaChecks.cuh"
 #include "Core/ComplexMath.cuh"
@@ -16,8 +15,6 @@
 #include "LinearAlgebra/LinearAlgebra.cuh"
 #include "Ode/RK45_Kernels.cuh"
 #include <stdexcept>
-#include <initializer_list>
-#include "IO/ValueLogger.h"
 #include "Ode/OdeSolver.h"
 
 struct RK45_Options {
@@ -100,15 +97,15 @@ enum class RK45StepResult
 
 
 template <typename T, size_t N>
-class RK45Base : public OdeSolver
+class RK45Base : public OdeSolver<T>
 {
 public:
-	RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers,  double tstep = 1e-2, double h_max = 1e10, double _h_min = 1e-16);
+	RK45Base(OdeProblem<T>& problem, double tstep = 1e-2, double h_max = 1e10, double _h_min = 1e-16);
 	~RK45Base();
 
 	[[nodiscard]] RK45StepResult runStep(int i); // https://stackoverflow.com/questions/76489630/explanation-of-nodiscard-in-c17
 	OdeSolverResult runEvolution(double endTime);
-	virtual OdeSolverResult runEvolution(double startTime, double endTime);
+	OdeSolverResult runEvolution(double startTime, double endTime) override;
 
 	void setMinTimeStep(double h_min) 
 	{ 
@@ -130,11 +127,11 @@ public:
 		this->stream = stream;
 		this->problem.setStream(stream);
 	}
-	void initialize(T* initialState, bool onDevice = false);
-	T* getY() {
+	void initialize(T* initialState, bool onDevice = false) override;
+	const T* state() const override {
 		return this->workspace.yAcceptedStep;
 	}
-	double getCurrentTime() const {
+	double time() const override {
 		return currentTime;
 	}
 	void setMaxRejectedSteps(size_t maxRejected) {
@@ -164,9 +161,7 @@ protected:
 	
 
 	cudaStream_t stream = cudaStreamPerThread; // default stream
-	AutonomousProblem<T, N>& problem;
-	DataLogger<T, N>& logger;
-	std::vector<std::shared_ptr<ValueLogger>> valueLoggers;
+	OdeProblem<T>& problem;
 
 	double atol = 1e-6;
 	double rtol = 1e-3;
@@ -187,8 +182,12 @@ protected:
 	size_t maxRejectedSteps = 500;
 };
 template <typename T, size_t N>
-RK45Base<T, N>::RK45Base(AutonomousProblem<T, N>& autonomousProblem, DataLogger<T, N>& logger, std::initializer_list<std::shared_ptr<ValueLogger>> _valueLoggers, double tstep, double _h_max, double _h_min) : problem(autonomousProblem), logger(logger), valueLoggers(_valueLoggers), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
+RK45Base<T, N>::RK45Base(OdeProblem<T>& problem, double tstep, double _h_max, double _h_min) : problem(problem), currentTimeStep(tstep), h_max(_h_max), h_min(_h_min)
 {
+	if (problem.size() != N)
+	{
+		throw std::invalid_argument("RK45: the problem size does not match the solver size");
+	}
 }
 template <typename T, size_t N>
 RK45Base<T, N>::~RK45Base()
@@ -231,15 +230,6 @@ OdeSolverResult RK45Base<T, N>::runEvolution(double endTime)
 			}
 		}
 		// the step has been accepted
-		// check if any of the value loggers require logging:
-		#pragma unroll
-		for (auto& logger : valueLoggers) 
-		{
-			if (logger->shouldLog(i)) 
-			{
-				logger->logValue();
-			}
-		}
 	}
 	return OdeSolverResult::UnknownError;
 }
@@ -248,6 +238,8 @@ template<typename T, size_t N>
 OdeSolverResult RK45Base<T, N>::runEvolution(double startTime, double endTime)
 {
 	currentTime = startTime; // set the current time to the start time
+	problem.start(startTime);
+	this->notifyStart(startTime, workspace.yAcceptedStep, N, this->stream);
 	return runEvolution(endTime);
 }
 
@@ -257,23 +249,23 @@ RK45StepResult RK45Base<T, N>::runStep(int i)
 	const double h = currentTimeStep;
 	// calculate k1
 	if (tempValues.acceptedStep) { // only recalculate k1 if the previous step was accepted, otherwise reuse the previous k1
-		problem.run(workspace.yAcceptedStep, workspace.k1);
+		problem.rhs(workspace.yAcceptedStep, currentTime, workspace.k1, Evaluation::AcceptedPoint);
 	}
 
 	calculateTempY(1, h); // calculate y + a21*k1
-	problem.run(workspace.yTemp, workspace.k2);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c2 * h, workspace.k2, Evaluation::Stage);
 
 	calculateTempY(2, h); // calculate y + a31*k1 + a32*k2
-	problem.run(workspace.yTemp, workspace.k3);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c3 * h, workspace.k3, Evaluation::Stage);
 
 	calculateTempY(3, h); // calculate y + a41*k1 + a42*k2 + a43*k3
-	problem.run(workspace.yTemp, workspace.k4);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c4 * h, workspace.k4, Evaluation::Stage);
 
 	calculateTempY(4, h); // calculate y + a51*k1 + a52*k2 + a53*k3 + a54*k4
-	problem.run(workspace.yTemp, workspace.k5);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c5 * h, workspace.k5, Evaluation::Stage);
 
 	calculateTempY(5, h); // calculate y + a61*k1 + a62*k2 + a63*k3 + a64*k4 + a65*k5
-	problem.run(workspace.yTemp, workspace.k6);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c6 * h, workspace.k6, Evaluation::Stage);
 
 	
 	calculateScaledError(atol, rtol, h);
@@ -288,8 +280,7 @@ RK45StepResult RK45Base<T, N>::runStep(int i)
 		currentTimeStep = tempValues.timestepNew;
 		// if the step is accepted then the currentTime can be updated
 		currentTime += h;
-		if (logger.shouldCopy(i))
-			logger.setReadyToCopy(workspace.yAcceptedStep, this->stream, currentTime, true);
+		this->notifyAcceptedStep(currentTime, workspace.yAcceptedStep, N, this->stream);
 		return RK45StepResult::StepAccepted;
 	}
 	else {

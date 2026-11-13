@@ -5,13 +5,12 @@
 #include <vector>
 
 #include "Optomechanics/AugmentedBoundaryIntegrator.cuh"
-#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "Ode/RungeKutta4.cuh"
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
 #include "Optomechanics/DelayedIntensityIntegrator.cuh"
 #include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
 #include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
 #include "Optomechanics/LightIntensity.cuh"
-#include "Ode/RK4_Time_Dependent.cuh"
 #include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
 #include "IO/TrajectoryLogger.cuh"
 #include "Core/CudaChecks.cuh"
@@ -73,7 +72,7 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 
 	HeliumWithOptomechanicalDrivingProblem<N> timedBoundaryProblem(timedProperties, timedVariables, std::move(lightIntensityTimed));
 	TimedBoundaryIntegrator<N, 1> timedIntegrator(timedProperties, timedBoundaryProblem);
-	RungeKuttaStepper<std_complex, 2 * N> timedStepper(timedIntegrator, dt);
+	RungeKutta4<std_complex> timedStepper(timedIntegrator, dt);
 	timedStepper.initialize(devTimedState, true);
 
 	std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
@@ -83,9 +82,10 @@ TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
 	AugmentedBoundaryIntegrator<N, 1> augmentedIntegrator(
 		std::move(augmentedBoundaryIntegralCalculator),
 		std::make_unique<DelayedIntensityIntegrator<N, 1>>(augmentedVariables, augmentedProperties, lightIntensity));
-	auto logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N>>();
+	auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
 
-	AutonomousRungeKuttaStepper<std_complex, 3 * N> augmentedStepper(augmentedIntegrator, dt, logger);
+	RungeKutta4<std_complex> augmentedStepper(augmentedIntegrator, dt);
+	augmentedStepper.addObserver(logger);
 	augmentedStepper.initialize(devAugmentedState, true);
 
 	auto resTimed = timedStepper.runEvolution(t0, t1);
@@ -194,9 +194,10 @@ TEST(IntegrationPaths, RampedIntensityAugmentedTest)
 		std::move(boundaryIntegralCalculator),
 		std::make_unique<DelayedRampedIntensityIntegrator<N, 1>>(optomechanicalVariables, properties, lightIntensity));
 
-	auto logger = std::make_shared<TrajectoryLogger<std_complex, 3 * N+1>>();
+	auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
 
-	AutonomousRungeKuttaStepper<std_complex, 3 * N+1> augmentedStepper(augmentedIntegrator, dt, logger);
+	RungeKutta4<std_complex> augmentedStepper(augmentedIntegrator, dt);
+	augmentedStepper.addObserver(logger);
 
 	augmentedStepper.initialize(devInitialState, true);
 

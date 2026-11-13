@@ -47,6 +47,13 @@ static __global__ void add_k_vectors(std_complex* k1, std_complex* k2, std_compl
     }
 }
 
+static __global__ void add_k_vectors(double* k1, double* k2, double* k3, double* k4, double* result, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        result[i] = k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i];
+    }
+}
+
 static __global__ void linspace(double start, double end, double* out, int steps)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;

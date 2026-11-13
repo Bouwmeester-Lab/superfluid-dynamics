@@ -13,7 +13,13 @@
 namespace cg = cooperative_groups;
 
 struct RK45Coefficients {
-	// Coefficients for the RK45 method
+	// Coefficients for the RK45 (Fehlberg) method
+	// c_i: stage times as fractions of the step (c1 = 0)
+	static constexpr double c2 = 1.0 / 4.0;
+	static constexpr double c3 = 3.0 / 8.0;
+	static constexpr double c4 = 12.0 / 13.0;
+	static constexpr double c5 = 1.0;
+	static constexpr double c6 = 1.0 / 2.0;
 	// a_ij coefficients
 	static constexpr double a21 = 1.0 / 4.0;
 	static constexpr double a31 = 3.0 / 32.0;

@@ -5,12 +5,11 @@
 #include "Ode/OdeSolver.h"
 #include <math.h>
 #include <thrust/device_vector.h>
-#include <cuda/std/array>
-#include "Core/VectorUtilities.cuh"
 #include "indicators/progress_bar.hpp"
 #include <cublas_v2.h>
-#include "LinearAlgebra/MatrixSolver.cuh"
-#include "Export/ExportTypes.cuh"
+#include "LinearAlgebra/DenseLuSolver.cuh"
+#include "Ode/OdeProblem.h"
+#include <format>
 #include "indicators/cursor_control.hpp"
 
 __global__ void calculateNextStateKernel(const double* devY, const double stepSize, const double* k1, const double* k2, double* devYnext, const GL_Coefficients coeffs, const size_t N)
@@ -85,7 +84,6 @@ struct GaussLegendre2Options {
 	double newtonTolerance;
 	size_t maxNewtonIterations;
 	bool allowSimplifiedFallback = true;
-	bool returnTrajectory = true;
 	double armijo_c = 1e-4;
 	double backtrack = 0.5;
 	double minAlpha = 1e-6;
@@ -95,28 +93,12 @@ struct GaussLegendre2Options {
 		stepSize(0.01),
 		newtonTolerance(1e-10),
 		maxNewtonIterations(20),
-		allowSimplifiedFallback(false),
-		returnTrajectory(true)
+		allowSimplifiedFallback(false)
 	{
 	}
 };
 
-GaussLegendre2Options createOptionsFromCOptions(const GaussLegendreOptions& cOptions)
-{
-	GaussLegendre2Options options;
-	options.stepSize = cOptions.stepSize;
-	options.newtonTolerance = cOptions.newtonTolerance;
-	options.maxNewtonIterations = cOptions.maxNewtonIterations;
-	options.allowSimplifiedFallback = cOptions.allowSimplifiedFallback;
-	options.returnTrajectory = cOptions.returnTrajectory;
-	options.armijo_c = cOptions.armijo_c;
-	options.backtrack = cOptions.backtrack;
-	options.minAlpha = cOptions.minAlpha;
-	options.maxStepsHalves = cOptions.maxStepsHalves;
-	return options;
-}
-
-size_t to_percent(double t, double t0, double t1)
+inline size_t to_percent(double t, double t0, double t1)
 {
 	if (t <= t0) return 0;
 	if (t >= t1) return 100;
@@ -126,10 +108,10 @@ size_t to_percent(double t, double t0, double t1)
 
 
 template <size_t N>
-class GaussLegendre2 : public OdeSolver
+class GaussLegendre2 : public OdeSolver<double>
 {
 public:
-	GaussLegendre2(AutonomousProblem<double, 3*N>& problem, JacobianCalculator<N>& jacobianCalculator, GaussLegendre2Options options = GaussLegendre2Options());
+	GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator<N>& jacobianCalculator, GaussLegendre2Options options = GaussLegendre2Options());
 	~GaussLegendre2();
 	virtual OdeSolverResult runEvolution(double startTime, double endTime) override;
 	/// <summary>
@@ -137,15 +119,15 @@ public:
 	/// </summary>
 	/// <param name="initialState"></param>
 	/// <param name="onDevice"></param>
-	void initialize(double* initialState, bool onDevice = false);
+	void initialize(double* initialState, bool onDevice = false) override;
+	const double* state() const override { return devTempState; }
+	double time() const override { return currentTime; }
 	void setStream(cudaStream_t stream) { this->stream = stream; }
 
-	int copyTimesToHost(double** hostTimes, size_t* countHost);
-	int copyStatesToHost(double** hostStates, size_t* countHost);
 private:
-	AutonomousProblem<double, 3 * N>& problem;
+	OdeProblem<double>& problem;
 	JacobianCalculator<N>& jacobianCalculator;
-	MatrixSolver<6 * N, 1> matrixSolver;
+	DenseLuSolver matrixSolver{ 6 * static_cast<int>(N) };
 	GaussLegendre2Options options;
 	void setOptions(const GaussLegendre2Options options) { this->options = options; }
 	
@@ -185,8 +167,7 @@ private:
 	cublasHandle_t cublasHandle;
 
 	GL_Coefficients glCoeffs;
-	thrust::device_vector<double> devTimes;
-	thrust::device_vector<cuda::std::array<double, 3 * N>> devYs;
+	double currentTime = 0.0;
 
 	double hmin = -1;
 
@@ -214,8 +195,12 @@ private:
 };
 
 template <size_t N>
-GaussLegendre2<N>::GaussLegendre2(AutonomousProblem<double, 3*N>& problem, JacobianCalculator<N>& jacobianCalculator, GaussLegendre2Options options) : problem(problem), jacobianCalculator(jacobianCalculator), options(options)
+GaussLegendre2<N>::GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator<N>& jacobianCalculator, GaussLegendre2Options options) : problem(problem), jacobianCalculator(jacobianCalculator), options(options)
 {
+	if (problem.size() != 3 * N)
+	{
+		throw std::invalid_argument("GaussLegendre2: the problem size does not match 3 N");
+	}
 }
 template <size_t N>
 GaussLegendre2<N>::~GaussLegendre2()
@@ -245,16 +230,10 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 	// copy initial state to temp state
 	CUSH_CHECK(cudaMemcpyAsync(this->devTempState, this->devState, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream));
 
-	// create the trajectory storage
-	if (options.returnTrajectory)
-	{
-		/*CUSH_CHECK(cudaMallocAsync(&this->devTimes, (nSteps + 1) * sizeof(double), this->stream), "GaussLegendre2<N>::runEvolution", "GaussLegendre.cuh", 85));
-		linspace<<<(nSteps + 1 + 255) / 256, 256, 0, this->stream>>>(this->devTimes, startTime, endTime, nSteps + 1);*/
-		this->devTimes.push_back(startTime);
-		appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
-	}
+	problem.start(startTime);
+	this->notifyStart(startTime, this->devTempState, 3 * N, this->stream);
 
-	double currentTime = startTime;
+	currentTime = startTime;
 	double forward = (endTime >= startTime) ? 1.0 : -1.0;
 	double heff;
 	double htry;
@@ -319,11 +298,7 @@ OdeSolverResult GaussLegendre2<N>::runEvolution(double startTime, double endTime
 		currentTime += htry;
 		this->options.stepSize = std::abs(htry); // Update step size for next iteration
 
-		if (this->options.returnTrajectory) 
-		{
-			this->devTimes.push_back(currentTime);
-			appendToVector<double, 3 * N>(this->devYs, this->devTempState, this->stream);
-		}
+		this->notifyAcceptedStep(currentTime, this->devTempState, 3 * N, this->stream);
 	}
 	indicators::show_console_cursor(true);
 	return OdeSolverResult::ReachedEndTime;
@@ -378,58 +353,6 @@ void GaussLegendre2<N>::initialize(double* initialState, bool onDevice)
 }
 
 template<size_t N>
-int GaussLegendre2<N>::copyTimesToHost(double** hostTimes, size_t* countHost)
-{
-	if (this->options.returnTrajectory) 
-	{
-		double* t = static_cast<double*>(std::malloc(devTimes.size() * sizeof(double)));
-		if (!t) {
-			return -1; // memory allocation failed
-		}
-		// copy times to host
-		CUSH_CHECK(cudaMemcpyAsync(t, thrust::raw_pointer_cast(devTimes.data()), devTimes.size() * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
-		*hostTimes = t;
-		*countHost = devTimes.size();
-	}
-	else 
-	{
-		// no times were recorded
-		*hostTimes = nullptr;
-		*countHost = 0;
-	}
-	return 0;
-}
-
-template<size_t N>
-int GaussLegendre2<N>::copyStatesToHost(double** hostStates, size_t* countHost)
-{
-	if (this->options.returnTrajectory) 
-	{
-		double* s = static_cast<double*>(std::malloc(devYs.size() * 3 * N * sizeof(double)));
-		if (!s) {
-			return -1; // memory allocation failed
-		}
-		// copy states to host
-		CUSH_CHECK(cudaMemcpyAsync(s, thrust::raw_pointer_cast(devYs.data()), devYs.size() * 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
-		*hostStates = s;
-		*countHost = devYs.size();
-	}
-	else
-	{
-		// no states were recorded so copy the latest state calculated.
-		double* s = static_cast<double*>(std::malloc(3 * N * sizeof(double)));
-		if (!s) {
-			return -1; // memory allocation failed
-		}
-		CUSH_CHECK(cudaMemcpyAsync(s, this->devTempState, 3 * N * sizeof(double), cudaMemcpyDeviceToHost, this->stream));
-
-		*hostStates = s;
-		*countHost = 1;
-	}
-	return 0;
-}
-
-template<size_t N>
 void GaussLegendre2<N>::freeDeviceMemory()
 {
 	if (this->devStateOwned) {
@@ -475,7 +398,7 @@ void GaussLegendre2<N>::gaussLegendreS2Step(double* devCurrentState, double* dev
 
 	// initial guess for k1, k2
 	problem.setStream(this->stream);
-	problem.run(devCurrentState, k_local);
+	problem.rhs(devCurrentState, currentTime, k_local, Evaluation::AcceptedPoint);
 	CUSH_CHECK(cudaMemcpyAsync(k2_local, k_local, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream));
 	int iteration;
 	for (iteration = 0; iteration < this->options.maxNewtonIterations; ++iteration)
@@ -597,8 +520,8 @@ void GaussLegendre2<N>::residualAndPhi(const double* devY, const double* k1, con
 	CUSH_CHECK(cudaStreamSynchronize(this->stream));
 	// compute f(y1) and f(y2)
 	problem.setStream(this->stream);
-	problem.run(this->y1, this->devfY1);
-	problem.run(this->y2, this->devfY2);
+	problem.rhs(this->y1, currentTime + glCoeffs.c1 * stepSize, this->devfY1, Evaluation::Stage);
+	problem.rhs(this->y2, currentTime + glCoeffs.c2 * stepSize, this->devfY2, Evaluation::Stage);
 	
 	// compute the residuals
 	computeResidualsKernel << <(3 * N + 255) / 256, 256, 0, this->stream >> > (this->devfY1, this->devfY2, k1, k2, this->R1, this->R2, N);

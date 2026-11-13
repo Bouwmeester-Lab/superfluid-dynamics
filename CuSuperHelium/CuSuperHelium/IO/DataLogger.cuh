@@ -2,6 +2,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <vector>
+#include "Core/CudaChecks.cuh"
 
 template <typename T, size_t N>
 class DataLogger

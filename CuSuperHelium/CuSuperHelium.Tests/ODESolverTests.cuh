@@ -7,7 +7,12 @@
 #include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
 #include "matplotlibcpp.h"
 #include "Ode/AutonomousProblem.h"
-#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "Ode/RungeKutta4.cuh"
+#include "IO/TrajectoryLogger.cuh"
+#include "Core/DeviceBuffer.cuh"
+#include <algorithm>
+#include <concepts>
+#include <vector>
 #include "Ode/RK45.cuh"
 
 __global__ void flip_x_y(cuDoubleComplex* data, cuDoubleComplex* out, int size) 
@@ -93,9 +98,10 @@ TEST(ODE_Solvers, RK4)
 	int steps = 10000;
 	int loggingSteps = 100; // log every 1000 steps
 
-	std::shared_ptr<TrajectoryLogger<cuDoubleComplex, N>> logger = std::make_shared<TrajectoryLogger<cuDoubleComplex, N>>();
+	auto logger = std::make_shared<TrajectoryLogger<cuDoubleComplex>>();
 
-	AutonomousRungeKuttaStepper<cuDoubleComplex, N> stepper(problem, dt, logger);
+	RungeKutta4<cuDoubleComplex> stepper(problem, dt);
+	stepper.addObserver(logger);
 	stepper.initialize(devInitialState, true);
 	
 	stepper.runEvolution(0.0, dt * steps);
@@ -239,7 +245,66 @@ TEST(ODE_Solvers, RK4)
 	delete[] results;
 }
 
-TEST(ODE_Solvers, RK45) 
+/// Integrates the rotation z' = i z (the oscillatory problems above) from t = 0 to 1 with RungeKutta4 and
+/// returns the largest error against the exact solution z0 e^{i t}.
+template <typename T, typename Problem, int N>
+double rungeKutta4RotationError(double h)
+{
+	std::vector<std::complex<double>> z0(N);
+	std::vector<T> host(N);
+	for (int i = 0; i < N; ++i)
+	{
+		z0[i] = std::polar(1.0 + static_cast<double>(i) / N, 2 * PI_d * i / N);
+		if constexpr (std::same_as<T, cuDoubleComplex>)
+			host[i] = make_cuDoubleComplex(z0[i].real(), z0[i].imag());
+		else
+			host[i] = T(z0[i].real(), z0[i].imag());
+	}
+	DeviceBuffer<T> state(N);
+	CUSH_CHECK(cudaMemcpy(state.get(), host.data(), state.bytes(), cudaMemcpyHostToDevice));
+
+	Problem problem;
+	RungeKutta4<T> stepper(problem, h);
+	stepper.initialize(state.get(), true);
+	EXPECT_EQ(stepper.runEvolution(0.0, 1.0), OdeSolverResult::ReachedEndTime);
+	EXPECT_DOUBLE_EQ(stepper.time(), 1.0);
+	CUSH_CHECK(cudaDeviceSynchronize());
+	CUSH_CHECK(cudaMemcpy(host.data(), state.get(), state.bytes(), cudaMemcpyDeviceToHost));
+
+	double maxError = 0.0;
+	const std::complex<double> rotation = std::polar(1.0, 1.0);
+	for (int i = 0; i < N; ++i)
+	{
+		std::complex<double> z;
+		if constexpr (std::same_as<T, cuDoubleComplex>)
+			z = { host[i].x, host[i].y };
+		else
+			z = { host[i].real(), host[i].imag() };
+		maxError = std::max(maxError, std::abs(z - z0[i] * rotation));
+	}
+	return maxError;
+}
+
+// RK4 is fourth order: halving the step divides the global error by 2^4 = 16. A wrong stage buffer
+// (as in the deleted cuDoubleComplex specialisation) drops the order and fails this.
+TEST(ODE_Solvers, RungeKutta4IsFourthOrderForEveryStateType)
+{
+	constexpr int N = 64;
+	const double coarse = 1.0 / 8.0;
+	const double fine = 1.0 / 16.0;
+
+	const double complexRatio = rungeKutta4RotationError<std_complex, OscillatoryProblemStdComplex<N>, N>(coarse)
+		/ rungeKutta4RotationError<std_complex, OscillatoryProblemStdComplex<N>, N>(fine);
+	const double cuComplexRatio = rungeKutta4RotationError<cuDoubleComplex, OscillatoryProblem<N>, N>(coarse)
+		/ rungeKutta4RotationError<cuDoubleComplex, OscillatoryProblem<N>, N>(fine);
+
+	EXPECT_NEAR(complexRatio, 16.0, 1.5);
+	EXPECT_NEAR(cuComplexRatio, 16.0, 1.5);
+	const double fineError = rungeKutta4RotationError<std_complex, OscillatoryProblemStdComplex<N>, N>(fine);
+	EXPECT_LT(fineError, 1e-6);
+}
+
+TEST(ODE_Solvers, RK45)
 {
 	const int N = 256; // number of particles in the system
 	// set the initial conditions
@@ -261,12 +326,9 @@ TEST(ODE_Solvers, RK45)
 	double dt = 0.001;
 	int steps = 10000;
 	int loggingSteps = 100; // log every 1000 steps
-	DataLogger<std_complex, N> stateLogger;
-	stateLogger.setSize(steps / loggingSteps);
-	stateLogger.setStep(loggingSteps);
 
 
-	RK45_std_complex<N> stepper(problem, stateLogger, {}, dt);
+	RK45_std_complex<N> stepper(problem, dt);
 	stepper.initialize(devInitialState, true);
 	stepper.setTolerance(1e-8, 1e-8);
 
@@ -275,7 +337,7 @@ TEST(ODE_Solvers, RK45)
 	cudaDeviceSynchronize();
 	// Copy the results back to the host
 	cuDoubleComplex* results = new cuDoubleComplex[N];
-	cudaMemcpy(results, stepper.getY(), N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(results, stepper.state(), N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
 
 	// plot the results using matplotlibcpp
 	matplotlibcpp::figure_size(800, 600);
@@ -293,7 +355,7 @@ TEST(ODE_Solvers, RK45)
 	plt::plot(x0, y0, { {"label", "initial ys"} });
 	//plt::plot(y0, { {"label", "initial y0"} });
 	plt::plot(x, y, { {"label", "final y"} });
-	plt::title(std::format("Evolution of equation until t={:.5e} s", stepper.getCurrentTime()));
+	plt::title(std::format("Evolution of equation until t={:.5e} s", stepper.time()));
 	//plt::plot(y, { {"label", "final y"} });
 
 	plt::legend();

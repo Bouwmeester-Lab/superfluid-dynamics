@@ -5,13 +5,10 @@
 #include "Core/constants.cuh"
 #include "Math/Derivatives.cuh"
 #include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
-#include "LinearAlgebra/MatrixSolver.cuh"
 #include "Ode/AutonomousProblem.h"
 #include "BoundaryIntegral/Periodic2D/Energies.cuh"
-#include "Optomechanics/DelayedIntensityTerm.cuh"
 #include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
-#include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
 
 __global__ void convertToComplexStateKernel(const double* realState, std_complex* complexState, size_t N)
 {

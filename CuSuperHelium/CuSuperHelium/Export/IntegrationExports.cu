@@ -6,9 +6,24 @@
 #include "Physics/HeliumBoundaryProblem.cuh"
 #include "Ode/JacobianCalculator.cuh"
 #include "BoundaryIntegral/Periodic2D/RealBoundaryIntegralCalculator.cuh"
-#include "Ode/RK4_Time_Dependent.cuh"
+#include "Ode/RungeKutta4.cuh"
 
 #include <memory>
+
+/// The C ABI options to the solver's own options. Whether a trajectory is returned is the export's choice.
+static GaussLegendre2Options createOptionsFromCOptions(const GaussLegendreOptions& cOptions)
+{
+	GaussLegendre2Options options;
+	options.stepSize = cOptions.stepSize;
+	options.newtonTolerance = cOptions.newtonTolerance;
+	options.maxNewtonIterations = cOptions.maxNewtonIterations;
+	options.allowSimplifiedFallback = cOptions.allowSimplifiedFallback;
+	options.armijo_c = cOptions.armijo_c;
+	options.backtrack = cOptions.backtrack;
+	options.minAlpha = cOptions.minAlpha;
+	options.maxStepsHalves = cOptions.maxStepsHalves;
+	return options;
+}
 
 template <size_t N>
 int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* statesCount,
@@ -36,13 +51,22 @@ int integrateSimulationGL2_N(double* initialState, double** statesOut, size_t* s
 		GaussLegendre2<N> integrator(realCalculator, jacobianCalculator, glOptions);
 		integrator.setStream(cudaStreamPerThread);
 
+		// Gauss-Legendre has always returned the initial state as the first trajectory entry.
+		auto trajectory = std::make_shared<TrajectoryLogger<double>>(true);
+		if (glCOptions->returnTrajectory)
+		{
+			integrator.addObserver(trajectory);
+		}
+
 		integrator.initialize(initialState, false);
 		integrator.runEvolution(glCOptions->t0, glCOptions->t1);
 
 		// copy results to output
-		CUSH_CHECK(cudaStreamSynchronize(cudaStreamPerThread));
-		integrator.copyTimesToHost(timesOut, timesCount);
-		integrator.copyStatesToHost(statesOut, statesCount);
+		if (copyIntegrationResultToHost<double>(integrator, 3 * N, glCOptions->returnTrajectory ? trajectory.get() : nullptr, statesOut, statesCount, timesOut, timesCount) != 0)
+		{
+			std::cerr << "Failed to copy the integration result to host" << std::endl;
+			return -1;
+		}
 	}
 	catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << std::endl;

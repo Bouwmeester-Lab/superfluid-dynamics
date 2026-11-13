@@ -9,15 +9,13 @@
 #include "Core/constants.cuh"
 #include "Math/Derivatives.cuh"
 #include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
-#include "LinearAlgebra/MatrixSolver.cuh"
 #include "Ode/AutonomousProblem.h"
 #include "BoundaryIntegral/Periodic2D/Energies.cuh"
 #include "Optomechanics/DelayedIntensityTerm.cuh"
 #include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
 #include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
-#include "Ode/SimpleEuler.cuh"
-#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "Ode/RungeKutta4.cuh"
 #include "IO/ValueLogger.h"
 #include "matplotlibcpp.h"
 #include "VideoMaking.h"
@@ -136,7 +134,7 @@ int dispersionTest<N>(double wavelength, double simulationTime, DimensionlessPar
     DeviceParticleData deviceData;
 
     HeliumBoundaryProblem<N, 1> boundaryProblem(problemProperties);
-    auto res =  runSimulation<N, 1, AutonomousRungeKuttaStepper<std_complex, 2 * N>, RK4Options>(boundaryProblem, steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
+    auto res =  runSimulation<N, 1, RungeKutta4<std_complex>, RK4Options>(boundaryProblem, steps, problemProperties, particleData, rk45_options, simOptions, loggingSteps, false, false, _t0);
     // _CrtDumpMemoryLeaks();
 	return res;
 }

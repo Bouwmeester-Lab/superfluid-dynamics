@@ -16,7 +16,7 @@ Includes are always written from the include root, for example `#include "Core/C
 
 ## Layers
 
-Each folder of the DLL is a layer. A layer may include only the layers below it.
+Each folder of the DLL is a layer. A layer may include only the layers below it. On the middle row, `Ode` may also use `Math` and `LinearAlgebra` (Gauss-Legendre coefficients, FFT kernels, the LU solver and cuBLAS wrappers). `Math` and `LinearAlgebra` do not include each other or `Ode`.
 
 ```
                  Export            C ABI: ExportApi.cuh, ExportTypes.cuh, *Exports.cu
@@ -39,24 +39,24 @@ Plotting lives only in `CuSuperHelium.App` and `CuSuperHelium.Tests`, never in t
 | Folder | Purpose |
 |---|---|
 | `Core/` | CUDA basics with no physics: error checks, `DeviceBuffer<T>`, constants, complex operators, double-double arithmetic, vector kernels and reductions |
-| `LinearAlgebra/` | Dense LU solvers (`MatrixSolver<N, batch>`, `DenseLuSolver`) and other linear-algebra kernels |
+| `LinearAlgebra/` | `DenseLuSolver` (runtime size, single or batched LU), type-generic cuBLAS wrappers (`Blas.cuh`) and other linear-algebra kernels |
 | `Math/` | FFT kernels, spectral and finite-difference derivatives, elliptic integrals, Gauss-Legendre coefficients |
-| `Ode/` | Time integrators behind `OdeSolver` (RK4, RK45, Gauss-Legendre, Euler), the `AutonomousProblem` interface, Jacobians, solver options |
+| `Ode/` | Time integrators behind `OdeSolver<T>` (`RungeKutta4`, RK45, Gauss-Legendre), the `OdeProblem<T>` interface they all integrate (`AutonomousProblem` for time-independent problems), Jacobians, solver options |
 | `BoundaryIntegral/Periodic2D/` | Roberts-method solver for a periodic 2D interface: boundary problem, integral calculators, matrix and potential kernels, velocities, energies |
 | `BoundaryIntegral/Axisymmetric/` | Axisymmetric (radial) solver: `BoundaryNodes`, self terms, matrix assembly, the velocity calculator. `GreenFunctions/` holds the Bessel-series kernel and the elliptic ring kernel (option A) |
 | `Physics/` | Helium-film and water problem definitions; `PhysicalParameters` (SI inputs, including the caller's material), `Scales`, `DimensionlessParameters`, and `NonDimensionalization`, the one place SI inputs become dimensionless; simulation options |
 | `Optomechanics/` | Light intensity, delayed-intensity terms and integrators, driven and augmented problems |
-| `IO/` | `DataLogger`, `ValueLogger`, `TrajectoryLogger`, HDF5 state files |
+| `IO/` | `StepObserver` (what a solver reports after each step), `TrajectoryLogger`, `ProgressBarObserver`, `DataLogger`, `ValueLogger`, HDF5 state files |
 | `Export/` | The C ABI and its helpers: entry points, ABI types, size dispatch, host-to-device loading |
 | `indicators/` | Third-party header-only progress bars (vendored) |
 
-## Known layering violations
+## Layering status
 
-These are the include edges that break the rules above. There were 23 after the Phase 2 move. Phase 3 removed the 8 caused by the parameter struct, which leaves 15. Each remaining one is assigned to a later phase.
+No include edge breaks the rules above. There were 23 violations after the Phase 2 move. Phase 3 removed 8, and Phase 4 removed the rest by fixing the code or settling the rule:
 
-**The rules should change to fit the code:**
-- `Ode` uses `Math` (Gauss-Legendre coefficients, FFT kernels) and `IO` (loggers). Both are legitimate dependencies, so the layer order above already puts `IO` below `Ode` and lets `Ode` see `Math`.
-- `BoundaryIntegral` implements `Ode/AutonomousProblem.h`. That interface could move to `Core/`, or `BoundaryIntegral` could be allowed to see `Ode`. Decide in Phase 4, when the steppers are unified.
+**Rules settled in Phase 4:**
+- `Ode` sees `Math`, `LinearAlgebra` and `IO`. Observers (`IO/StepObserver.h`) live in `IO`, so loggers do not depend on `Ode`.
+- `BoundaryIntegral` sees `Ode`. Its calculators are `OdeProblem`s (`Ode/OdeProblem.h`, through `Ode/AutonomousProblem.h`). No interface moved to `Core/`.
 
 **Fixed in Phase 3 (parameters):**
 - No file below `Physics/` includes a parameter struct any more.
@@ -65,7 +65,24 @@ These are the include edges that break the rules above. There were 23 after the 
   - `IO/StateFile` takes an attribute map.
   - The `Ode/` steppers lost an include they did not use.
 
-**The code should change (Phase 4, duplication):**
-- `Ode/RK4_Time_Dependent.cuh` includes `BoundaryIntegral/Periodic2D/` integrators. The stepper should depend only on the `OdeSolver`/problem interfaces.
-- `Ode/GaussLegendre.cuh` includes `Export/ExportTypes.cuh` for `c_double`, an ABI type leaking into the numerics.
-- `BoundaryIntegral/Periodic2D/RealBoundaryIntegralCalculator.cuh` includes `Optomechanics/DelayedIntensityTerm.cuh`.
+**Fixed in Phase 4 (duplication):**
+- The RK4 stepper that included the `BoundaryIntegral/Periodic2D/` integrators is gone. `Ode/RungeKutta4.cuh` depends only on `OdeProblem` and `OdeSolver`.
+- `Ode/GaussLegendre.cuh` no longer includes `Export/ExportTypes.cuh`. The conversion from the C ABI options lives in `Export/IntegrationExports.cu`.
+- `BoundaryIntegral/Periodic2D/RealBoundaryIntegralCalculator.cuh` dropped its unused includes of `Optomechanics/DelayedIntensityTerm.cuh` and `TimedBoundaryIntegrator.cuh`.
+
+## Time integration
+
+Every integrator implements `OdeSolver<T>` and integrates an `OdeProblem<T>` (dy/dt = f(y, t)), so a problem can be run with any solver that supports its state type:
+
+```cpp
+BaseBoundaryIntegralCalculator<N, 1> problem(properties, heliumProblem);   // an OdeProblem<std_complex>
+RungeKutta4<std_complex> solver(problem, dt);
+auto trajectory = std::make_shared<TrajectoryLogger<std_complex>>();
+solver.addObserver(trajectory);                                             // what is recorded is the caller's choice
+solver.initialize(devState, true);
+solver.runEvolution(t0, t1);
+```
+
+- `rhs(y, t, dydt, Evaluation)` receives the time, so time-dependent problems (`TimedBoundaryIntegrator`) and autonomous ones use the same solvers. `Evaluation` tells the problem whether `y` is an accepted state. The optomechanical drive uses that to update its delayed-intensity history. Phase 8 replaces it with an `acceptStep` hook that also works for adaptive schemes.
+- Options stay specific to each scheme (`RK4Options`, `RK45_Options`, `GaussLegendre2Options`). Gauss-Legendre also needs a `JacobianCalculator`.
+- Output goes through `StepObserver<T>`: `TrajectoryLogger` and `ProgressBarObserver` are the observers provided.

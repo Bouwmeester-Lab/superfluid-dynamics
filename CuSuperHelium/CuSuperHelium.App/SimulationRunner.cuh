@@ -9,15 +9,14 @@
 #include "Core/constants.cuh"
 #include "Math/Derivatives.cuh"
 #include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
-#include "LinearAlgebra/MatrixSolver.cuh"
 #include "Ode/AutonomousProblem.h"
 #include "BoundaryIntegral/Periodic2D/Energies.cuh"
 #include "Optomechanics/DelayedIntensityTerm.cuh"
 #include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
 #include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
-#include "Ode/SimpleEuler.cuh"
-#include "Ode/AutonomousRungeKuttaStepper.cuh"
+#include "Ode/RungeKutta4.cuh"
+#include "IO/DataLogger.cuh"
 #include "IO/ValueLogger.h"
 #include "matplotlibcpp.h"
 #include "VideoMaking.h"
@@ -101,7 +100,7 @@ public:
 
 
 template <int numParticles, size_t batchSize, typename TSolver, typename TOptions>
-requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
+requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver<std_complex>>
 int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, const int numSteps, DimensionlessParameters& properties, ParticleData data, TOptions solverOptions, SimulationOptions simOptions, const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10, const bool saveH5 = true)
 { 
     cudaError_t cudaStatus;
@@ -315,7 +314,7 @@ int runSimulation(BoundaryProblem<numParticles, batchSize>& boundaryProblem, con
 }
 
 template<int numParticles, size_t batchSize, typename TSolver, typename TOptions>
-requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver>
+requires std::derived_from<std::remove_cvref_t<TSolver>, OdeSolver<std_complex>>
 int runSimulationHelium(const int numSteps, DimensionlessParameters& properties, ParticleData data, TOptions rk45Options, SimulationOptions simOptions,  const int loggingPeriod = -1, const bool plot = true, const bool show = true, double t0 = 1.0, int fps = 10) {
     
     HeliumBoundaryProblem<numParticles, batchSize> boundaryProblem(properties);

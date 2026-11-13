@@ -110,6 +110,11 @@
     <CudaCompile Include="Export\RhsExports.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="IO\StepObserver.h" />
+    <ClInclude Include="IO\ProgressBarObserver.h" />
+    <ClInclude Include="Ode\OdeProblem.h" />
+    <ClInclude Include="Ode\RungeKutta4.cuh" />
+    <ClInclude Include="LinearAlgebra\Blas.cuh" />
     <ClInclude Include="Optomechanics\AugmentedBoundaryIntegrator.cuh" />
     <ClInclude Include="Optomechanics\AugmentedIntensityBoundaryIntegrator.cuh" />
     <ClInclude Include="Ode\AutonomousProblem.h" />
@@ -153,7 +158,6 @@
     <ClInclude Include="LinearAlgebra\LinearAlgebra.cuh" />
     <ClInclude Include="Core\ComplexMath.cuh" />
     <ClInclude Include="Math\FftKernels.cuh" />
-    <ClInclude Include="LinearAlgebra\MatrixSolver.cuh" />
     <ClInclude Include="Ode\OdeSolver.h" />
     <ClInclude Include="Optomechanics\OptomechanicalDriveKernels.cuh" />
     <ClInclude Include="Optomechanics\OptomechanicalVariables.h" />
@@ -163,7 +167,6 @@
     <ClInclude Include="Physics\NonDimensionalization.h" />
     <ClInclude Include="Optomechanics\OptomechanicalNonDimensionalization.h" />
     <ClInclude Include="Physics\DimensionlessParameters.h" />
-    <ClInclude Include="Ode\AutonomousRungeKuttaStepper.cuh" />
     <ClInclude Include="BoundaryIntegral\Axisymmetric\RadialVelocityCalculator.cuh" />
     <ClInclude Include="BoundaryIntegral\Axisymmetric\RadialModels.h" />
     <ClInclude Include="BoundaryIntegral\Periodic2D\RealBoundaryIntegralCalculator.cuh" />
@@ -171,8 +174,6 @@
     <ClInclude Include="Ode\RK45.cuh" />
     <ClInclude Include="Ode\RK45_Kernels.cuh" />
     <ClInclude Include="Ode\RK4Options.h" />
-    <ClInclude Include="Ode\RK4_Time_Dependent.cuh" />
-    <ClInclude Include="Ode\SimpleEuler.cuh" />
     <ClInclude Include="Physics\SimulationOptions.h" />
     <ClInclude Include="Export\DeviceParticleLoading.cuh" />
     <ClInclude Include="IO\StateFile.h" />
@@ -180,7 +181,6 @@
     <ClInclude Include="BoundaryIntegral\Periodic2D\TimedBoundaryProblem.cuh" />
     <ClInclude Include="IO\TrajectoryLogger.cuh" />
     <ClInclude Include="IO\ValueLogger.h" />
-    <ClInclude Include="Core\VectorUtilities.cuh" />
     <ClInclude Include="Physics\WaterBoundaryProblem.cuh" />
     <ClInclude Include="BoundaryIntegral\Periodic2D\WaterVelocities.cuh" />
   </ItemGroup>

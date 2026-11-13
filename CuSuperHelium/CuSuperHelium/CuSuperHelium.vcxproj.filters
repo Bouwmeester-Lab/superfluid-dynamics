@@ -97,6 +97,12 @@
     <ClInclude Include="SimulationRunner.cuh">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="DeviceParticleLoading.cuh">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="StateFile.h">
+      <Filter>Common</Filter>
+    </ClInclude>
     <ClInclude Include="VideoMaking.h">
       <Filter>Visualization</Filter>
     </ClInclude>

@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "Math/GLCoefficients.hpp"
-#include "Ode/JacobianCalculator.cuh"
+#include "Ode/JacobianProvider.h"
 #include "Ode/OdeSolver.h"
 #include <math.h>
 #include <thrust/device_vector.h>
@@ -110,7 +110,8 @@ inline size_t to_percent(double t, double t0, double t1)
 class GaussLegendre2 : public OdeSolver<double>
 {
 public:
-	GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator& jacobianCalculator, GaussLegendre2Options options = GaussLegendre2Options());
+	/// jacobianCalculator supplies df/dy: FiniteDifferenceJacobian for any problem, or a problem-specific provider.
+	GaussLegendre2(OdeProblem<double>& problem, JacobianProvider& jacobianCalculator, GaussLegendre2Options options = GaussLegendre2Options());
 	~GaussLegendre2();
 	virtual OdeSolverResult runEvolution(double startTime, double endTime) override;
 	/// <summary>
@@ -118,7 +119,7 @@ public:
 	/// </summary>
 	/// <param name="initialState"></param>
 	/// <param name="onDevice"></param>
-	void initialize(double* initialState, bool onDevice = false) override;
+	void initialize(const double* initialState, bool onDevice = false) override;
 	const double* state() const override { return devTempState; }
 	double time() const override { return currentTime; }
 	void setStream(cudaStream_t stream) { this->stream = stream; }
@@ -126,7 +127,7 @@ public:
 private:
 	const size_t N; ///< Collocation points; the state has 3N real values (x, y, phi)
 	OdeProblem<double>& problem;
-	JacobianCalculator& jacobianCalculator;
+	JacobianProvider& jacobianCalculator;
 	DenseLuSolver matrixSolver{ 6 * static_cast<int>(N) };
 	GaussLegendre2Options options;
 	void setOptions(const GaussLegendre2Options options) { this->options = options; }
@@ -194,7 +195,7 @@ private:
 	void freeDeviceMemory();
 };
 
-inline GaussLegendre2::GaussLegendre2(OdeProblem<double>& problem, JacobianCalculator& jacobianCalculator, GaussLegendre2Options options) : N(problem.size() / 3), problem(problem), jacobianCalculator(jacobianCalculator), options(options)
+inline GaussLegendre2::GaussLegendre2(OdeProblem<double>& problem, JacobianProvider& jacobianCalculator, GaussLegendre2Options options) : N(problem.size() / 3), problem(problem), jacobianCalculator(jacobianCalculator), options(options)
 {
 	if (problem.size() != 3 * N)
 	{
@@ -301,18 +302,13 @@ inline OdeSolverResult GaussLegendre2::runEvolution(double startTime, double end
 	return OdeSolverResult::ReachedEndTime;
 }
 
-inline void GaussLegendre2::initialize(double* initialState, bool onDevice)
+inline void GaussLegendre2::initialize(const double* initialState, bool onDevice)
 {
 	size_t stateSizeBytes = 3 * N * sizeof(double);
-	if (onDevice) {
-		this->devState = initialState;
-	}
-	else {
-		devStateOwned = true;
-		 // x, y, phi each of size N.
-		CUSH_CHECK(cudaMalloc(&this->devState, stateSizeBytes));
-		CUSH_CHECK(cudaMemcpy(this->devState, initialState, stateSizeBytes, cudaMemcpyHostToDevice));
-	}
+	// The solver always owns its copy of the initial state.
+	devStateOwned = true;
+	CUSH_CHECK(cudaMalloc(&this->devState, stateSizeBytes));
+	CUSH_CHECK(cudaMemcpy(this->devState, initialState, stateSizeBytes, onDevice ? cudaMemcpyDeviceToDevice : cudaMemcpyHostToDevice));
 
 	CUSH_CHECK(cudaMallocAsync(&this->devTempState, stateSizeBytes, this->stream));
 	CUSH_CHECK(cudaMallocAsync(&this->devTempNextState, stateSizeBytes, this->stream));
@@ -392,7 +388,7 @@ inline void GaussLegendre2::gaussLegendreS2Step(double* devCurrentState, double*
 
 	// initial guess for k1, k2
 	problem.setStream(this->stream);
-	problem.rhs(devCurrentState, currentTime, k_local, Evaluation::AcceptedPoint);
+	problem.rhs(devCurrentState, currentTime, k_local);
 	CUSH_CHECK(cudaMemcpyAsync(k2_local, k_local, 3 * N * sizeof(double), cudaMemcpyDeviceToDevice, this->stream));
 	int iteration;
 	for (iteration = 0; iteration < this->options.maxNewtonIterations; ++iteration)
@@ -512,8 +508,8 @@ inline void GaussLegendre2::residualAndPhi(const double* devY, const double* k1,
 	CUSH_CHECK(cudaStreamSynchronize(this->stream));
 	// compute f(y1) and f(y2)
 	problem.setStream(this->stream);
-	problem.rhs(this->y1, currentTime + glCoeffs.c1 * stepSize, this->devfY1, Evaluation::Stage);
-	problem.rhs(this->y2, currentTime + glCoeffs.c2 * stepSize, this->devfY2, Evaluation::Stage);
+	problem.rhs(this->y1, currentTime + glCoeffs.c1 * stepSize, this->devfY1);
+	problem.rhs(this->y2, currentTime + glCoeffs.c2 * stepSize, this->devfY2);
 	
 	// compute the residuals
 	computeResidualsKernel << <(3 * N + 255) / 256, 256, 0, this->stream >> > (this->devfY1, this->devfY2, k1, k2, this->R1, this->R2, N);

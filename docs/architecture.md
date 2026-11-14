@@ -86,6 +86,6 @@ solver.initialize(devState, true);
 solver.runEvolution(t0, t1);
 ```
 
-- `rhs(y, t, dydt, Evaluation)` receives the time, so time-dependent problems (`TimedBoundaryIntegrator`) and autonomous ones use the same solvers. `Evaluation` tells the problem whether `y` is an accepted state. The optomechanical drive uses that to update its delayed-intensity history. Phase 8 replaces it with an `acceptStep` hook that also works for adaptive schemes.
+- `rhs(y, t, dydt, Evaluation)` receives the time, so time-dependent problems (`TimedBoundaryIntegrator`) and autonomous ones use the same solvers. `Evaluation` tells the problem whether `y` is an accepted state. The optomechanical drive uses that to update its delayed-intensity history. Phase 8 removes it: the delayed intensity becomes part of the state, so `rhs` is pure.
 - Options stay specific to each scheme (`RK4Options`, `RK45_Options`, `GaussLegendre2Options`). Gauss-Legendre also needs a `JacobianCalculator`.
 - Output goes through `StepObserver<T>`: `TrajectoryLogger` and `ProgressBarObserver` are the observers provided.

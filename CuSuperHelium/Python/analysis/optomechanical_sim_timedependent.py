@@ -17,7 +17,6 @@ simManager = rhs.SimulationManager()
 
 alpha_hammaker = 2.6e-24
 
-augmented = False
 N = 256*2
 
 def mode(t, r, r0, R, omega, zeta, A, phase_space=0, phase_time=0):
@@ -143,13 +142,10 @@ print(f"Reference Time is {_t0:.2e} s")
 print(f"Reference Length is {L0:.2e} m")
 # np.exp(-rk4_props.timeStep / 0.01)
 print(f"Depth in non-dim is {sim_props.depth / L0:.7e}")
-if augmented:
-    print("Integrating augmented optomechanical problem with delayed optical mode dynamics without explicit time dependence in the forcing term...")
-    Y0 = np.concatenate((Y0, np.zeros_like(r)))
-    res, T_new, Y_new = simManager.integrate_augmented_optomechanical_problem(Y0, sim_props, optomechanical_props, rk4_props)
-else:
-    print("Integrating optomechanical problem with explicit time dependence in the forcing term...")
-    res, T_new, Y_new = simManager.integrate_optomechanical_problem(Y0, sim_props, optomechanical_props, rk4_props)
+# The delayed intensity is part of the state (the timed drive, with explicit time dependence, was retired in Phase 8).
+print("Integrating the augmented optomechanical problem (delayed intensity as part of the state)...")
+Y0 = np.concatenate((Y0, np.zeros_like(r)))
+res, T_new, Y_new = simManager.integrate_augmented_optomechanical_problem(Y0, sim_props, optomechanical_props, rk4_props)
 
 if res != 0:
     print("Error in integration")

@@ -24,9 +24,9 @@ class OdeSolver
 public:
 	virtual ~OdeSolver() = default;
 
-	/// Sets the initial state. With onDevice = true some solvers (RK4, Gauss-Legendre) evolve the given device
-	/// buffer in place; with onDevice = false the host data is copied to a buffer the solver owns.
-	virtual void initialize(T* initialState, bool onDevice = false) = 0;
+	/// Sets the initial state. Every solver copies it into a buffer it owns, from device memory (onDevice = true)
+	/// or host memory (onDevice = false); the caller's buffer is never modified. Read the result with state().
+	virtual void initialize(const T* initialState, bool onDevice = false) = 0;
 
 	virtual OdeSolverResult runEvolution(double startTime, double endTime) = 0;
 

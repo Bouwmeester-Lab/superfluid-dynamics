@@ -433,18 +433,37 @@ The package stays private for now: it is installed from the local checkout and n
 - **A dispatch bug fixed on the way:** the optomechanical and augmented RK4 exports used to return 0 (success) without doing anything when `N` was not in their `switch`. Every export now returns -1 for a size it cannot handle.
 - **New tests:** the RHS accepts N = 3, 100 and 300. A batch of 3 interfaces matches three single calls (to 1e-9; the batched LU rounds differently). N = 1 is rejected.
 
-### Phase 8 — Time-integration interface (before new solvers)
+### Phase 8 — A pure right-hand side (before new solvers)
 
-Phase 4 gives every integrator one interface but keeps one leak: `Evaluation::AcceptedPoint` tells the problem when the solver is at an accepted state. That works for RK4, where stage 1 always sits at an accepted point, but not for adaptive or implicit schemes: RK45 re-evaluates a rejected step at the same point, and a first-same-as-last scheme never evaluates there. This phase makes the integrators reusable by any problem, without the caller needing to know how a scheme stages its evaluations. It comes before any new integrator or solver is added.
+Revised November 2026. The first version of this phase proposed a race test, a race fix and an `acceptStep` hook. Those treated symptoms.
 
-- **Race test first.** `DelayedIntensityTermDevice::save_value` has every thread write `*prev_time`, while every thread also reads it in `calculate_new_delayed_intensity`. With N > 256 there are several blocks, and CUDA does not order them, so a late block can read the new time, take the `t == prev_time` branch, and return and save 0 for its nodes. Write a test that shows whether this happens (several blocks, a known intensity history, compare against a host reference) before changing anything.
-- **Fix the race.** Update `prev_time` once per step outside the per-node kernel, or pass the previous time in as an argument. Results may change for runs where the race fired, so report the difference in the PR.
-- **`acceptStep` instead of `Evaluation`.** Problems get `acceptStep(const T* y, double t)`, which the solver calls once per accepted step, plus a call at the start. `rhs` loses its `kind` argument. The delayed-intensity history moves from the rhs kernel into that hook:
-  - Stage evaluations read the saved D and no longer recompute it at the accepted point.
-  - The `t == prev_time` branch, which returns 0, is replaced by reading the saved value.
-  - The first step keeps today's behaviour (D = 0 at `initial_time`) or changes it on purpose. Record which in the PR.
-- **Audit the rest of the call surface** for scheme details leaking into callers. Examples: `initialize(y, onDevice)` flags, per-scheme `setOptions` calls in the exports, steppers that need the problem's internal buffers.
-- **Done when:** any `OdeProblem` runs unchanged with RK4, RK45 and Gauss-Legendre; the race test passes; and the goldens match, or each difference is explained by the race fix.
+**The problem.** The timed optomechanical drive saves its delayed-intensity history *inside* the RHS kernel: every evaluation can write D and `prev_time`. So `rhs(y, t)` is not a pure function, and three things follow:
+- **A race:** every thread writes `prev_time` while threads of other blocks read it.
+- **Coupling to RK4:** the result depends on how the solver stages its evaluations. That is why `Evaluation` (formerly `setSaveProgress`) exists, and why the class says it "works only with fixed time steps". RK45 rejecting a step, or Gauss-Legendre's Newton iterations, would corrupt the history.
+- **Hidden state:** the problem carries state the solver cannot see, so no solver can restart, reject a step or checkpoint correctly.
+
+An `acceptStep` hook would only formalise that coupling.
+
+**The fix: the delayed intensity is ordinary state.** The augmented formulation already models it that way, with `dD/dt = (I - D) / tau` in `calculate_intensity_delayed_rhs`. The analysis code already uses it (`simulation_real_units.py`, `augmented_phase_diagrams.py`, `phase_diagrams.ipynb`). With D in the state, `rhs` is pure, there is no race by construction, and any solver integrates the problem without knowing the physics. That is the plug-and-play goal of the reorganization.
+
+- **One delayed-intensity model.** The augmented formulation is the only one. Retire the timed save-history path:
+  - `HeliumWithOptomechanicalDrivingProblem`, `DelayedIntensityTerm` and the `add_optical_field_drive_terms` kernel;
+  - `TimedBoundaryProblem` / `TimedBoundaryIntegrator` if nothing else uses them;
+  - the `integrateOptomechanicalSimulationRK4` export and its Python method. Its users (`optomechanical_sim_timedependent.py`, `example.ipynb`, the `optomechanical_rk4_*` golden cases, `IntegrationPaths.NullFluidTimedAndAugmentedDrivingAgree`) move to the augmented path, or are retired with a note in the PR.
+- **The intensity that drives D uses `sigma_thermal_mode`**, as the augmented RHS does. The timed path used `sigma_optical_mode` for it. Retiring that path settles the difference for now. The physics of the excitation is reviewed later (section 7).
+- **`rhs` without `Evaluation`.** `OdeProblem<T>::rhs(const T* y, double t, T* dydt)` is pure. `start(t0)` and the observers stay. No `acceptStep` hook is needed.
+- **The test that gates this phase.** With N > 256, so that several blocks run, a known intensity and D(0), check D(t) against the exact host solution of `dD/dt = (I - D) / tau`. Run the same problem through RK4, RK45 and Gauss-Legendre: one problem, every solver, which is the plug-and-play check. A test like this would also have caught the race.
+- **Optional, not a gate:** a one-off check of the old timed path at N > 256, run before it is removed, to see whether the race affected past results. Report the finding in the PR.
+- **Audit of the call surface:**
+  - `AutonomousProblem::run` takes `const T*` (no `const_cast` in `rhs`);
+  - `initialize(y, onDevice)` behaves the same in every solver (copy or adopt, chosen explicitly);
+  - per-scheme `setOptions` calls in the exports;
+  - steppers that need the problem's internal buffers.
+- **Stiffness, if it is ever needed.** The timed path's exact update `a = exp(-dt / tau)` stayed stable when tau << dt. With D as state, RK4 needs roughly dt < 2.8 tau. If a run needs tau much smaller than the step, the remedy is a solver feature (an exponential or IMEX integrator that treats the linear relaxation exactly), not state saved by the physics. Not built until a run needs it.
+- **Done when:**
+  - no problem keeps state that `rhs` writes, and `Evaluation` is gone;
+  - the delayed-intensity test passes with RK4, RK45 and Gauss-Legendre;
+  - the goldens of the remaining cases are bit-identical to `main`, and the retired cases are listed in the PR.
 
 ## 5. Suggested order and size
 
@@ -459,9 +478,9 @@ Phase 4 gives every integrator one interface but keeps one leak: `Evaluation::Ac
 | 5 Build | low–medium | 1–2 days | — |
 | 6 Python | low | 1 day | — |
 | 7 Runtime sizes | medium (performance) | 2–3 days | — |
-| 8 Time-integration interface | medium–high (numerics: race fix, history hook) | 2–3 days | new integrators and solvers |
+| 8 Pure right-hand side | medium (retires the timed drive path) | 2–3 days | new integrators and solvers |
 
-Recommended sequence: **0 → 1 → 1b → 2 → 3 → 4 → 5 → 6 → 7 → 8 → option A (half-space kernel).** Phase 4 moved ahead of 5 and 6 once it was scoped as a bit-identical refactor. Work on the axisymmetric solver (option A, then option B) waits until the reorganization is finished, so that it lands on the common interfaces. The goal is plug and play: the same problem can be solved with a different integrator or boundary-integral solver without changing the problem's code. Phase 4 is kept to a refactor that leaves the goldens bit-identical. Every change that alters numerics in the time integration (the `prev_time` race, the delayed-intensity history hook) waits for Phase 8. Phase 7 comes after 4 because merging the solvers removes much of the templated code it would otherwise have to convert. Phase 8 comes before any new integrator or solver is added.
+Recommended sequence: **0 → 1 → 1b → 2 → 3 → 4 → 5 → 6 → 7 → 8 → option A (half-space kernel).** Phase 4 moved ahead of 5 and 6 once it was scoped as a bit-identical refactor. Work on the axisymmetric solver (option A, then option B) waits until the reorganization is finished, so that it lands on the common interfaces. The goal is plug and play: the same problem can be solved with a different integrator or boundary-integral solver without changing the problem's code. Phase 4 is kept to a refactor that leaves the goldens bit-identical. Changes that alter numerics in the time integration (retiring the timed drive, whose in-kernel history had the `prev_time` race) wait for Phase 8. Phase 7 comes after 4 because merging the solvers removes much of the templated code it would otherwise have to convert. Phase 8 comes before any new integrator or solver is added.
 
 ## 6. Decisions
 
@@ -480,4 +499,4 @@ Recorded November 2026.
 Things to check once the reorganization is finished. They do not block any phase.
 
 1. **Optomechanical drive strength and the density ratio.** `LightIntensity::get_current_intensity_drive_strength` returns hbar G / (E0 t0 rho sigma^2), with `rho` the *dimensionless* density ratio rho_upper / rho_film. The energy scale E0 = 3 rho_film alpha L0^4 / h0^4 already contains the film density, so the extra division by the ratio may be wrong. Every current run uses rho = rho_film, which makes the ratio 1, so no result is affected yet. Check the derivation, and add a test with rho != rho_film before relying on that regime. (Found in Phase 3.)
-2. **Delayed-intensity history under adaptive stepping.** The history is a fixed-step construction: the class comment says it "works only with fixed time steps". Once Phase 8 has moved it to `acceptStep`, decide whether the driven problems should run with RK45, and if so, how D should be updated over a variable step. (Found while planning Phase 4.)
+2. **The optomechanical excitation.** Phase 8 keeps `sigma_thermal_mode` for the intensity that drives the delayed intensity D, as the augmented formulation does. The retired timed path used `sigma_optical_mode` there. Review the physics of the excitation (which profile feeds D, which drives the film directly, and the strengths) against the model a colleague uses, and make the two match. (Found while revising Phase 8. The earlier question about the delayed-intensity history under adaptive stepping disappears once D is part of the state.)

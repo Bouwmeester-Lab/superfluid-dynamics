@@ -79,10 +79,11 @@
     <CudaCompile Include="Export\ExportProperties.cu" />
     <CudaCompile Include="Export\IntegrationExports.cu" />
     <CudaCompile Include="Export\JacobianExports.cu" />
-    <CudaCompile Include="Export\OptomechanicalExports.cu" />
     <CudaCompile Include="Export\RhsExports.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Ode\JacobianProvider.h" />
+    <ClInclude Include="Ode\ComplexAsRealProblem.h" />
     <ClInclude Include="IO\StepObserver.h" />
     <ClInclude Include="IO\ProgressBarObserver.h" />
     <ClInclude Include="Ode\OdeProblem.h" />
@@ -108,7 +109,6 @@
     <ClInclude Include="Core\cuDoubleComplexOperators.cuh" />
     <ClInclude Include="IO\DataLogger.cuh" />
     <ClInclude Include="Optomechanics\DelayedIntensityIntegrator.cuh" />
-    <ClInclude Include="Optomechanics\DelayedIntensityTerm.cuh" />
     <ClInclude Include="Math\DerivativeCalculator.cuh" />
     <ClInclude Include="Math\Derivatives.cuh" />
     <ClInclude Include="Core\DevicePointers.cuh" />
@@ -125,7 +125,6 @@
     <ClInclude Include="Physics\HeliumBoundaryProblem.cuh" />
     <ClInclude Include="Optomechanics\HeliumRampedIntensityAutonomousProblem.cuh" />
     <ClInclude Include="Optomechanics\HeliumSineAutonomousProblem.cuh" />
-    <ClInclude Include="Optomechanics\HeliumWithDrivingBoundaryProblem.cuh" />
     <ClInclude Include="Ode\JacobianCalculator.cuh" />
     <CudaCompile Include="Optomechanics\LightIntensity.cuh" />
     <ClInclude Include="LinearAlgebra\LinearAlgebra.cuh" />
@@ -150,8 +149,6 @@
     <ClInclude Include="Physics\SimulationOptions.h" />
     <ClInclude Include="Export\DeviceParticleLoading.cuh" />
     <ClInclude Include="IO\StateFile.h" />
-    <ClInclude Include="BoundaryIntegral\Periodic2D\TimedBoundaryIntegrator.cuh" />
-    <ClInclude Include="BoundaryIntegral\Periodic2D\TimedBoundaryProblem.cuh" />
     <ClInclude Include="IO\TrajectoryLogger.cuh" />
     <ClInclude Include="IO\ValueLogger.h" />
     <ClInclude Include="Physics\WaterBoundaryProblem.cuh" />

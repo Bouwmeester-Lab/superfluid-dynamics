@@ -37,8 +37,6 @@ SIGNATURES = {
     "calculatePerturbedStates": ((_IN, _IN, _IN, _OUT_C, _SIM, c_double, c_size_t), c_int),
     "integrateSimulationGL2": ((_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _SIM, _GL, c_size_t), c_int),
     "integrateSimulationGL2_freeMemory": ((POINTER(c_double), POINTER(c_double)), c_int),
-    "integrateOptomechanicalSimulationRK4": ((_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _SIM, _RK4, _OPTO, c_size_t), c_int),
-    "integrateOptomechanicalSimulationRK4_freeMemory": ((POINTER(c_double), POINTER(c_double)), c_int),
     "integrateAugmentedOptomechanicalSimulationRK4": ((_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _DOUBLE_ARRAY_OUT, _COUNT_OUT, _SIM, _RK4, _OPTO, c_size_t), c_int),
     "integrateAugmentedOptomechanicalSimulationRK4_freeMemory": ((POINTER(c_double), POINTER(c_double)), c_int),
     "calculateRhsAugmentedOptomechanical": ((_OUT, _OUT, _SIM, _OPTO, c_size_t), c_int),

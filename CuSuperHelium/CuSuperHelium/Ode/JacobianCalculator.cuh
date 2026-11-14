@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #include "Ode/AutonomousProblem.h"
+#include "Ode/JacobianProvider.h"
 #include <memory>
 #include "Core/constants.cuh"
 #include "Core/CudaChecks.cuh"
@@ -160,7 +161,9 @@ static __global__ void createInitialState(const double* initialState, std_comple
 	complexState[tId + N] = std_complex(initialState[tId + 2 * N], 0.0); // phi + i 0
 }
 //
-class JacobianCalculator final
+/// Jacobian of the periodic helium boundary integral (3N real values): all 3N perturbed states are evaluated at once
+/// by a batched boundary-integral problem (batch 3N).
+class JacobianCalculator final : public JacobianProvider
 {
 private:
 	const size_t N; ///< Collocation points; the state has 3N real values
@@ -179,8 +182,8 @@ private:
 	cudaStream_t stream = cudaStreamPerThread; // default stream
 public:
 	void setEpsilon(double eps);
-	void setStream(cudaStream_t stream) { this->stream = stream; }
-	void calculateJacobian(const double* devState, double* devJacobian);
+	void setStream(cudaStream_t stream) override { this->stream = stream; }
+	void calculateJacobian(const double* devState, double* devJacobian) override;
 
 	JacobianCalculator(std::unique_ptr<AutonomousProblem<std_complex>> autonomousPtr, size_t n) : N(n), matrix_threads(256, 1, 1), matrix_blocks((2 * N + 255) / 256, 3 * N, 1), autonomousProblem(std::move(autonomousPtr))
 	{

@@ -15,7 +15,7 @@
 #include <vector>
 #include "Ode/RK45.cuh"
 
-__global__ void flip_x_y(cuDoubleComplex* data, cuDoubleComplex* out, int size) 
+__global__ void flip_x_y(const cuDoubleComplex* data, cuDoubleComplex* out, int size) 
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < size) 
@@ -32,17 +32,17 @@ class OscillatoryProblem : public AutonomousProblem<cuDoubleComplex>
 private:
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
-	cuDoubleComplex* devY0;
+	const cuDoubleComplex* devY0;
 	cudaStream_t stream = cudaStreamPerThread;
 public:
 	OscillatoryProblem() : AutonomousProblem<cuDoubleComplex>(N) {}
-	virtual void run(cuDoubleComplex* initialState, cuDoubleComplex* rhs) override
+	virtual void run(const cuDoubleComplex* initialState, cuDoubleComplex* rhs) override
 	{
 		this->devY0 = initialState; // store the initial state for later use
 		// Define the system of equations for the oscillatory problem
 		flip_x_y << <blocks, threads, 0, this->stream >> > (initialState, rhs, N); // implements: dx/dt=-y, dy/dt=x
 	}
-	virtual cuDoubleComplex* getY0() {
+	virtual const cuDoubleComplex* getY0() {
 		return this->devY0; // return the initial state
 	}
 	virtual void setStream(cudaStream_t stream) override {
@@ -56,17 +56,17 @@ class OscillatoryProblemStdComplex : public AutonomousProblem<std_complex>
 private:
 	const int threads = 256;
 	const int blocks = (N + threads - 1) / threads;
-	std_complex* devY0;
+	const std_complex* devY0;
 	cudaStream_t stream = cudaStreamPerThread;
 public:
 	OscillatoryProblemStdComplex() : AutonomousProblem<std_complex>(N) {}
-	virtual void run(std_complex* initialState, std_complex* rhs) override
+	virtual void run(const std_complex* initialState, std_complex* rhs) override
 	{
 		this->devY0 = initialState; // store the initial state for later use
 		// Define the system of equations for the oscillatory problem
-		flip_x_y << <blocks, threads, 0, this->stream >> > (reinterpret_cast<cuDoubleComplex*>(initialState), reinterpret_cast<cuDoubleComplex*>(rhs), N); // implements: dx/dt=-y, dy/dt=x
+		flip_x_y << <blocks, threads, 0, this->stream >> > (reinterpret_cast<const cuDoubleComplex*>(initialState), reinterpret_cast<cuDoubleComplex*>(rhs), N); // implements: dx/dt=-y, dy/dt=x
 	}
-	virtual std_complex* getY0() {
+	virtual const std_complex* getY0() {
 		return this->devY0; // return the initial state
 	}
 	virtual void setStream(cudaStream_t stream) override {
@@ -107,7 +107,7 @@ TEST(ODE_Solvers, RK4)
 	stepper.runEvolution(0.0, dt * steps);
 	// Copy the results back to the host
 	cuDoubleComplex* results = new cuDoubleComplex[N];
-	cudaMemcpy(results, devInitialState, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+	cudaMemcpy(results, stepper.state(), N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
 
 	// plot the results using matplotlibcpp
 	matplotlibcpp::figure_size(800, 600);
@@ -269,7 +269,7 @@ double rungeKutta4RotationError(double h)
 	EXPECT_EQ(stepper.runEvolution(0.0, 1.0), OdeSolverResult::ReachedEndTime);
 	EXPECT_DOUBLE_EQ(stepper.time(), 1.0);
 	CUSH_CHECK(cudaDeviceSynchronize());
-	CUSH_CHECK(cudaMemcpy(host.data(), state.get(), state.bytes(), cudaMemcpyDeviceToHost));
+	CUSH_CHECK(cudaMemcpy(host.data(), stepper.state(), state.bytes(), cudaMemcpyDeviceToHost));
 
 	double maxError = 0.0;
 	const std::complex<double> rotation = std::polar(1.0, 1.0);

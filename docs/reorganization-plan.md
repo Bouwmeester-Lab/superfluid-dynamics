@@ -465,6 +465,23 @@ An `acceptStep` hook would only formalise that coupling.
   - the delayed-intensity test passes with RK4, RK45 and Gauss-Legendre;
   - the goldens of the remaining cases are bit-identical to `main`, and the retired cases are listed in the PR.
 
+**Status: done** on branch `reorg/phase-8-pure-rhs`, in two commits.
+- **Commit 1, the refactor.** It leaves the 43 remaining golden arrays bit-identical to `main`.
+  - **Retired:** the timed drive (problem, `DelayedIntensityTerm`, kernel, `TimedBoundaryProblem`/`Integrator`, export, Python method), the `optomechanical_rk4_N32/N64` goldens, the `IntegrationPaths.NullFluidTimedAndAugmentedDrivingAgree` test, and two App functions (`drivingHelium`, `drivingHeliumWithCFunc`). `optomechanical_sim_timedependent.py` and `example.ipynb` use the augmented path.
+  - **Interfaces:**
+    - `rhs(y, t, dydt)` is pure, and `Evaluation` is gone.
+    - `AutonomousProblem::run` takes `const T*`.
+    - `initialize` copies the initial state in every solver; results come from `state()`.
+    - Gauss-Legendre takes a `JacobianProvider`; there are a generic `FiniteDifferenceJacobian` and a `ComplexAsRealProblem` adapter.
+- **Commit 2, a Gauss-Legendre fix found by the new test.** Through Gauss-Legendre, the delayed-intensity test converged at order 3 (error ratio 7 when halving the step) instead of order 4. Three bugs:
+  - **Stale stages:** `residualAndPhi` built the stage states from the member buffers `k1`/`k2`, not the trial values it was given. After the first line-search step, every Newton iteration therefore staged from the initial guess.
+  - **Partial merit function:** the line search summed only the first stage's residual (3N of 6N values).
+  - **Newton matrix:** `A12` and `A21` were swapped in the off-diagonal blocks.
+
+  After the fix the test is order 4 (ratio 16) and matches the exact solution to 1e-7; it is also about 5 times faster, because Newton converges. The `gauss_legendre_N32/N64` goldens moved by at most 3.8e-10 relative, within their 1e-9 tolerance, and were re-recorded. Their trajectory is 4 steps of h = 0.05, which hid the error.
+- **Not done:** the optional one-off race check of the old timed path. The race goes away with the path, and past timed-path results were not re-examined.
+- **Results:** Release and Debug each pass 38 gtests and 23 pytest tests.
+
 ## 5. Suggested order and size
 
 | Phase | Risk | Rough size | Blocks |

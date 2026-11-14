@@ -4,7 +4,6 @@
 // With the film frozen (Z and Phi do not move), the intensity I(Z) is fixed and D obeys dD/dt = (I - D) / tau,
 // whose solution is D(t) = I + (D0 - I) exp(-t / tau). The same problem is integrated with RK4, RK45 and
 // Gauss-Legendre (through ComplexAsRealProblem and FiniteDifferenceJacobian) and compared with that solution.
-// (The Gauss-Legendre case is added together with the Gauss-Legendre fixes it needs.)
 // N = 300 puts the per-node kernels on two blocks, where the retired timed drive raced on its saved time.
 
 #include <gtest/gtest.h>
@@ -168,4 +167,36 @@ TEST(DelayedIntensity, RK45MatchesExactRelaxation)
 	solver.initialize(f.devInitial.get(), true);
 	ASSERT_EQ(solver.runEvolution(0.0, T_END), OdeSolverResult::ReachedEndTime);
 	EXPECT_LT(f.relativeError(copyState(solver.state())), 1e-7);
+}
+
+namespace delayed_intensity_test
+{
+	/// Gauss-Legendre with the generic finite-difference Jacobian, on the real view of the complex state.
+	inline double gaussLegendreError(Fixture& f, FrozenFilmDelayedIntensity& problem, double h)
+	{
+		ComplexAsRealProblem realProblem(problem);
+		FiniteDifferenceJacobian jacobian(realProblem, 1e-6);
+		GaussLegendre2Options options;
+		options.stepSize = h;
+		GaussLegendre2 solver(realProblem, jacobian, options);
+		solver.setStream(cudaStreamPerThread);
+		solver.initialize(reinterpret_cast<const double*>(f.devInitial.get()), true);
+		EXPECT_EQ(solver.runEvolution(0.0, T_END), OdeSolverResult::ReachedEndTime);
+		return f.relativeError(copyState(solver.state()));
+	}
+}
+
+// Gauss-Legendre (2 stages) is order 4: halving the step divides the error by about 16. Before Phase 8 its Newton
+// iteration built the stages from the initial guess, which made it about order 3 (ratio 7).
+TEST(DelayedIntensity, GaussLegendreWithFiniteDifferenceJacobianIsFourthOrderAndExact)
+{
+	using namespace delayed_intensity_test;
+	Fixture f;
+	FrozenFilmDelayedIntensity problem(f.variables, f.properties, f.intensity);
+	f.measureIntensity(problem);
+
+	const double coarse = gaussLegendreError(f, problem, 0.2 * TAU);
+	const double fine = gaussLegendreError(f, problem, 0.1 * TAU);
+	EXPECT_LT(fine, 1e-7);
+	EXPECT_NEAR(coarse / fine, 16.0, 2.0);
 }

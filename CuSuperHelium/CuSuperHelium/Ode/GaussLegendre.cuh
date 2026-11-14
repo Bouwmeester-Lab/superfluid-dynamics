@@ -52,9 +52,9 @@ __global__ void fillMMatrix(const double* devJ1, const double* devJ2, const doub
 		// Top-left block
 		devM[row * (6 * N) + col] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A11 * devJ1[row * (3 * N) + col];
 		// Top-right block
-		devM[row * (6 * N) + (col + 3 * N)] = -stepSize * coeffs.A12 * devJ2[row * (3 * N) + col];
+		devM[row * (6 * N) + (col + 3 * N)] = -stepSize * coeffs.A21 * devJ2[row * (3 * N) + col]; // block (2,1)
 		// Bottom-left block
-		devM[(row + 3 * N) * (6 * N) + col] = -stepSize * coeffs.A21 * devJ1[row * (3 * N) + col];
+		devM[(row + 3 * N) * (6 * N) + col] = -stepSize * coeffs.A12 * devJ1[row * (3 * N) + col]; // block (1,2)
 		// Bottom-right block
 		devM[(row + 3 * N) * (6 * N) + (col + 3 * N)] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A22 * devJ2[row * (3 * N) + col];
 	}
@@ -190,7 +190,7 @@ private:
 	} stagingRes;
 
 	void gaussLegendreS2Step(double* devCurrentState, double* devDestination, const double stepSize, StepResult& result);
-	void stageStates(const double* devY, const double stepSize);
+	void stageStates(const double* devY, const double* k1, const double* k2, const double stepSize);
 	void residualAndPhi(const double* devY, const double* k1, const double* k2, const double stepSize, StagingResult& stagingResult);
 	void freeDeviceMemory();
 };
@@ -489,21 +489,21 @@ inline void GaussLegendre2::gaussLegendreS2Step(double* devCurrentState, double*
 }
 
 
-inline void GaussLegendre2::stageStates(const double* devY, const double stepSize)
+inline void GaussLegendre2::stageStates(const double* devY, const double* k1, const double* k2, const double stepSize)
 {
 	// y1 = devY + stepSize * ( A11 * k1 + A12 * k2 ) // devY, k1 k2 are two vectors of size 3N
 	// y2 = devY + stepSize * ( A21 * k1 + A22 * k2 )
 	// call the kernel
 	size_t threadsPerBlock = 256;
 	size_t blocks = (3 * N + threadsPerBlock - 1) / threadsPerBlock;
-	stageStatesKernel << <blocks, threadsPerBlock, 0, this->stream >> > (devY, stepSize, this->k1, this->k2, this->y1, this->y2, this->glCoeffs, N);
+	stageStatesKernel << <blocks, threadsPerBlock, 0, this->stream >> > (devY, stepSize, k1, k2, this->y1, this->y2, this->glCoeffs, N);
 	CUSH_CHECK_LAUNCH();
 }
 
 inline void GaussLegendre2::residualAndPhi(const double* devY, const double* k1, const double* k2, const double stepSize, StagingResult& stagingResult)
 {
 	// stage the states
-	this->stageStates(devY, stepSize);
+	this->stageStates(devY, k1, k2, stepSize);
 	// sync the stream
 	CUSH_CHECK(cudaStreamSynchronize(this->stream));
 	// compute f(y1) and f(y2)
@@ -515,7 +515,7 @@ inline void GaussLegendre2::residualAndPhi(const double* devY, const double* k1,
 	computeResidualsKernel << <(3 * N + 255) / 256, 256, 0, this->stream >> > (this->devfY1, this->devfY2, k1, k2, this->R1, this->R2, N);
 	CUSH_CHECK_LAUNCH();
 	// compute R dot R
-	CUSH_CHECK(cublasDdot(cublasHandle, 3*N, this->R, 1, this->R, 1, &stagingResult.phi));
+	CUSH_CHECK(cublasDdot(cublasHandle, 6 * N, this->R, 1, this->R, 1, &stagingResult.phi)); // both stages: R1 and R2 are contiguous
 	CUSH_CHECK(cublasDdot(cublasHandle, 6 * N, k1, 1, k1, 1, &stagingResult.normK)); // important that k1 and k2 are contiguous in memory!
 	
 	stagingResult.residualNorm = std::sqrt(stagingResult.phi);

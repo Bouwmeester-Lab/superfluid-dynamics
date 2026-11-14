@@ -26,7 +26,7 @@ public:
 	/// </summary>
 	/// <param name="initialState"></param>
 	/// <param name="rhs"></param>
-	virtual void run(std_complex* initialState, std_complex* rhs) override
+	virtual void run(const std_complex* initialState, std_complex* rhs) override
 	{
 		m_integrator->run(initialState, rhs);
 		m_delayedIntensityIntegrator->run(initialState, rhs);

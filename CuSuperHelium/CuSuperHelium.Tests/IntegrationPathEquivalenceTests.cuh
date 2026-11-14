@@ -9,138 +9,15 @@
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
 #include "Optomechanics/DelayedIntensityIntegrator.cuh"
 #include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
-#include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
 #include "Optomechanics/LightIntensity.cuh"
-#include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
 #include "IO/TrajectoryLogger.cuh"
 #include "Core/CudaChecks.cuh"
 #include "matplotlibcpp.h"
 #include "Optomechanics/AugmentedIntensityBoundaryIntegrator.cuh"
 #include "Optomechanics/HeliumRampedIntensityAutonomousProblem.cuh"
 
-TEST(IntegrationPaths, NullFluidTimedAndAugmentedDrivingAgree)
-{
-	constexpr int N = 32;
-	constexpr double dt = 1e-1;
-	constexpr double t0 = 0.0;
-	constexpr double t1 = 1'000* dt;
-	constexpr double tolerance = 1e-10;
-
-	DimensionlessParameters timedProperties;
-	timedProperties.scales.energy = 1.0;
-	timedProperties.scales.time = 1.0;
-	timedProperties.rho = 1.0;
-	timedProperties.depth = 1.0;
-
-	DimensionlessParameters augmentedProperties = timedProperties;
-
-	OptomechanicalVariables timedVariables;
-	timedVariables.detuning = 0.0;
-	timedVariables.gamma = 100;
-	timedVariables.G = 1.0;
-	timedVariables.Tau = 1.0;
-	timedVariables.max_intensity = 1000.0;
-	timedVariables.initial_time = t0;
-	timedVariables.location_x0_mode = PI_d / 2.0;
-	timedVariables.sigma_optical_mode = 0.2;
-	timedVariables.sigma_thermal_mode = 0.5;
-	timedVariables.Beta = 1.0e6;
-	timedVariables.DampingStrength = 0.0;
-
-	OptomechanicalVariables augmentedVariables = timedVariables;
-
-	std::vector<std_complex> timedInitialState(2 * N, std_complex(0.0, 0.0));
-	std::vector<std_complex> augmentedInitialState(3 * N, std_complex(0.0, 0.0));
-
-	double x;
-	for(size_t i = 0; i < N; ++i)
-	{
-		/// Set the initial state for everything to zero except for x:
-		x = 2.0 * PI_d / static_cast<double>(N) * i;
-		timedInitialState[i] = std_complex(x, 0.0);
-		augmentedInitialState[i] = std_complex(x, 0.0);
-	}
-
-	std_complex* devTimedState = nullptr;
-	std_complex* devAugmentedState = nullptr;
-	CUSH_CHECK(cudaMalloc(&devTimedState, timedInitialState.size() * sizeof(std_complex)));
-	CUSH_CHECK(cudaMalloc(&devAugmentedState, augmentedInitialState.size() * sizeof(std_complex)));
-	CUSH_CHECK(cudaMemcpy(devTimedState, timedInitialState.data(), timedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
-	CUSH_CHECK(cudaMemcpy(devAugmentedState, augmentedInitialState.data(), augmentedInitialState.size() * sizeof(std_complex), cudaMemcpyHostToDevice));
-
-	std::unique_ptr<LightIntensity> lightIntensityTimed = std::make_unique<LightIntensity>();
-
-	HeliumWithOptomechanicalDrivingProblem timedBoundaryProblem(timedProperties, timedVariables, std::move(lightIntensityTimed), N);
-	TimedBoundaryIntegrator timedIntegrator(timedProperties, timedBoundaryProblem);
-	RungeKutta4<std_complex> timedStepper(timedIntegrator, dt);
-	timedStepper.initialize(devTimedState, true);
-
-	std::shared_ptr<LightIntensity> lightIntensity = std::make_shared<LightIntensity>();
-	HeliumDrivenAutonomousProblem augmentedBoundaryProblem(augmentedProperties, augmentedVariables, lightIntensity, N);
-	std::unique_ptr<BaseBoundaryIntegralCalculator> augmentedBoundaryIntegralCalculator =
-		std::make_unique<BaseBoundaryIntegralCalculator>(augmentedProperties, augmentedBoundaryProblem);
-	AugmentedBoundaryIntegrator augmentedIntegrator(
-		std::move(augmentedBoundaryIntegralCalculator),
-		std::make_unique<DelayedIntensityIntegrator>(augmentedVariables, augmentedProperties, lightIntensity, N));
-	auto logger = std::make_shared<TrajectoryLogger<std_complex>>();
-
-	RungeKutta4<std_complex> augmentedStepper(augmentedIntegrator, dt);
-	augmentedStepper.addObserver(logger);
-	augmentedStepper.initialize(devAugmentedState, true);
-
-	auto resTimed = timedStepper.runEvolution(t0, t1);
-	auto resAugmented = augmentedStepper.runEvolution(t0, t1);
-
-	if (resTimed != OdeSolverResult::ReachedEndTime) 
-	{
-		std::cout << "Timed stepper did not reach end time." << std::endl;
-		FAIL() << "Timed stepper did not reach end time.";
-	}
-
-	if (resAugmented != OdeSolverResult::ReachedEndTime)
-	{
-		std::cout << "Augmented stepper did not reach end time." << std::endl;
-		FAIL() << "Augmented stepper did not reach end time.";
-	}
-
-	EXPECT_EQ(resTimed, OdeSolverResult::ReachedEndTime);
-	EXPECT_EQ(resAugmented, OdeSolverResult::ReachedEndTime);
-	CUSH_CHECK(cudaDeviceSynchronize());
-
-	std::vector<std_complex> timedFinalState(2 * N);
-	std::vector<std_complex> augmentedFinalState(3 * N);
-	CUSH_CHECK(cudaMemcpy(timedFinalState.data(), devTimedState, timedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
-	CUSH_CHECK(cudaMemcpy(augmentedFinalState.data(), devAugmentedState, augmentedFinalState.size() * sizeof(std_complex), cudaMemcpyDeviceToHost));
-
-	for (int i = 0; i < N; ++i)
-	{
-		EXPECT_NEAR(timedFinalState[i].real(), augmentedFinalState[i].real(), tolerance) << "Z real mismatch at index " << i;
-		EXPECT_NEAR(timedFinalState[i].imag(), augmentedFinalState[i].imag(), tolerance) << "Z imag mismatch at index " << i;
-		EXPECT_NEAR(timedFinalState[N + i].real(), augmentedFinalState[N + i].real(), tolerance) << "Phi real mismatch at index " << i;
-		EXPECT_NEAR(timedFinalState[N + i].imag(), augmentedFinalState[N + i].imag(), tolerance) << "Phi imag mismatch at index " << i;
-	}
-
-	std::vector<double> x_timed(N);
-	std::vector<double> y_timed(N);
-	std::vector<double> x_augmented(N);
-	std::vector<double> y_augmented(N);
-
-	for(int i = 0; i < N; ++i)
-	{
-		x_timed[i] = timedFinalState[i].real();
-		y_timed[i] = timedFinalState[i].imag();
-		x_augmented[i] = augmentedFinalState[i].real();
-		y_augmented[i] = augmentedFinalState[i].imag();
-	}
-
-	plt::figure();
-	plt::plot(x_timed, y_timed, {{"label", "Timed"}});
-	plt::plot(x_augmented, y_augmented, {{"label", "Augmented"}});
-	plt::legend();
-
-	CUSH_CHECK(cudaFree(devTimedState));
-	CUSH_CHECK(cudaFree(devAugmentedState));
-}
+// NullFluidTimedAndAugmentedDrivingAgree compared the timed optomechanical drive with the augmented one; the timed
+// drive was retired in Phase 8 (its delayed intensity is now part of the state). See DelayedIntensityTests.cuh.
 
 TEST(IntegrationPaths, RampedIntensityAugmentedTest) 
 {

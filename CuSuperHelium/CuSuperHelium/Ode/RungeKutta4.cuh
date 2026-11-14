@@ -43,8 +43,8 @@ public:
 		setTimeStep(options.initial_timestep);
 	}
 
-	/// With onDevice = true the solver evolves the given device buffer in place.
-	void initialize(T* devY0, bool onDevice = false) override;
+	/// Copies the initial state (device or host memory) into the solver's own buffer.
+	void initialize(const T* y0, bool onDevice = false) override;
 	OdeSolverResult runEvolution(double startTime, double endTime) override;
 	void runStep();
 
@@ -60,7 +60,7 @@ private:
 
 	DeviceBuffer<T> k1, k2, k3, k4;
 	DeviceBuffer<T> devY1, devY2, devY3;
-	DeviceBuffer<T> ownedY0; ///< Holds the state when initialize() copies it from the host
+	DeviceBuffer<T> ownedY0; ///< The evolving state; initialize() copies into it
 	T* devY0 = nullptr;
 
 	cublasHandle_t handle = nullptr;
@@ -93,21 +93,14 @@ RungeKutta4<T>::~RungeKutta4()
 }
 
 template <typename T>
-void RungeKutta4<T>::initialize(T* y0, bool onDevice)
+void RungeKutta4<T>::initialize(const T* y0, bool onDevice)
 {
-	if (onDevice)
+	if (ownedY0.size() != n)
 	{
-		devY0 = y0;
+		ownedY0 = DeviceBuffer<T>(n);
 	}
-	else
-	{
-		if (ownedY0.size() != n)
-		{
-			ownedY0 = DeviceBuffer<T>(n);
-		}
-		devY0 = ownedY0.get();
-		CUSH_CHECK(cudaMemcpy(devY0, y0, n * sizeof(T), cudaMemcpyHostToDevice));
-	}
+	devY0 = ownedY0.get();
+	CUSH_CHECK(cudaMemcpy(devY0, y0, n * sizeof(T), onDevice ? cudaMemcpyDeviceToDevice : cudaMemcpyHostToDevice));
 	resetStages();
 }
 
@@ -125,16 +118,16 @@ void RungeKutta4<T>::runStep()
 	const double t = currentTime;
 	const int count = static_cast<int>(n);
 
-	problem.rhs(devY0, t, k1.get(), Evaluation::AcceptedPoint);
+	problem.rhs(devY0, t, k1.get());
 	CUSH_CHECK(cush::blas::axpy(handle, count, &halfTimeStep, k1.get(), devY1.get()));
 
-	problem.rhs(devY1.get(), t + CastFrom<T>(halfTimeStep), k2.get(), Evaluation::Stage);
+	problem.rhs(devY1.get(), t + CastFrom<T>(halfTimeStep), k2.get());
 	CUSH_CHECK(cush::blas::axpy(handle, count, &halfTimeStep, k2.get(), devY2.get()));
 
-	problem.rhs(devY2.get(), t + CastFrom<T>(halfTimeStep), k3.get(), Evaluation::Stage);
+	problem.rhs(devY2.get(), t + CastFrom<T>(halfTimeStep), k3.get());
 	CUSH_CHECK(cush::blas::axpy(handle, count, &timeStep, k3.get(), devY3.get()));
 
-	problem.rhs(devY3.get(), t + CastFrom<T>(timeStep), k4.get(), Evaluation::Stage);
+	problem.rhs(devY3.get(), t + CastFrom<T>(timeStep), k4.get());
 
 	add_k_vectors << <blocks, threads >> > (k1.get(), k2.get(), k3.get(), k4.get(), k1.get(), count);
 	CUSH_CHECK_LAUNCH();

@@ -128,7 +128,7 @@ public:
 		this->stream = stream;
 		this->problem.setStream(stream);
 	}
-	void initialize(T* initialState, bool onDevice = false) override;
+	void initialize(const T* initialState, bool onDevice = false) override;
 	const T* state() const override {
 		return this->workspace.yAcceptedStep;
 	}
@@ -251,23 +251,23 @@ RK45StepResult RK45Base<T>::runStep(int i)
 	const double h = currentTimeStep;
 	// calculate k1
 	if (tempValues.acceptedStep) { // only recalculate k1 if the previous step was accepted, otherwise reuse the previous k1
-		problem.rhs(workspace.yAcceptedStep, currentTime, workspace.k1, Evaluation::AcceptedPoint);
+		problem.rhs(workspace.yAcceptedStep, currentTime, workspace.k1);
 	}
 
 	calculateTempY(1, h); // calculate y + a21*k1
-	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c2 * h, workspace.k2, Evaluation::Stage);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c2 * h, workspace.k2);
 
 	calculateTempY(2, h); // calculate y + a31*k1 + a32*k2
-	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c3 * h, workspace.k3, Evaluation::Stage);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c3 * h, workspace.k3);
 
 	calculateTempY(3, h); // calculate y + a41*k1 + a42*k2 + a43*k3
-	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c4 * h, workspace.k4, Evaluation::Stage);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c4 * h, workspace.k4);
 
 	calculateTempY(4, h); // calculate y + a51*k1 + a52*k2 + a53*k3 + a54*k4
-	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c5 * h, workspace.k5, Evaluation::Stage);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c5 * h, workspace.k5);
 
 	calculateTempY(5, h); // calculate y + a61*k1 + a62*k2 + a63*k3 + a64*k4 + a65*k5
-	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c6 * h, workspace.k6, Evaluation::Stage);
+	problem.rhs(workspace.yTemp, currentTime + RK45Coefficients::c6 * h, workspace.k6);
 
 	
 	calculateScaledError(atol, rtol, h);
@@ -317,7 +317,7 @@ inline double RK45Base<T>::calculateNewTimestep(double oldTimestep, double error
 }
 
 template <typename T>
-void RK45Base<T>::initialize(T* initialState, bool onDevice)
+void RK45Base<T>::initialize(const T* initialState, bool onDevice)
 {
 	if (onDevice) {
 		CUSH_CHECK(cudaMemcpyAsync(workspace.yAcceptedStep, initialState, sizeof(T) * N, cudaMemcpyDeviceToDevice, this->stream));

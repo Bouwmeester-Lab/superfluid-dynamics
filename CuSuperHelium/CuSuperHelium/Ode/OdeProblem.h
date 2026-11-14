@@ -6,18 +6,11 @@
 #include "cuda_runtime.h"
 
 /// <summary>
-/// Tells a problem whether rhs() is evaluated at a state the solver has accepted (the start of a step)
-/// or at a trial stage inside a step. Most problems ignore it. The optomechanical drive uses it to update
-/// its delayed-intensity history only at accepted states. Phase 8 replaces it with an acceptStep hook.
-/// </summary>
-enum class Evaluation
-{
-	AcceptedPoint,
-	Stage
-};
-
-/// <summary>
 /// The one interface every time integrator (OdeSolver) uses: dy/dt = f(y, t).
+///
+/// rhs() is a pure function of (y, t): it must not keep state between calls. Solvers evaluate it at trial stages,
+/// reject steps and iterate (Newton), so a problem that remembered anything from one call to the next would depend on
+/// the scheme. Anything that evolves in time belongs in the state y (the delayed intensity, for example).
 /// </summary>
 template <typename T>
 class OdeProblem
@@ -30,7 +23,7 @@ public:
 
 	/// Writes f(y, t) into dydt. Both are device pointers of size() elements and never overlap.
 	/// Work is queued on the problem's stream; the call does not synchronize.
-	virtual void rhs(const T* y, double t, T* dydt, Evaluation kind) = 0;
+	virtual void rhs(const T* y, double t, T* dydt) = 0;
 
 	/// Called once by the solver before the first step of runEvolution.
 	virtual void start(double t0) {}

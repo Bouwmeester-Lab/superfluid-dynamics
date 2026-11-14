@@ -7,7 +7,7 @@
 
 /// <summary>
 /// An OdeProblem whose right-hand side does not depend on time. The state size is set at construction.
-/// Subclasses implement run(y, dydt); rhs() forwards to it and ignores t and the evaluation kind.
+/// Subclasses implement run(y, dydt); rhs() forwards to it and ignores t.
 /// </summary>
 template <typename T>
 class AutonomousProblem : public OdeProblem<T>
@@ -18,14 +18,12 @@ public:
 
 	size_t size() const override { return stateSize; }
 
-	void rhs(const T* y, double, T* dydt, Evaluation) override
+	void rhs(const T* y, double, T* dydt) override
 	{
-		// run() predates const-correct states and takes a non-const pointer; implementations must not
-		// write to it. Making run() take const T* is part of the Phase 8 audit.
-		run(const_cast<T*>(y), dydt);
+		run(y, dydt);
 	}
 
-	virtual void run(T* initialState, T* rhs) = 0;
+	virtual void run(const T* initialState, T* rhs) = 0;
 
 private:
 	size_t stateSize;

@@ -147,13 +147,6 @@ class SimulationManager:
         return self._trajectory(self.lib.integrateSimulationGL2, self.lib.integrateSimulationGL2_freeMemory,
                                 y0, byref(sim_props), byref(gl_props), y0.shape[0] // 3)
 
-    def integrate_optomechanical_problem(self, y0: NDArray, sim_props: CSimulationProperties,
-                                         opt_props: COptomechanicalProperties, rk4_props: CRK4Options):
-        """RK4 integration with the time-dependent optomechanical drive. Returns (status, times, states)."""
-        return self._trajectory(self.lib.integrateOptomechanicalSimulationRK4,
-                                self.lib.integrateOptomechanicalSimulationRK4_freeMemory,
-                                y0, byref(sim_props), byref(rk4_props), byref(opt_props), y0.shape[0] // 3)
-
     def integrate_augmented_optomechanical_problem(self, y0: NDArray, sim_props: CSimulationProperties,
                                                    opt_props: COptomechanicalProperties, rk4_props: CRK4Options):
         """RK4 integration of the augmented state (x, y, phi, delayed intensity[, drive variable]).

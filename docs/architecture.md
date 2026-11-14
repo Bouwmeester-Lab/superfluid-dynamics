@@ -78,14 +78,17 @@ No include edge breaks the rules above. There were 23 violations after the Phase
 Every integrator implements `OdeSolver<T>` and integrates an `OdeProblem<T>` (dy/dt = f(y, t)), so a problem can be run with any solver that supports its state type:
 
 ```cpp
-BaseBoundaryIntegralCalculator<N, 1> problem(properties, heliumProblem);   // an OdeProblem<std_complex>
+HeliumBoundaryProblem heliumProblem(properties, N);
+BaseBoundaryIntegralCalculator problem(properties, heliumProblem);          // an OdeProblem<std_complex>
 RungeKutta4<std_complex> solver(problem, dt);
 auto trajectory = std::make_shared<TrajectoryLogger<std_complex>>();
 solver.addObserver(trajectory);                                             // what is recorded is the caller's choice
-solver.initialize(devState, true);
-solver.runEvolution(t0, t1);
+solver.initialize(devState, true);                                          // copied: devState is not modified
+solver.runEvolution(t0, t1);                                                // the result is solver.state()
 ```
 
-- `rhs(y, t, dydt, Evaluation)` receives the time, so time-dependent problems (`TimedBoundaryIntegrator`) and autonomous ones use the same solvers. `Evaluation` tells the problem whether `y` is an accepted state. The optomechanical drive uses that to update its delayed-intensity history. Phase 8 replaces it with an `acceptStep` hook that also works for adaptive schemes.
-- Options stay specific to each scheme (`RK4Options`, `RK45_Options`, `GaussLegendre2Options`). Gauss-Legendre also needs a `JacobianCalculator`.
+- `rhs(y, t, dydt)` is a pure function of the state and the time. Solvers evaluate it at trial stages, reject steps and iterate (Newton), so a problem must not keep anything from one call to the next. Whatever evolves belongs in the state: the optomechanical delayed intensity D is part of the augmented state, with `dD/dt = (I - D) / tau`.
+- Options stay specific to each scheme (`RK4Options`, `RK45_Options`, `GaussLegendre2Options`).
+- Gauss-Legendre is implicit and needs a `JacobianProvider`. `FiniteDifferenceJacobian` works for any `OdeProblem<double>`, and `JacobianCalculator` is the fast batched Jacobian of the periodic boundary integral. `ComplexAsRealProblem` presents a `std_complex` problem as a `double` one.
 - Output goes through `StepObserver<T>`: `TrajectoryLogger` and `ProgressBarObserver` are the observers provided.
+- `CuSuperHelium.Tests/DelayedIntensityTests.cuh` runs one problem through RK4, RK45 and Gauss-Legendre against an exact solution. It is the check that a problem written against `OdeProblem` works with every solver.

@@ -35,7 +35,7 @@ public:
 		return devZpp;
 	} ///< Getter for the device pointer to the Zpp array
 
-	virtual void run(std_complex* initialState, std_complex* rhs) override;
+	virtual void run(const std_complex* initialState, std_complex* rhs) override;
 	virtual void calculateRhsPhi(const ProblemPointers& problemPointers, const std_complex* initialState, std_complex* rhs);
 
 
@@ -206,7 +206,7 @@ inline void BaseBoundaryIntegralCalculator::calculateVorticities(const std_compl
 }
 
 
-inline void BaseBoundaryIntegralCalculator::run(std_complex* initialState, std_complex* rhs)
+inline void BaseBoundaryIntegralCalculator::run(const std_complex* initialState, std_complex* rhs)
 {
 
 	this->runTimeStep(initialState, rhs); // Run the time step calculation

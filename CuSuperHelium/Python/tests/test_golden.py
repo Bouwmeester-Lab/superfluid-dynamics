@@ -144,16 +144,6 @@ def case_gauss_legendre(n: int) -> Callable[..., Outputs]:
     return run
 
 
-def case_optomechanical_rk4(n: int) -> Callable[..., Outputs]:
-    def run(sim, rhs) -> Outputs:
-        x, y, phi = periodic_state(n)
-        res, t, states = sim.integrate_optomechanical_problem(
-            np.concatenate((x, y, phi)), sim_props(rhs), optomechanical_props(rhs, rhs.DriveType.Constant), rk4_options(rhs))
-        assert res == 0
-        return {"t": t, "states": states}
-    return run
-
-
 def augmented_state(n: int, ramped: bool) -> np.ndarray:
     x, y, phi = periodic_state(n)
     delayed = 0.01 * np.exp(-((x - np.pi) ** 2) / 0.5)
@@ -217,8 +207,6 @@ CASES = [
     Case("jacobian_N64", case_jacobian(64)),
     Case("gauss_legendre_N32", case_gauss_legendre(32), rtol=1e-9),
     Case("gauss_legendre_N64", case_gauss_legendre(64), rtol=1e-9),
-    Case("optomechanical_rk4_N32", case_optomechanical_rk4(32), rtol=1e-9),
-    Case("optomechanical_rk4_N64", case_optomechanical_rk4(64), rtol=1e-9),
     Case("augmented_rk4_N32", case_augmented_rk4(32, ramped=False), rtol=1e-9),
     Case("augmented_rk4_ramped_N64", case_augmented_rk4(64, ramped=True), rtol=1e-9),
     Case("augmented_rhs_N64", case_augmented_rhs(64)),

@@ -12,6 +12,7 @@
 #include "ODESolverTests.cuh"
 #include "ComplexFunctionsTests.cuh"
 #include "IntegrationPathEquivalenceTests.cuh"
+#include "DelayedIntensityTests.cuh"
 #include "ExportFunctionTests.cuh"
 #include "RadialBoundaryNodesTests.cuh"
 #include "DeviceBufferTests.cuh"

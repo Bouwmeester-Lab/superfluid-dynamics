@@ -21,7 +21,7 @@ public:
 	virtual ~GeneralAugmentedBoundaryIntegrator()
 	{}
 
-	virtual void run(std_complex* initialState, std_complex* rhs) override
+	virtual void run(const std_complex* initialState, std_complex* rhs) override
 	{
 		m_integrator_base->run(initialState, rhs);
 		m_integrator_augmented->run(initialState, rhs);

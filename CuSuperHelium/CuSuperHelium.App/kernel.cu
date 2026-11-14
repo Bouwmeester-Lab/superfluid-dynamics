@@ -25,10 +25,8 @@
 #include "BoundaryIntegral/Periodic2D/WaterVelocities.cuh"
 #include "Ode/AutonomousProblem.h"
 #include "BoundaryIntegral/Periodic2D/Energies.cuh"
-#include "Optomechanics/DelayedIntensityTerm.cuh"
 #include "BoundaryIntegral/Periodic2D/BoundaryProblem.cuh"
 #include "BoundaryIntegral/Periodic2D/BaseBoundaryIntegrator.cuh"
-#include "BoundaryIntegral/Periodic2D/TimedBoundaryIntegrator.cuh"
 #include "Ode/RungeKutta4.cuh"
 #include "IO/ProgressBarObserver.h"
 #include "IO/TrajectoryLogger.cuh"
@@ -41,7 +39,6 @@
 #include "matplotlibcpp.h"
 #include "SimulationRunner.cuh"
 #include "SimulationFunctions.cuh"
-#include "Optomechanics/HeliumWithDrivingBoundaryProblem.cuh"
 #include "Optomechanics/HeliumDrivenAutonomousProblem.cuh"
 #include "Export/ExportApi.cuh"
 #include "Optomechanics/AugmentedBoundaryIntegrator.cuh"
@@ -164,257 +161,8 @@ int augmentedSystem() {
 	return 0;
 }
 
-int drivingHeliumWithCFunc() {
-
-	const int N = 1024;
-
-	std::array<double, 3 * N> initialState; // x, y, phi for each point
-
-    for(size_t i = 0; i < N; i++)
-    {
-        initialState[i] = 2.0 * PI_d * i / N; // x
-        initialState[N + i] = 0.0*sin(initialState[i]); // y
-        initialState[2 * N + i] = 0.0; // phi
-	}
-
-    double* hostStates;
-	size_t countStatesHost;
-
-	double* hostTimes;
-	size_t countHost;
-
-	SimProperties simProperties;
-
-    simProperties.L = 1e-3;
-    simProperties.rho = 150;
-    simProperties.kappa = 0;
-    simProperties.depth = 15e-9;
-	simProperties.use_expansions = false;
-	simProperties.infinite_depth = false;
-
-	COptomechanicalVariables optoVariables;
-
-	double L0 = simProperties.L / (2.0 * PI_d);
-
-    optoVariables.detuning = 0.8;
-    optoVariables.max_intensity = 0.5;
-    optoVariables.G = 0.0;
-    optoVariables.tau = 0.2;
-    optoVariables.location_x0_mode = 1.0 * PI_d;
-    optoVariables.sigma_optical_mode = 20e-6 / L0 ;
-    optoVariables.gamma = 1.0;
-	optoVariables.beta = 0.0001;
-    optoVariables.damping_strength = 0.0;
-
-    RK4SolverOptions rk4_options;
-
-	rk4_options.timeStep = 0.01;
-	rk4_options.returnTrajectory = true;
-    rk4_options.t0 = 0.0;
-	rk4_options.t1 = 50000;
-
-    integrateOptomechanicalSimulationRK4(initialState.data(), &hostStates, &countStatesHost, &hostTimes, &countHost, &simProperties, &rk4_options, &optoVariables, N);
-
-    std::vector<double> Phi(N);
-
-    std::vector<double> X0(N, 0);
-    std::vector<double> Y0(N, 0);
-
-    for (int i = 0; i < countStatesHost; i++)
-    {
-        for (int j = 0; j < N; j++) {
-            X0[j] = hostStates[i * 3 * N + j];
-            Y0[j] = hostStates[i * 3 * N + j + N];
-        }
-        plt::plot(X0, Y0);
-    }
-
-    //int countStatesHost = *statesCount;
-
-    /*for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
-        for (int j = 0; j < N; j++) {
-            X0[j] = hostStates[i * 3 * N + j];
-            Y0[j] = hostStates[i * 3 * N + j + N];
-        }
-        plt::plot(X0, Y0);
-    }*/
-
-    //for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
-    //    for (int j = 0; j < N; j++) {
-    //        X0[j] = hostStates[i * 2 * N + j].real();
-    //        Y0[j] = hostStates[i * 2 * N + j].imag();
-    //    }
-    //    plt::plot(X0, Y0);
-    //}
-    ///*for (int i = 0; i < N; i++)
-    //{
-    //    X0[i] = hostStates[i].real();
-    //    Y0[i] = hostStates[i].imag();
-    //}*/
-
-    ////plt::plot(X0, Y0);
-
-
-    plt::show();
-
-    delete hostTimes;
-    delete hostStates;
-
-    return 0;
-}
-
-int drivingHelium() 
-{
-    const int N = 256;
-
-    DimensionlessParameters properties;
-    properties.depth = 9.4247780e-2;
-    properties.rho = 1;
-    properties.use_expansions = false;
-    properties.infinite_depth = false;
-    
-
-	RK4Options rk4_options;
-
-	rk4_options.initial_timestep = 0.01;
-    rk4_options.returnTrajectory = true;
-
-	OptomechanicalVariables optoVariables;
-    optoVariables.detuning = 0.1;
-    optoVariables.max_intensity = 0.1;
-    optoVariables.G = 0.01;
-    optoVariables.Tau = 0.2;
-    optoVariables.Beta = 1.0;
-    optoVariables.location_x0_mode = 1.0 * PI_d;
-    optoVariables.sigma_optical_mode = 0.8;
-    optoVariables.gamma = 0.01;
-    optoVariables.DampingStrength = 0.01;
-
-    HeliumWithOptomechanicalDrivingProblem heliumProblem(properties, optoVariables, std::make_unique<LightIntensity>(), N);
-    TimedBoundaryIntegrator integrator(properties, heliumProblem);
-
-    /*DataLogger<std_complex, 2 * N> stateLogger;
-
-    const int loggingSteps = 100;
-    stateLogger.setSize(500 / loggingSteps + 1);
-    stateLogger.setStep(loggingSteps);*/
-
-    RungeKutta4<std_complex> stepper(integrator);
-    auto trajectory = std::make_shared<TrajectoryLogger<std_complex>>();
-    stepper.addObserver(trajectory);
-
-    stepper.setOptions(rk4_options);
-
-
-    // initial state to 0.0
-
-
-  
-
-    std::vector<std::complex<double>> Z0(N);
-    std::vector<double> Phi(N);
-
-    std::vector<double> X0(N, 0);
-    std::vector<double> Y0(N, 0);
-
-    for(int i = 0; i < N; i++)
-    {
-		X0[i] = (2.0 * CUDART_PI * i) / N;
-		Y0[i] = 0.0*sin(X0[i]);
-
-		Z0[i] = std::complex<double>(X0[i], Y0[i]);
-        Phi[i] = 0;
-	}
-
-    plt::figure();
-    plt::title("Initial Condition");
-    plt::xlabel("x (0-2pi)");
-    plt::ylabel("y (a.u.)");
-    plt::plot(X0, Y0);
-    //plt::show();
-
-    ParticleData particleData(Z0, Phi);
-    DeviceParticleData deviceParticleData;
-
-	loadDataToDevice(particleData, deviceParticleData, N);
-    cudaStreamSynchronize(cudaStreamPerThread);
-
-	// copy back to host to verify that we have copied the correct data
-
-	std::vector<std::complex<double>> Z0_host(2*N);
-
-	cudaMemcpy(Z0_host.data(), deviceParticleData.devZ(), 2 * N * sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
-
-    //plt::figure();
-	//plt::annotate("Host Copy", 0, 0);
-    for (int i = 0; i < N; i++)
-    {
-        X0[i] = Z0_host[i].real();
-		Y0[i] = Z0_host[i].imag();
-    }
-
-    for (int i = N; i < 2 * N; i++)
-    {
-        Phi[i - N] = Z0_host[i].real();
-    }
-
-    plt::figure();
-	plt::plot(X0, Y0);
-
-    plt::figure();
-	plt::plot(X0, Phi);
-
-    //plt::show();
-
-	stepper.initialize(deviceParticleData.devZ(), true);
-
-	stepper.runEvolution(0, 5);
-
-    double* hostTimes;
-	size_t countHost;
-
-	std_complex* hostStates;
-	size_t countStatesHost;
-	cudaStreamSynchronize(cudaStreamPerThread);
-    trajectory->copyTimesToHost(&hostTimes, &countHost);
-    trajectory->copyStatesToHost(&hostStates, &countStatesHost);
-
-    plt::figure();
-    
-    
-
-    for (int i = 0; i < countStatesHost; i++) 
-    {
-        for (int j = 0; j < N; j++) {
-            X0[j] = hostStates[i * 2 * N + j].real();
-            Y0[j] = hostStates[i * 2 * N + j].imag();
-        }
-		plt::plot(X0, Y0);
-    }
-
-    /*for (int i = countStatesHost / 2; i < countStatesHost / 2 + 5; i++) {
-        for (int j = 0; j < N; j++) {
-            X0[j] = hostStates[i * 2 * N + j].real();
-            Y0[j] = hostStates[i * 2 * N + j].imag();
-		}
-		plt::plot(X0, Y0);
-    }*/
-    /*for (int i = 0; i < N; i++)
-    {
-		X0[i] = hostStates[i].real();
-		Y0[i] = hostStates[i].imag();
-    }*/
-
-	//plt::plot(X0, Y0);
-    
-
-	plt::show();
-
-	delete hostTimes;
-	delete hostStates;
-
-	return 1;
-}
+// drivingHeliumWithCFunc() and drivingHelium() ran the timed optomechanical drive, retired in Phase 8;
+// augmentedSystem() runs the same physics with the delayed intensity as part of the state.
 
 int modeSum() {
     DimensionlessParameters problemProperties;
@@ -528,7 +276,5 @@ int main()
     //}
     //modeSum();
     augmentedSystem();
-    //drivingHeliumWithCFunc();
-	drivingHelium();
     return 0;
 }

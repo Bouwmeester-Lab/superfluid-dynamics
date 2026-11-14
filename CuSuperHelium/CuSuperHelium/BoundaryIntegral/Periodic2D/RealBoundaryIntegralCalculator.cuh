@@ -55,7 +55,7 @@ class RealBoundaryIntegralCalculator final : public AutonomousProblem<double>
 	const size_t numBlocks = (N + blockSize - 1) / blockSize;
 
 public:
-	virtual void run(double* initialState, double* rhs) override;
+	virtual void run(const double* initialState, double* rhs) override;
 	virtual void setStream(cudaStream_t stream) override;
 
 	/// The calculator must solve a single interface (batch size 1); its size gives N.
@@ -63,7 +63,7 @@ public:
 	~RealBoundaryIntegralCalculator();
 };
 
-inline void RealBoundaryIntegralCalculator::run(double* initialState, double* rhs)
+inline void RealBoundaryIntegralCalculator::run(const double* initialState, double* rhs)
 {
 	// convert real state to complex state
 	

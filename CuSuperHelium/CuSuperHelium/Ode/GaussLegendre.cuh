@@ -44,18 +44,22 @@ __global__ void createKTrial(const double* k1, const double* k2, const double al
 }
 
 __global__ void fillMMatrix(const double* devJ1, const double* devJ2, const double stepSize, const GL_Coefficients coeffs, double* devM, const size_t N) {
-	// M = [ I - h * A11 * J1,   - h * A12 * J2
-	//       - h * A21 * J1,     I - h * A22 * J2 ]
+	// Newton matrix of the Gauss-Legendre stage equations G_i(k) = k_i - f(y + h sum_j A_ij k_j), i = 1, 2:
+	//   M = [ I - h A11 J1,    -h A12 J1   ]      J_i = df/dy at stage state Y_i
+	//       [  -h A21 J2,    I - h A22 J2  ]      (row block i uses J_i; column block j carries A_ij)
+	// M is 6N x 6N, J1 and J2 are 3N x 3N, all column-major (cuSOLVER). Index row * ld + col therefore addresses
+	// element (col, row), on both the read of J and the write of M: the two transposes cancel inside each block,
+	// but the off-diagonal blocks trade places, so the write at memory offset (row, col + 3N) is matrix block (2,1).
 	size_t row = blockIdx.y * blockDim.y + threadIdx.y;
 	size_t col = blockIdx.x * blockDim.x + threadIdx.x;
 	if (row < 3 * N && col < 3 * N) {
-		// Top-left block
+		// block (1,1): I - h A11 J1
 		devM[row * (6 * N) + col] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A11 * devJ1[row * (3 * N) + col];
-		// Top-right block
-		devM[row * (6 * N) + (col + 3 * N)] = -stepSize * coeffs.A21 * devJ2[row * (3 * N) + col]; // block (2,1)
-		// Bottom-left block
-		devM[(row + 3 * N) * (6 * N) + col] = -stepSize * coeffs.A12 * devJ1[row * (3 * N) + col]; // block (1,2)
-		// Bottom-right block
+		// block (2,1): -h A21 J2
+		devM[row * (6 * N) + (col + 3 * N)] = -stepSize * coeffs.A21 * devJ2[row * (3 * N) + col];
+		// block (1,2): -h A12 J1
+		devM[(row + 3 * N) * (6 * N) + col] = -stepSize * coeffs.A12 * devJ1[row * (3 * N) + col];
+		// block (2,2): I - h A22 J2
 		devM[(row + 3 * N) * (6 * N) + (col + 3 * N)] = (row == col ? 1.0 : 0.0) - stepSize * coeffs.A22 * devJ2[row * (3 * N) + col];
 	}
 }
